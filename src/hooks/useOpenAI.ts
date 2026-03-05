@@ -28,7 +28,7 @@ export function useOpenAI(): UseOpenAIResult {
     try {
       const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
 
-      const STYLE_SUFFIX = ' Painterly illustration with natural, realistic colors. Distinct color areas with visible boundaries. Avoid fine linework, hatching, and busy texture. Avoid flat cartoon shading.'
+      const STYLE_SUFFIX = ' Photorealistic, sharp focus, natural colors. Crisp edges and clear boundaries between distinct color areas. No painterly brushwork, no soft blending or gradients, no watercolor or impressionist texture.'
       const response = await client.images.generate({
         model: 'gpt-image-1',
         prompt: prompt + STYLE_SUFFIX,
