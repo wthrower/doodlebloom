@@ -4,13 +4,18 @@ import type { GameActions, GameState } from '../App'
 interface Props {
   state: GameState
   actions: GameActions
+  isGenerating: boolean
+  previewUrl: string | null
   onGenerate: () => void
+  onCancel: () => void
+  onPaint: () => void
 }
 
-export function SetupScreen({ state, actions, onGenerate }: Props) {
+export function SetupScreen({ state, actions, isGenerating, previewUrl, onGenerate, onCancel, onPaint }: Props) {
   const [showKey, setShowKey] = useState(false)
+  const [showKeyInput, setShowKeyInput] = useState(false)
 
-  const canGenerate = state.prompt.trim().length > 0 && actions.apiKey.trim().length > 0
+  const canGenerate = !isGenerating && state.prompt.trim().length > 0 && actions.apiKey.trim().length > 0
 
   return (
     <div className="screen setup-screen">
@@ -25,6 +30,7 @@ export function SetupScreen({ state, actions, onGenerate }: Props) {
           placeholder="A fox sitting on a mushroom in an enchanted forest..."
           value={state.prompt}
           onChange={e => actions.setPrompt(e.target.value)}
+          disabled={isGenerating}
         />
       </div>
 
@@ -36,37 +42,47 @@ export function SetupScreen({ state, actions, onGenerate }: Props) {
           id="colorCount"
           type="range"
           min={4}
-          max={16}
+          max={32}
           value={state.colorCount}
           onChange={e => actions.setColorCount(Number(e.target.value))}
+          disabled={isGenerating}
         />
         <div className="range-labels">
           <span>4 (simpler)</span>
-          <span>16 (complex)</span>
+          <span>32 (complex)</span>
         </div>
       </div>
 
       <div className="form-group">
-        <label htmlFor="apiKey">OpenAI API Key</label>
-        <div className="input-row">
-          <input
-            id="apiKey"
-            type={showKey ? 'text' : 'password'}
-            placeholder="sk-..."
-            value={actions.apiKey}
-            onChange={e => actions.setApiKey(e.target.value)}
-            autoComplete="off"
-          />
-          <button
-            className="btn-icon"
-            type="button"
-            onClick={() => setShowKey(v => !v)}
-            aria-label={showKey ? 'Hide key' : 'Show key'}
-          >
-            {showKey ? '🙈' : '👁'}
-          </button>
-        </div>
-        <p className="hint">Stored locally in your browser. Never sent anywhere except OpenAI.</p>
+        <button
+          className="btn btn-ghost btn-small api-key-toggle"
+          type="button"
+          onClick={() => setShowKeyInput(v => !v)}
+          disabled={isGenerating}
+        >
+          OpenAI API Key{actions.apiKey ? ' ✓' : ''}
+        </button>
+        {showKeyInput && (
+          <div className="input-row" style={{ marginTop: '0.4rem' }}>
+            <input
+              id="apiKey"
+              type={showKey ? 'text' : 'password'}
+              placeholder="sk-..."
+              value={actions.apiKey}
+              onChange={e => actions.setApiKey(e.target.value)}
+              autoComplete="off"
+              disabled={isGenerating}
+            />
+            <button
+              className="btn-icon"
+              type="button"
+              onClick={() => setShowKey(v => !v)}
+              aria-label={showKey ? 'Hide key' : 'Show key'}
+            >
+              {showKey ? '🙈' : '👁'}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="form-group">
@@ -79,6 +95,7 @@ export function SetupScreen({ state, actions, onGenerate }: Props) {
               value="flat"
               checked={state.revealMode === 'flat'}
               onChange={() => actions.setRevealMode('flat')}
+              disabled={isGenerating}
             />
             Flat color
           </label>
@@ -89,19 +106,35 @@ export function SetupScreen({ state, actions, onGenerate }: Props) {
               value="photo"
               checked={state.revealMode === 'photo'}
               onChange={() => actions.setRevealMode('photo')}
+              disabled={isGenerating}
             />
-            Photo reveal
+            Image reveal
           </label>
         </div>
       </div>
 
-      <button
-        className="btn btn-primary btn-large"
-        onClick={onGenerate}
-        disabled={!canGenerate}
-      >
-        Generate
-      </button>
+      <div className="setup-generate-row">
+        {isGenerating ? (
+          <>
+            <div className="spinner spinner-sm" />
+            <span className="generating-inline-text">Generating...</span>
+            <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+          </>
+        ) : (
+          <button className="btn btn-primary btn-large" onClick={onGenerate} disabled={!canGenerate}>
+            Generate
+          </button>
+        )}
+      </div>
+
+      {previewUrl && !isGenerating && (
+        <div className="preview-inline">
+          <img src={previewUrl} alt="Generated" className="preview-inline-img" />
+          <button className="btn btn-primary btn-large" onClick={onPaint}>
+            Paint this!
+          </button>
+        </div>
+      )}
     </div>
   )
 }

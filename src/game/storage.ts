@@ -47,6 +47,32 @@ function openDb(): Promise<IDBDatabase> {
   })
 }
 
+export async function saveIndexMap(sessionId: string, indexMap: Uint8Array): Promise<void> {
+  const db = await openDb()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite')
+    const store = tx.objectStore(IDB_STORE)
+    const req = store.put(new Blob([indexMap]), sessionId + '_index')
+    req.onsuccess = () => resolve()
+    req.onerror = () => reject(req.error)
+  })
+}
+
+export async function loadIndexMap(sessionId: string): Promise<Uint8Array | null> {
+  const db = await openDb()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readonly')
+    const store = tx.objectStore(IDB_STORE)
+    const req = store.get(sessionId + '_index')
+    req.onsuccess = async () => {
+      if (!req.result) { resolve(null); return }
+      const buf = await (req.result as Blob).arrayBuffer()
+      resolve(new Uint8Array(buf))
+    }
+    req.onerror = () => reject(req.error)
+  })
+}
+
 export async function saveImage(sessionId: string, blob: Blob): Promise<void> {
   const db = await openDb()
   return new Promise((resolve, reject) => {
@@ -71,11 +97,19 @@ export async function loadImage(sessionId: string): Promise<Blob | null> {
 
 export async function deleteImage(sessionId: string): Promise<void> {
   const db = await openDb()
-  return new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(IDB_STORE, 'readwrite')
     const store = tx.objectStore(IDB_STORE)
     const req = store.delete(sessionId)
     req.onsuccess = () => resolve()
     req.onerror = () => reject(req.error)
+  })
+  await new Promise<void>((resolve) => {
+    openDb().then(db2 => {
+      const tx = db2.transaction(IDB_STORE, 'readwrite')
+      tx.objectStore(IDB_STORE).delete(sessionId + '_index')
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => resolve() // best effort
+    })
   })
 }

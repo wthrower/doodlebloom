@@ -11,6 +11,8 @@ export interface Region {
   colorIndex: number
   centroid: { x: number; y: number }
   pixelCount: number
+  /** BFS L1 distance from centroid to nearest region boundary -- used to size the number badge */
+  labelRadius: number
 }
 
 export interface GameState {
@@ -32,12 +34,12 @@ export interface GameState {
 export const DEFAULT_STATE: GameState = {
   screen: 'setup',
   prompt: '',
-  colorCount: 8,
+  colorCount: 16,
   sessionId: null,
   palette: [],
   regions: [],
   playerColors: {},
-  revealMode: 'flat',
+  revealMode: 'photo',
   canvasWidth: 512,
   canvasHeight: 512,
 }

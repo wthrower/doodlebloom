@@ -37,7 +37,7 @@ export function renderPuzzle(
     const region = regionId >= 0 ? regionById.get(regionId) : undefined
 
     if (!region) {
-      // Not part of any kept region -- white background
+      // Safety fallback -- should not occur after merge phase
       buf[i * 4] = 245
       buf[i * 4 + 1] = 245
       buf[i * 4 + 2] = 245
@@ -60,10 +60,10 @@ export function renderPuzzle(
         buf[i * 4 + 3] = 255
       }
     } else {
-      // Unfilled: light gray
-      buf[i * 4] = 220
-      buf[i * 4 + 1] = 220
-      buf[i * 4 + 2] = 220
+      // Unfilled: white
+      buf[i * 4] = 255
+      buf[i * 4 + 1] = 255
+      buf[i * 4 + 2] = 255
       buf[i * 4 + 3] = 255
     }
   }
@@ -74,7 +74,7 @@ export function renderPuzzle(
   drawOutlines(ctx, width, height, regionMap, regions, playerColors)
 
   // Draw numbers at centroids for unfilled regions
-  drawNumbers(ctx, regions, playerColors, palette)
+  drawNumbers(ctx, regions, playerColors)
 }
 
 function drawOutlines(
@@ -83,26 +83,33 @@ function drawOutlines(
   height: number,
   regionMap: Int32ArrayLike,
   regions: Region[],
-  playerColors: Record<number, number>
+  _playerColors: Record<number, number>
 ): void {
   const keptIds = new Set(regions.map(r => r.id))
 
-  ctx.fillStyle = 'rgba(0,0,0,0.5)'
+  // Draw single-pixel outlines by marking only the left/top pixel of each boundary.
+  // - For A|B boundaries: the pixel whose right or bottom neighbor differs gets marked.
+  //   The neighbor is NOT marked (it would mark from its left/top check, which we skip).
+  // - For region|background boundaries facing left or top: explicitly mark that pixel.
+  // This ensures each shared edge produces exactly 1 dark pixel instead of 2.
+  ctx.fillStyle = 'rgba(0,0,0,0.75)'
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const id = regionMap[y * width + x]
       if (!keptIds.has(id)) continue
 
-      // Check if any neighbor has a different region
-      const neighbors = [
-        x > 0 ? regionMap[y * width + x - 1] : -2,
-        x < width - 1 ? regionMap[y * width + x + 1] : -2,
-        y > 0 ? regionMap[(y - 1) * width + x] : -2,
-        y < height - 1 ? regionMap[(y + 1) * width + x] : -2,
-      ]
-      if (neighbors.some(n => n !== id)) {
-        ctx.fillRect(x, y, 1, 1)
-      }
+      const right = x < width - 1 ? regionMap[y * width + x + 1] : -2
+      const down  = y < height - 1 ? regionMap[(y + 1) * width + x] : -2
+      const left  = x > 0 ? regionMap[y * width + x - 1] : -2
+      const top   = y > 0 ? regionMap[(y - 1) * width + x] : -2
+
+      const isEdge =
+        right !== id ||
+        down  !== id ||
+        (left !== id && !keptIds.has(left)) ||
+        (top  !== id && !keptIds.has(top))
+
+      if (isEdge) ctx.fillRect(x, y, 1, 1)
     }
   }
 }
@@ -110,27 +117,21 @@ function drawOutlines(
 function drawNumbers(
   ctx: CanvasRenderingContext2D,
   regions: Region[],
-  playerColors: Record<number, number>,
-  palette: PaletteColor[]
+  playerColors: Record<number, number>
 ): void {
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.font = 'bold 11px sans-serif'
 
   for (const region of regions) {
     if (playerColors[region.id] !== undefined) continue
     const { x, y } = region.centroid
     const label = String(region.colorIndex + 1)
 
-    // White shadow for readability
-    ctx.fillStyle = 'rgba(255,255,255,0.8)'
-    ctx.fillText(label, x + 1, y + 1)
-    ctx.fillStyle = '#222'
-    ctx.fillText(label, x, y)
+    const fontSize = Math.max(9, Math.min(region.labelRadius - 1, 16))
+    ctx.font = `${fontSize}px sans-serif`
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'
+    ctx.fillText(label, x, y + 0.5)
   }
-
-  // Draw color swatches legend? No -- palette is rendered separately in the UI
-  void palette
 }
 
 /** Draw a subtle "shake" flash on a region to indicate wrong color */

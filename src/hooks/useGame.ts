@@ -6,7 +6,8 @@ import { quantizeImage } from '../game/quantize'
 import { buildRegions } from '../game/regions'
 import { loadApiKey, saveApiKey } from '../game/storage'
 
-const CANVAS_SIZE = 512
+/** Scale image so its shorter side = this many pixels. */
+const CANVAS_SHORT = 1024
 
 export interface GameActions {
   setPrompt: (p: string) => void
@@ -27,7 +28,7 @@ export interface GameActions {
 export function useGame(): [GameState, GameActions] {
   const [state, setState] = useState<GameState>(() => DEFAULT_STATE)
   const [apiKey, setApiKeyState] = useState<string>(() => loadApiKey())
-  const { persistState, restoreState, wipeState, storeImage, retrieveImage } = useStorage()
+  const { persistState, restoreState, wipeState, storeImage, retrieveImage, storeIndexMap, retrieveIndexMap } = useStorage()
 
   const indexMapRef = useRef<Uint8Array | null>(null)
   const regionMapRef = useRef<Int32Array | null>(null)
@@ -39,17 +40,31 @@ export function useGame(): [GameState, GameActions] {
     if (!saved || !saved.sessionId) return
 
     if (saved.screen === 'playing' || saved.screen === 'complete') {
-      retrieveImage(saved.sessionId).then(blob => {
+      Promise.all([
+        retrieveImage(saved.sessionId),
+        retrieveIndexMap(saved.sessionId),
+      ]).then(async ([blob, storedIndexMap]) => {
         if (!blob) { setState(DEFAULT_STATE); return }
-        rebuildMapsFromBlob(blob, saved.canvasWidth, saved.canvasHeight, saved.palette)
-          .then(({ indexMap, regionMap, imageData }) => {
-            indexMapRef.current = indexMap
-            regionMapRef.current = regionMap
-            originalImageDataRef.current = imageData
-            setState(saved)
-          })
-          .catch(() => setState(DEFAULT_STATE))
-      })
+
+        const img = await loadBlobAsImage(blob)
+        const canvas = document.createElement('canvas')
+        canvas.width = saved.canvasWidth
+        canvas.height = saved.canvasHeight
+        const ctx = canvas.getContext('2d')!
+
+        ctx.drawImage(img, 0, 0, saved.canvasWidth, saved.canvasHeight)
+        const imageData = ctx.getImageData(0, 0, saved.canvasWidth, saved.canvasHeight)
+        const originalImageData = imageData
+
+        // Use stored indexMap if available (exact), otherwise rebuild from pixels
+        const indexMap = storedIndexMap ?? rebuildIndexMap(imageData, saved.palette)
+        const { regionMap } = buildRegions(indexMap, saved.canvasWidth, saved.canvasHeight, saved.palette)
+
+        indexMapRef.current = indexMap
+        regionMapRef.current = regionMap
+        originalImageDataRef.current = originalImageData
+        setState(saved)
+      }).catch(() => setState(DEFAULT_STATE))
       return
     }
 
@@ -82,20 +97,39 @@ export function useGame(): [GameState, GameActions] {
     const sessionId = crypto.randomUUID()
     await storeImage(sessionId, blob)
 
-    const img = await loadBlobAsImage(blob)
-    const canvas = document.createElement('canvas')
-    canvas.width = CANVAS_SIZE
-    canvas.height = CANVAS_SIZE
-    const ctx = canvas.getContext('2d')!
-    ctx.drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE)
-    const imageData = ctx.getImageData(0, 0, CANVAS_SIZE, CANVAS_SIZE)
 
-    const { palette, indexMap } = quantizeImage(imageData, colorCountRef.current)
-    const { regions, regionMap } = buildRegions(indexMap, CANVAS_SIZE, CANVAS_SIZE)
+    const img = await loadBlobAsImage(blob)
+
+    // Derive canvas size from image aspect ratio, shorter side = CANVAS_SHORT
+    const scale = CANVAS_SHORT / Math.min(img.naturalWidth, img.naturalHeight)
+    const cw = Math.round(img.naturalWidth * scale)
+    const ch = Math.round(img.naturalHeight * scale)
+
+    const canvas = document.createElement('canvas')
+    canvas.width = cw
+    canvas.height = ch
+    const ctx = canvas.getContext('2d')!
+
+    ctx.drawImage(img, 0, 0, cw, ch)
+    const imageData = ctx.getImageData(0, 0, cw, ch)
+    const originalImageData = imageData
+
+    const { palette: rawPalette, indexMap: rawIndexMap } = quantizeImage(imageData, colorCountRef.current)
+    const { regions: rawRegions, regionMap } = buildRegions(rawIndexMap, cw, ch, rawPalette)
+
+    // Compact palette: remove unused color indices so numbers shown to the player are gapless
+    const usedIndices = [...new Set(rawRegions.map(r => r.colorIndex))].sort((a, b) => a - b)
+    const remap = new Map(usedIndices.map((old, i) => [old, i]))
+    const palette = usedIndices.map(i => rawPalette[i])
+    const regions = rawRegions.map(r => ({ ...r, colorIndex: remap.get(r.colorIndex)! }))
+    const indexMap = new Uint8Array(rawIndexMap.length)
+    for (let i = 0; i < rawIndexMap.length; i++) indexMap[i] = remap.get(rawIndexMap[i]) ?? 0
+
+    await storeIndexMap(sessionId, indexMap)
 
     indexMapRef.current = indexMap
     regionMapRef.current = regionMap
-    originalImageDataRef.current = imageData
+    originalImageDataRef.current = originalImageData
 
     update({
       screen: 'playing',
@@ -103,8 +137,8 @@ export function useGame(): [GameState, GameActions] {
       palette,
       regions,
       playerColors: {},
-      canvasWidth: CANVAS_SIZE,
-      canvasHeight: CANVAS_SIZE,
+      canvasWidth: cw,
+      canvasHeight: ch,
     })
   }, [storeImage, update])
 
@@ -194,6 +228,6 @@ async function rebuildMapsFromBlob(
   ctx.drawImage(img, 0, 0, width, height)
   const imageData = ctx.getImageData(0, 0, width, height)
   const indexMap = rebuildIndexMap(imageData, palette)
-  const { regionMap } = buildRegions(indexMap, width, height)
+  const { regionMap } = buildRegions(indexMap, width, height, palette)
   return { indexMap, regionMap, imageData }
 }

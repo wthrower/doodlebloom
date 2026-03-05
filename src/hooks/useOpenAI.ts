@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import OpenAI from 'openai'
 
 export interface UseOpenAIResult {
-  generate: (prompt: string, apiKey: string) => Promise<Blob | null>
+  generate: (prompt: string, apiKey: string, size?: '1024x1024' | '1024x1536' | '1536x1024') => Promise<Blob | null>
   isGenerating: boolean
   error: string | null
   cancel: () => void
@@ -18,7 +18,7 @@ export function useOpenAI(): UseOpenAIResult {
     setIsGenerating(false)
   }, [])
 
-  const generate = useCallback(async (prompt: string, apiKey: string): Promise<Blob | null> => {
+  const generate = useCallback(async (prompt: string, apiKey: string, size: '1024x1024' | '1024x1536' | '1536x1024' = '1024x1024'): Promise<Blob | null> => {
     setError(null)
     setIsGenerating(true)
 
@@ -28,12 +28,13 @@ export function useOpenAI(): UseOpenAIResult {
     try {
       const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
 
+      const STYLE_SUFFIX = ' Painterly illustration with natural, realistic colors. Distinct color areas with visible boundaries. Avoid fine linework, hatching, and busy texture. Avoid flat cartoon shading.'
       const response = await client.images.generate({
         model: 'gpt-image-1',
-        prompt,
+        prompt: prompt + STYLE_SUFFIX,
         n: 1,
-        size: '1024x1024',
-        quality: 'standard',
+        size,
+        quality: 'medium',
       })
 
       if (abort.signal.aborted) return null
