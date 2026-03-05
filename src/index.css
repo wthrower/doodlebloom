@@ -304,6 +304,8 @@ input[type="range"]::-webkit-slider-thumb {
 .preview-screen {
   padding: 0;
   gap: 0;
+  max-width: none;
+  margin: 0;
 }
 
 .preview-image-wrap {
@@ -334,6 +336,8 @@ input[type="range"]::-webkit-slider-thumb {
 .game-screen {
   padding: 0;
   gap: 0;
+  max-width: none;
+  margin: 0;
 }
 
 .game-header {
