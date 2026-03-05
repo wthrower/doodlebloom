@@ -56,16 +56,18 @@ export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Pr
     forceRender(n => n + 1)
   }, [])
 
-  // --- ResizeObserver: fill wrap width, let height overflow (user can pan) ---
+  // --- ResizeObserver: fit canvas inside wrap, maintaining aspect ratio ---
   useEffect(() => {
     const wrap = wrapRef.current
     const canvas = canvasRef.current
     if (!wrap || !canvas) return
     const observer = new ResizeObserver(([entry]) => {
-      const { width } = entry.contentRect
-      const h = width * canvasHeight / canvasWidth
-      displaySizeRef.current = width
-      canvas.style.width = `${width}px`
+      const { width, height } = entry.contentRect
+      const aspect = canvasWidth / canvasHeight
+      let w = width, h = width / aspect
+      if (h > height) { h = height; w = height * aspect }
+      displaySizeRef.current = w
+      canvas.style.width = `${w}px`
       canvas.style.height = `${h}px`
     })
     observer.observe(wrap)
