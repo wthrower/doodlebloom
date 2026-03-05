@@ -29,24 +29,31 @@ export function useOpenAI(): UseOpenAIResult {
       const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
 
       const response = await client.images.generate({
-        model: 'dall-e-3',
+        model: 'gpt-image-1',
         prompt,
         n: 1,
         size: '1024x1024',
-        response_format: 'url',
+        quality: 'standard',
       })
 
       if (abort.signal.aborted) return null
 
-      const url = response.data?.[0]?.url
-      if (!url) throw new Error('No image URL returned')
+      const item = response.data?.[0]
+      if (!item) throw new Error('No image returned')
 
-      // Fetch the image as a blob
+      // gpt-image-1 returns base64; fall back to URL for other models
+      if (item.b64_json) {
+        const binary = atob(item.b64_json)
+        const bytes = new Uint8Array(binary.length)
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+        return new Blob([bytes], { type: 'image/png' })
+      }
+
+      const url = item.url
+      if (!url) throw new Error('No image data returned')
       const imgResponse = await fetch(url, { signal: abort.signal })
       if (!imgResponse.ok) throw new Error('Failed to fetch generated image')
-      const blob = await imgResponse.blob()
-
-      return blob
+      return imgResponse.blob()
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return null
       const msg = err instanceof Error ? err.message : String(err)
