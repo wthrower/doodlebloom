@@ -77,6 +77,17 @@ export default function App() {
     await actions.processImage(previewBlobRef.current)
   }, [actions])
 
+  const handleSelectStock = useCallback(async (imageUrl: string) => {
+    const response = await fetch(imageUrl)
+    const blob = await response.blob()
+    previewBlobRef.current = blob
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    const url = URL.createObjectURL(blob)
+    setPreviewUrl(url)
+    saveImage(PREVIEW_KEY, blob).catch(() => undefined)
+    actions.goTo('setup')
+  }, [previewUrl, actions])
+
   const handleNewPuzzle = useCallback(async () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl)
     setPreviewUrl(null)
@@ -108,6 +119,7 @@ export default function App() {
           onGenerate={handleGenerate}
           onCancel={handleCancel}
           onPaint={handlePaint}
+          onSelectStock={handleSelectStock}
         />
       )}
       {(state.screen === 'playing' || state.screen === 'complete') && (

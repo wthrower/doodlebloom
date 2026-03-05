@@ -203,6 +203,15 @@ input[type="range"]::-webkit-slider-thumb {
   opacity: 0.9;
 }
 
+.btn-secondary {
+  background: var(--color-surface2);
+  color: var(--color-text);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
 .btn-ghost {
   background: transparent;
   color: var(--color-text-muted);
@@ -263,9 +272,6 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* ── Inline preview ── */
 .preview-inline {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
   margin-top: 0.5rem;
 }
 
@@ -273,6 +279,56 @@ input[type="range"]::-webkit-slider-thumb {
   width: 100%;
   border-radius: var(--radius);
   display: block;
+}
+
+/* ── Stock image browser ── */
+.stock-section {
+  margin-top: 1.25rem;
+}
+
+.stock-label {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.stock-strip {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+.stock-thumb-btn {
+  flex: 0 0 auto;
+  background: none;
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  transition: border-color 0.15s;
+}
+
+.stock-thumb-btn:hover {
+  border-color: var(--color-accent);
+}
+
+.stock-thumb-img {
+  width: 80px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: calc(var(--radius-sm) - 2px);
+  display: block;
+}
+
+.stock-thumb-label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
 }
 
 /* ── Generating screen (standalone, no longer used in main flow) ── */

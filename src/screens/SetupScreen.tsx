@@ -1,6 +1,16 @@
 import { useState } from 'react'
 import type { GameActions, GameState } from '../App'
 
+const BASE = import.meta.env.BASE_URL
+
+const STOCK_IMAGES = [
+  { file: 'fox',      label: 'Fox' },
+  { file: 'parrot',   label: 'Parrot' },
+  { file: 'mountain', label: 'Mountain' },
+  { file: 'turtle',   label: 'Turtle' },
+  { file: 'cat',      label: 'Cat' },
+]
+
 interface Props {
   state: GameState
   actions: GameActions
@@ -9,9 +19,10 @@ interface Props {
   onGenerate: () => void
   onCancel: () => void
   onPaint: () => void
+  onSelectStock: (imageUrl: string) => void
 }
 
-export function SetupScreen({ state, actions, isGenerating, previewUrl, onGenerate, onCancel, onPaint }: Props) {
+export function SetupScreen({ state, actions, isGenerating, previewUrl, onGenerate, onCancel, onPaint, onSelectStock }: Props) {
   const [showKey, setShowKey] = useState(false)
   const [showKeyInput, setShowKeyInput] = useState(false)
 
@@ -121,20 +132,46 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, onGenera
             <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
           </>
         ) : (
-          <button className="btn btn-primary btn-large" onClick={onGenerate} disabled={!canGenerate}>
-            Generate
-          </button>
+          <>
+            <button className="btn btn-primary btn-large" onClick={onGenerate} disabled={!canGenerate}>
+              Generate
+            </button>
+            {previewUrl && (
+              <button className="btn btn-secondary btn-large" onClick={onPaint}>
+                Paint this!
+              </button>
+            )}
+          </>
         )}
       </div>
 
       {previewUrl && !isGenerating && (
         <div className="preview-inline">
           <img src={previewUrl} alt="Generated" className="preview-inline-img" />
-          <button className="btn btn-primary btn-large" onClick={onPaint}>
-            Paint this!
-          </button>
         </div>
       )}
+
+      <div className="stock-section">
+        <label className="stock-label">Sample images</label>
+        <div className="stock-strip">
+          {STOCK_IMAGES.map(({ file, label }) => (
+            <button
+              key={file}
+              className="stock-thumb-btn"
+              onClick={() => onSelectStock(`${BASE}images/${file}.png`)}
+              aria-label={label}
+              disabled={isGenerating}
+            >
+              <img
+                src={`${BASE}images/thumbs/${file}.jpg`}
+                alt={label}
+                className="stock-thumb-img"
+              />
+              <span className="stock-thumb-label">{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
