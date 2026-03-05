@@ -122,12 +122,11 @@ export function useGame(): [GameState, GameActions] {
     const remap = new Map(usedIndices.map((old, i) => [old, i]))
     const palette = usedIndices.map(i => rawPalette[i])
     const regions = rawRegions.map(r => ({ ...r, colorIndex: remap.get(r.colorIndex)! }))
-    const indexMap = new Uint8Array(rawIndexMap.length)
-    for (let i = 0; i < rawIndexMap.length; i++) indexMap[i] = remap.get(rawIndexMap[i]) ?? 0
+    // Store rawIndexMap (pre-compaction) so restore calls buildRegions with the same
+    // index values, producing identical region IDs and a consistent regionMap.
+    await storeIndexMap(sessionId, rawIndexMap)
 
-    await storeIndexMap(sessionId, indexMap)
-
-    indexMapRef.current = indexMap
+    indexMapRef.current = rawIndexMap
     regionMapRef.current = regionMap
     originalImageDataRef.current = originalImageData
 

@@ -145,7 +145,9 @@ export function buildRegions(
   }
 
   for (const [rid, pixList] of excludedPixels) {
-    const excludedColor = palette[regionMeta.get(rid)!.colorIndex]
+    const excColorIndex = regionMeta.get(rid)!.colorIndex
+    // colorIndex may exceed palette length when restoring with a pre-compaction indexMap
+    const excludedColor = excColorIndex < palette.length ? palette[excColorIndex] : { r: 128, g: 128, b: 128 }
 
     // Collect adjacent kept region IDs and shared border pixel counts
     const borderCounts = new Map<number, number>()
