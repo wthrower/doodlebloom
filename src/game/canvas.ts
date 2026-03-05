@@ -1,0 +1,176 @@
+import type { PaletteColor, Region } from '../types'
+import type { Int32ArrayLike } from './types-internal'
+
+export interface RenderOptions {
+  playerColors: Record<number, number>
+  activeColorIndex: number | null
+  revealMode: 'flat' | 'photo'
+  originalImageData: ImageData | null
+}
+
+/**
+ * Draw the puzzle onto ctx.
+ * - Unfilled regions: light gray fill + dark outline
+ * - Filled regions: palette color (flat) or original pixels (photo)
+ * - Numbers at centroids for unfilled regions
+ */
+export function renderPuzzle(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  indexMap: Uint8Array,
+  regionMap: Int32ArrayLike,
+  regions: Region[],
+  palette: PaletteColor[],
+  opts: RenderOptions
+): void {
+  const { playerColors, revealMode, originalImageData } = opts
+
+  // Build pixel buffer
+  const imageData = ctx.createImageData(width, height)
+  const buf = imageData.data
+
+  const regionById = new Map(regions.map(r => [r.id, r]))
+
+  for (let i = 0; i < width * height; i++) {
+    const regionId = regionMap[i]
+    const region = regionId >= 0 ? regionById.get(regionId) : undefined
+
+    if (!region) {
+      // Not part of any kept region -- white background
+      buf[i * 4] = 245
+      buf[i * 4 + 1] = 245
+      buf[i * 4 + 2] = 245
+      buf[i * 4 + 3] = 255
+      continue
+    }
+
+    const filledColorIdx = playerColors[region.id]
+    if (filledColorIdx !== undefined) {
+      if (revealMode === 'photo' && originalImageData) {
+        buf[i * 4] = originalImageData.data[i * 4]
+        buf[i * 4 + 1] = originalImageData.data[i * 4 + 1]
+        buf[i * 4 + 2] = originalImageData.data[i * 4 + 2]
+        buf[i * 4 + 3] = 255
+      } else {
+        const c = palette[filledColorIdx]
+        buf[i * 4] = c.r
+        buf[i * 4 + 1] = c.g
+        buf[i * 4 + 2] = c.b
+        buf[i * 4 + 3] = 255
+      }
+    } else {
+      // Unfilled: light gray
+      buf[i * 4] = 220
+      buf[i * 4 + 1] = 220
+      buf[i * 4 + 2] = 220
+      buf[i * 4 + 3] = 255
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0)
+
+  // Draw region outlines: scan for pixel boundaries and darken edge pixels
+  drawOutlines(ctx, width, height, regionMap, regions, playerColors)
+
+  // Draw numbers at centroids for unfilled regions
+  drawNumbers(ctx, regions, playerColors, palette)
+}
+
+function drawOutlines(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  regionMap: Int32ArrayLike,
+  regions: Region[],
+  playerColors: Record<number, number>
+): void {
+  const keptIds = new Set(regions.map(r => r.id))
+
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const id = regionMap[y * width + x]
+      if (!keptIds.has(id)) continue
+
+      // Check if any neighbor has a different region
+      const neighbors = [
+        x > 0 ? regionMap[y * width + x - 1] : -2,
+        x < width - 1 ? regionMap[y * width + x + 1] : -2,
+        y > 0 ? regionMap[(y - 1) * width + x] : -2,
+        y < height - 1 ? regionMap[(y + 1) * width + x] : -2,
+      ]
+      if (neighbors.some(n => n !== id)) {
+        ctx.fillRect(x, y, 1, 1)
+      }
+    }
+  }
+}
+
+function drawNumbers(
+  ctx: CanvasRenderingContext2D,
+  regions: Region[],
+  playerColors: Record<number, number>,
+  palette: PaletteColor[]
+): void {
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.font = 'bold 11px sans-serif'
+
+  for (const region of regions) {
+    if (playerColors[region.id] !== undefined) continue
+    const { x, y } = region.centroid
+    const label = String(region.colorIndex + 1)
+
+    // White shadow for readability
+    ctx.fillStyle = 'rgba(255,255,255,0.8)'
+    ctx.fillText(label, x + 1, y + 1)
+    ctx.fillStyle = '#222'
+    ctx.fillText(label, x, y)
+  }
+
+  // Draw color swatches legend? No -- palette is rendered separately in the UI
+  void palette
+}
+
+/** Draw a subtle "shake" flash on a region to indicate wrong color */
+export function flashRegion(
+  ctx: CanvasRenderingContext2D,
+  regionId: number,
+  regionMap: Int32ArrayLike,
+  width: number,
+  height: number
+): void {
+  const pixels: number[] = []
+  for (let i = 0; i < width * height; i++) {
+    if (regionMap[i] === regionId) pixels.push(i)
+  }
+  const imageData = ctx.getImageData(0, 0, width, height)
+  const orig = new Uint8ClampedArray(imageData.data)
+
+  let frame = 0
+  const animate = () => {
+    frame++
+    const alpha = Math.sin((frame / 8) * Math.PI) * 0.5
+    if (frame <= 8) {
+      for (const i of pixels) {
+        imageData.data[i * 4] = Math.min(255, orig[i * 4] + Math.round(alpha * 150))
+        imageData.data[i * 4 + 1] = orig[i * 4 + 1]
+        imageData.data[i * 4 + 2] = orig[i * 4 + 2]
+        imageData.data[i * 4 + 3] = 255
+      }
+      ctx.putImageData(imageData, 0, 0)
+      requestAnimationFrame(animate)
+    } else {
+      // Restore
+      for (const i of pixels) {
+        imageData.data[i * 4] = orig[i * 4]
+        imageData.data[i * 4 + 1] = orig[i * 4 + 1]
+        imageData.data[i * 4 + 2] = orig[i * 4 + 2]
+        imageData.data[i * 4 + 3] = orig[i * 4 + 3]
+      }
+      ctx.putImageData(imageData, 0, 0)
+    }
+  }
+  requestAnimationFrame(animate)
+}

@@ -1,0 +1,199 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { DEFAULT_STATE } from '../types'
+import type { GameState, PaletteColor, Screen } from '../types'
+import { useStorage } from './useStorage'
+import { quantizeImage } from '../game/quantize'
+import { buildRegions } from '../game/regions'
+import { loadApiKey, saveApiKey } from '../game/storage'
+
+const CANVAS_SIZE = 512
+
+export interface GameActions {
+  setPrompt: (p: string) => void
+  setColorCount: (n: number) => void
+  setRevealMode: (m: 'flat' | 'photo') => void
+  setApiKey: (k: string) => void
+  apiKey: string
+  goTo: (screen: Screen) => void
+  /** Call after DALL-E image blob is available. Processes image → puzzle state. */
+  processImage: (blob: Blob) => Promise<void>
+  fillRegion: (regionId: number, colorIndex: number) => void
+  resetPuzzle: () => Promise<void>
+  indexMapRef: React.MutableRefObject<Uint8Array | null>
+  regionMapRef: React.MutableRefObject<Int32Array | null>
+  originalImageDataRef: React.MutableRefObject<ImageData | null>
+}
+
+export function useGame(): [GameState, GameActions] {
+  const [state, setState] = useState<GameState>(() => DEFAULT_STATE)
+  const [apiKey, setApiKeyState] = useState<string>(() => loadApiKey())
+  const { persistState, restoreState, wipeState, storeImage, retrieveImage } = useStorage()
+
+  const indexMapRef = useRef<Uint8Array | null>(null)
+  const regionMapRef = useRef<Int32Array | null>(null)
+  const originalImageDataRef = useRef<ImageData | null>(null)
+
+  // Restore state on mount
+  useEffect(() => {
+    const saved = restoreState()
+    if (!saved || !saved.sessionId) return
+
+    if (saved.screen === 'playing' || saved.screen === 'complete') {
+      retrieveImage(saved.sessionId).then(blob => {
+        if (!blob) { setState(DEFAULT_STATE); return }
+        rebuildMapsFromBlob(blob, saved.canvasWidth, saved.canvasHeight, saved.palette)
+          .then(({ indexMap, regionMap, imageData }) => {
+            indexMapRef.current = indexMap
+            regionMapRef.current = regionMap
+            originalImageDataRef.current = imageData
+            setState(saved)
+          })
+          .catch(() => setState(DEFAULT_STATE))
+      })
+      return
+    }
+
+    setState({ ...saved, screen: 'setup' })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const update = useCallback((patch: Partial<GameState>) => {
+    setState(prev => {
+      const next = { ...prev, ...patch }
+      persistState(next)
+      return next
+    })
+  }, [persistState])
+
+  const setPrompt = useCallback((prompt: string) => update({ prompt }), [update])
+  const setColorCount = useCallback((colorCount: number) => update({ colorCount }), [update])
+  const setRevealMode = useCallback((revealMode: 'flat' | 'photo') => update({ revealMode }), [update])
+  const goTo = useCallback((screen: Screen) => update({ screen }), [update])
+
+  const setApiKey = useCallback((k: string) => {
+    setApiKeyState(k)
+    saveApiKey(k)
+  }, [])
+
+  // Use a ref to avoid stale closure on colorCount
+  const colorCountRef = useRef(state.colorCount)
+  useEffect(() => { colorCountRef.current = state.colorCount }, [state.colorCount])
+
+  const processImage = useCallback(async (blob: Blob) => {
+    const sessionId = crypto.randomUUID()
+    await storeImage(sessionId, blob)
+
+    const img = await loadBlobAsImage(blob)
+    const canvas = document.createElement('canvas')
+    canvas.width = CANVAS_SIZE
+    canvas.height = CANVAS_SIZE
+    const ctx = canvas.getContext('2d')!
+    ctx.drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE)
+    const imageData = ctx.getImageData(0, 0, CANVAS_SIZE, CANVAS_SIZE)
+
+    const { palette, indexMap } = quantizeImage(imageData, colorCountRef.current)
+    const { regions, regionMap } = buildRegions(indexMap, CANVAS_SIZE, CANVAS_SIZE)
+
+    indexMapRef.current = indexMap
+    regionMapRef.current = regionMap
+    originalImageDataRef.current = imageData
+
+    update({
+      screen: 'playing',
+      sessionId,
+      palette,
+      regions,
+      playerColors: {},
+      canvasWidth: CANVAS_SIZE,
+      canvasHeight: CANVAS_SIZE,
+    })
+  }, [storeImage, update])
+
+  const fillRegion = useCallback((regionId: number, colorIndex: number) => {
+    setState(prev => {
+      const next: GameState = {
+        ...prev,
+        playerColors: { ...prev.playerColors, [regionId]: colorIndex },
+      }
+      const allCorrect = next.regions.every(r => next.playerColors[r.id] === r.colorIndex)
+      if (allCorrect) next.screen = 'complete'
+      persistState(next)
+      return next
+    })
+  }, [persistState])
+
+  const resetPuzzle = useCallback(async () => {
+    const { sessionId } = state
+    indexMapRef.current = null
+    regionMapRef.current = null
+    originalImageDataRef.current = null
+    await wipeState(sessionId)
+    setState(DEFAULT_STATE)
+  }, [state, wipeState])
+
+  const actions: GameActions = {
+    setPrompt,
+    setColorCount,
+    setRevealMode,
+    setApiKey,
+    apiKey,
+    goTo,
+    processImage,
+    fillRegion,
+    resetPuzzle,
+    indexMapRef,
+    regionMapRef,
+    originalImageDataRef,
+  }
+
+  return [state, actions]
+}
+
+function loadBlobAsImage(blob: Blob): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob)
+    const img = new Image()
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img) }
+    img.onerror = reject
+    img.src = url
+  })
+}
+
+function rebuildIndexMap(imageData: ImageData, palette: PaletteColor[]): Uint8Array {
+  const { data, width, height } = imageData
+  const pixels = width * height
+  const indexMap = new Uint8Array(pixels)
+  for (let i = 0; i < pixels; i++) {
+    const r = data[i * 4]
+    const g = data[i * 4 + 1]
+    const b = data[i * 4 + 2]
+    let best = 0
+    let bestDist = Infinity
+    for (let j = 0; j < palette.length; j++) {
+      const dr = r - palette[j].r
+      const dg = g - palette[j].g
+      const db = b - palette[j].b
+      const d = dr * dr + dg * dg + db * db
+      if (d < bestDist) { bestDist = d; best = j }
+    }
+    indexMap[i] = best
+  }
+  return indexMap
+}
+
+async function rebuildMapsFromBlob(
+  blob: Blob,
+  width: number,
+  height: number,
+  palette: PaletteColor[]
+): Promise<{ indexMap: Uint8Array; regionMap: Int32Array; imageData: ImageData }> {
+  const img = await loadBlobAsImage(blob)
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')!
+  ctx.drawImage(img, 0, 0, width, height)
+  const imageData = ctx.getImageData(0, 0, width, height)
+  const indexMap = rebuildIndexMap(imageData, palette)
+  const { regionMap } = buildRegions(indexMap, width, height)
+  return { indexMap, regionMap, imageData }
+}
