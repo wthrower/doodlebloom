@@ -4,11 +4,15 @@ import type { GameActions, GameState } from '../App'
 const BASE = import.meta.env.BASE_URL
 
 const STOCK_IMAGES = [
-  { file: 'fox',      label: 'Fox' },
-  { file: 'parrot',   label: 'Parrot' },
-  { file: 'mountain', label: 'Mountain' },
-  { file: 'turtle',   label: 'Turtle' },
-  { file: 'cat',      label: 'Cat' },
+  { file: 'parrot',     label: 'Parrot' },
+  { file: 'mountain',   label: 'Mountain' },
+  { file: 'toucan',     label: 'Toucan' },
+  { file: 'balloon',    label: 'Balloon' },
+  { file: 'lion',       label: 'Lion' },
+  { file: 'barn',       label: 'Barn' },
+  { file: 'tiger',      label: 'Tiger' },
+  { file: 'sunflowers', label: 'Sunflowers' },
+  { file: 'puffin',     label: 'Puffin' },
 ]
 
 interface Props {
