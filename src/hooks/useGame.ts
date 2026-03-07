@@ -4,7 +4,7 @@ import type { GameState, PaletteColor, Region, Screen } from '../types'
 import { useStorage } from './useStorage'
 import { colorDist } from '../game/colorDistance'
 import { quantizeImage } from '../game/quantize'
-import { buildRegions, fuseSameColorRegions } from '../game/regions'
+import { buildRegions, fuseSameColorRegions } from '../game/regions' // fuseSameColorRegions kept for old-session fallback
 import { loadApiKey, saveApiKey } from '../game/storage'
 
 /** Scale image so its shorter side = this many pixels. */
@@ -14,6 +14,7 @@ export interface GameActions {
   setPrompt: (p: string) => void
   setColorCount: (n: number) => void
   setRevealMode: (m: 'flat' | 'photo') => void
+  setShowOutline: (v: boolean) => void
   setApiKey: (k: string) => void
   apiKey: string
   goTo: (screen: Screen) => void
@@ -29,7 +30,7 @@ export interface GameActions {
 export function useGame(): [GameState, GameActions] {
   const [state, setState] = useState<GameState>(() => DEFAULT_STATE)
   const [apiKey, setApiKeyState] = useState<string>(() => loadApiKey())
-  const { persistState, restoreState, wipeState, storeImage, retrieveImage, storeIndexMap, retrieveIndexMap, storeRegionMap, retrieveRegionMap } = useStorage()
+  const { persistState, restoreState, wipeState, storeImage, retrieveImage, storeRegionMap, retrieveRegionMap } = useStorage()
 
   const indexMapRef = useRef<Uint8Array | null>(null)
   const regionMapRef = useRef<Int32Array | null>(null)
@@ -40,16 +41,15 @@ export function useGame(): [GameState, GameActions] {
     const saved = restoreState()
     if (!saved) return
     if (!saved.sessionId) {
-      setState(prev => ({ ...prev, prompt: saved.prompt, colorCount: saved.colorCount, revealMode: saved.revealMode }))
+      setState(prev => ({ ...prev, prompt: saved.prompt, colorCount: saved.colorCount, revealMode: saved.revealMode, showOutline: saved.showOutline ?? true }))
       return
     }
 
     if (saved.screen === 'playing' || saved.screen === 'complete') {
       Promise.all([
         retrieveImage(saved.sessionId),
-        retrieveIndexMap(saved.sessionId),
         retrieveRegionMap(saved.sessionId),
-      ]).then(async ([blob, storedIndexMap, storedRegionMap]) => {
+      ]).then(async ([blob, storedRegionMap]) => {
         if (!blob) { setState(DEFAULT_STATE); return }
 
         const img = await loadBlobAsImage(blob)
@@ -61,7 +61,7 @@ export function useGame(): [GameState, GameActions] {
         ctx.drawImage(img, 0, 0, saved.canvasWidth, saved.canvasHeight)
         const imageData = ctx.getImageData(0, 0, saved.canvasWidth, saved.canvasHeight)
 
-        const indexMap = storedIndexMap ?? rebuildIndexMap(imageData, saved.palette)
+        const indexMap = rebuildIndexMap(imageData, saved.palette)
         let regionMap = storedRegionMap
         if (!regionMap) {
           const built = buildRegions(indexMap, saved.canvasWidth, saved.canvasHeight, saved.rawPalette ?? [])
@@ -91,6 +91,7 @@ export function useGame(): [GameState, GameActions] {
   const setPrompt = useCallback((prompt: string) => update({ prompt }), [update])
   const setColorCount = useCallback((colorCount: number) => update({ colorCount }), [update])
   const setRevealMode = useCallback((revealMode: 'flat' | 'photo') => update({ revealMode }), [update])
+  const setShowOutline = useCallback((showOutline: boolean) => update({ showOutline }), [update])
   const goTo = useCallback((screen: Screen) => update({ screen }), [update])
 
   const setApiKey = useCallback((k: string) => {
@@ -140,10 +141,7 @@ export function useGame(): [GameState, GameActions] {
     // size merge (in buildRegions) and the color merge (mergeToTarget) above.
     regions = fuseSameColorRegions(regions, regionMap, cw)
 
-    await Promise.all([
-      storeIndexMap(sessionId, indexMap),
-      storeRegionMap(sessionId, regionMap),
-    ])
+    await storeRegionMap(sessionId, regionMap)
 
     indexMapRef.current = indexMap
     regionMapRef.current = regionMap
@@ -189,6 +187,7 @@ export function useGame(): [GameState, GameActions] {
     setPrompt,
     setColorCount,
     setRevealMode,
+    setShowOutline,
     setApiKey,
     apiKey,
     goTo,

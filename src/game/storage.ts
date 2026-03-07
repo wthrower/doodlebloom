@@ -47,30 +47,28 @@ function openDb(): Promise<IDBDatabase> {
   })
 }
 
-export async function saveIndexMap(sessionId: string, indexMap: Uint8Array): Promise<void> {
-  const db = await openDb()
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(IDB_STORE, 'readwrite')
-    const store = tx.objectStore(IDB_STORE)
-    const req = store.put(new Blob([indexMap]), sessionId + '_index')
-    req.onsuccess = () => resolve()
-    req.onerror = () => reject(req.error)
-  })
+function encodeRLE(data: Int32Array): Int32Array {
+  const pairs: number[] = [data.length]
+  let i = 0
+  while (i < data.length) {
+    const val = data[i]
+    let count = 1
+    while (i + count < data.length && data[i + count] === val) count++
+    pairs.push(val, count)
+    i += count
+  }
+  return new Int32Array(pairs)
 }
 
-export async function loadIndexMap(sessionId: string): Promise<Uint8Array | null> {
-  const db = await openDb()
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(IDB_STORE, 'readonly')
-    const store = tx.objectStore(IDB_STORE)
-    const req = store.get(sessionId + '_index')
-    req.onsuccess = async () => {
-      if (!req.result) { resolve(null); return }
-      const buf = await (req.result as Blob).arrayBuffer()
-      resolve(new Uint8Array(buf))
-    }
-    req.onerror = () => reject(req.error)
-  })
+function decodeRLE(encoded: Int32Array): Int32Array {
+  const length = encoded[0]
+  const result = new Int32Array(length)
+  let pos = 0
+  for (let i = 1; i < encoded.length; i += 2) {
+    result.fill(encoded[i], pos, pos + encoded[i + 1])
+    pos += encoded[i + 1]
+  }
+  return result
 }
 
 export async function saveRegionMap(sessionId: string, regionMap: Int32Array): Promise<void> {
@@ -78,7 +76,7 @@ export async function saveRegionMap(sessionId: string, regionMap: Int32Array): P
   return new Promise((resolve, reject) => {
     const tx = db.transaction(IDB_STORE, 'readwrite')
     const store = tx.objectStore(IDB_STORE)
-    const req = store.put(new Blob([regionMap]), sessionId + '_regions')
+    const req = store.put(new Blob([encodeRLE(regionMap)]), sessionId + '_regions')
     req.onsuccess = () => resolve()
     req.onerror = () => reject(req.error)
   })
@@ -93,7 +91,7 @@ export async function loadRegionMap(sessionId: string): Promise<Int32Array | nul
     req.onsuccess = async () => {
       if (!req.result) { resolve(null); return }
       const buf = await (req.result as Blob).arrayBuffer()
-      resolve(new Int32Array(buf))
+      resolve(decodeRLE(new Int32Array(buf)))
     }
     req.onerror = () => reject(req.error)
   })

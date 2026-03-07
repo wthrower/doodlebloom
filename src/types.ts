@@ -26,6 +26,8 @@ export interface GameState {
   playerColors: Record<number, number>
   /** reveal mode: flat fills region with palette color, photo shows original pixels */
   revealMode: 'flat' | 'photo'
+  /** whether to draw region outlines */
+  showOutline: boolean
   /** canvas dimensions used when building regions */
   canvasWidth: number
   canvasHeight: number
@@ -43,6 +45,7 @@ export const DEFAULT_STATE: GameState = {
   regions: [],
   playerColors: {},
   revealMode: 'photo',
+  showOutline: true,
   canvasWidth: 512,
   canvasHeight: 512,
 }

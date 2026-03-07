@@ -7,6 +7,7 @@ export interface RenderOptions {
   revealMode: 'flat' | 'photo'
   originalImageData: ImageData | null
   colorDisplayNumbers: Record<number, number>
+  showOutline?: boolean
 }
 
 /**
@@ -25,7 +26,7 @@ export function renderPuzzle(
   palette: PaletteColor[],
   opts: RenderOptions
 ): void {
-  const { playerColors, revealMode, originalImageData, colorDisplayNumbers } = opts
+  const { playerColors, revealMode, originalImageData, colorDisplayNumbers, showOutline = true } = opts
 
   // Build pixel buffer
   const imageData = ctx.createImageData(width, height)
@@ -72,7 +73,7 @@ export function renderPuzzle(
   ctx.putImageData(imageData, 0, 0)
 
   // Draw region outlines: scan for pixel boundaries and darken edge pixels
-  drawOutlines(ctx, width, height, regionMap, regions, playerColors)
+  if (showOutline) drawOutlines(ctx, width, height, regionMap, regions, playerColors)
 
   // Draw numbers at centroids for unfilled regions
   drawNumbers(ctx, regions, playerColors, colorDisplayNumbers)

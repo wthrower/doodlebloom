@@ -39,7 +39,7 @@ export function GameScreen({ state, actions, onNewPuzzle }: Props) {
     return dominant
   })
   const [cheatActive, setCheatActive] = useState(false)
-  const { palette, regions, playerColors, canvasWidth, canvasHeight, revealMode } = state
+  const { palette, regions, playerColors, canvasWidth, canvasHeight, revealMode, showOutline } = state
   const { indexMapRef, regionMapRef, originalImageDataRef, fillRegion } = actions
 
   // --- Refs for event handlers (avoid stale closures, avoid re-adding listeners) ---
@@ -157,6 +157,7 @@ export function GameScreen({ state, actions, onNewPuzzle }: Props) {
       revealMode,
       originalImageData: originalImageDataRef.current,
       colorDisplayNumbers,
+      showOutline: state.screen === 'complete' ? showOutline : true,
     })
 
     if (cheatActive && activeColorIndex !== null) {
@@ -175,7 +176,7 @@ export function GameScreen({ state, actions, onNewPuzzle }: Props) {
       }
       ctx.putImageData(imageData, 0, 0)
     }
-  }, [playerColors, activeColorIndex, regions, palette, revealMode, canvasWidth, canvasHeight, indexMapRef, regionMapRef, originalImageDataRef, cheatActive, colorDisplayNumbers])
+  }, [playerColors, activeColorIndex, regions, palette, revealMode, showOutline, canvasWidth, canvasHeight, indexMapRef, regionMapRef, originalImageDataRef, cheatActive, colorDisplayNumbers])
 
   // --- Coordinate mapping: screen → canvas pixels ---
   // Use wrap rect + canvas.offsetLeft/Top (layout position, no transform) + explicit transform.
@@ -213,9 +214,15 @@ export function GameScreen({ state, actions, onNewPuzzle }: Props) {
   }, [canvasWidth, canvasHeight, regionMapRef, screenToCanvas])
 
   // --- Cheat key (x): highlight unfilled cells of selected color ---
+  // --- Cheat key (w): fill everything and win ---
   useEffect(() => {
-    const down = (e: KeyboardEvent) => { if (e.key === 'x' || e.key === 'X') setCheatActive(true) }
-    const up   = (e: KeyboardEvent) => { if (e.key === 'x' || e.key === 'X') setCheatActive(false) }
+    const down = (e: KeyboardEvent) => {
+      if (e.key === 'x' || e.key === 'X') setCheatActive(true)
+      if (e.key === 'w' || e.key === 'W') {
+        for (const r of regionsRef.current) fillRegionRef.current(r.id, r.colorIndex)
+      }
+    }
+    const up = (e: KeyboardEvent) => { if (e.key === 'x' || e.key === 'X') setCheatActive(false) }
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
@@ -398,6 +405,14 @@ export function GameScreen({ state, actions, onNewPuzzle }: Props) {
           <div className="progress-fill" style={{ width: `${progress}%` }} />
         </div>
         <span className="progress-text">{progress}%</span>
+        {state.screen !== 'complete' && (
+          <button
+            className={`btn btn-small ${cheatActive ? 'btn-active' : 'btn-ghost'}`}
+            onClick={() => setCheatActive(v => !v)}
+          >
+            Hint
+          </button>
+        )}
         {isZoomed && (
           <button
             className="btn btn-ghost btn-small"
@@ -422,7 +437,12 @@ export function GameScreen({ state, actions, onNewPuzzle }: Props) {
         <div className="win-footer">
           <div className="win-footer-title">You did it!</div>
           <div className="win-footer-actions">
-            <button className="btn btn-primary" onClick={handleDownload}>Download painting</button>
+            <PillToggle
+              options={[{ value: true, label: 'Outline' }, { value: false, label: 'Clean' }]}
+              value={showOutline}
+              onChange={actions.setShowOutline}
+            />
+            <button className="btn btn-primary" onClick={handleDownload}>Download</button>
             <button className="btn btn-ghost" onClick={onNewPuzzle}>New puzzle</button>
           </div>
         </div>

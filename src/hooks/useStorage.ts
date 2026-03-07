@@ -6,8 +6,6 @@ import {
   saveImage,
   loadImage,
   deleteImage,
-  saveIndexMap,
-  loadIndexMap,
   saveRegionMap,
   loadRegionMap,
 } from '../game/storage'
@@ -37,14 +35,6 @@ export function useStorage() {
     return loadImage(sessionId)
   }, [])
 
-  const storeIndexMap = useCallback(async (sessionId: string, indexMap: Uint8Array) => {
-    await saveIndexMap(sessionId, indexMap)
-  }, [])
-
-  const retrieveIndexMap = useCallback(async (sessionId: string): Promise<Uint8Array | null> => {
-    return loadIndexMap(sessionId)
-  }, [])
-
   const storeRegionMap = useCallback(async (sessionId: string, regionMap: Int32Array) => {
     await saveRegionMap(sessionId, regionMap)
   }, [])
@@ -53,5 +43,5 @@ export function useStorage() {
     return loadRegionMap(sessionId)
   }, [])
 
-  return { persistState, restoreState, wipeState, storeImage, retrieveImage, storeIndexMap, retrieveIndexMap, storeRegionMap, retrieveRegionMap }
+  return { persistState, restoreState, wipeState, storeImage, retrieveImage, storeRegionMap, retrieveRegionMap }
 }
