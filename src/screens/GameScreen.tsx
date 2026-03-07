@@ -369,7 +369,7 @@ export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Pr
               key={idx}
               className={`palette-swatch ${isActive ? 'active' : ''} ${isComplete ? 'complete' : ''}`}
               style={{ backgroundColor: `rgb(${r},${g},${b})` }}
-              onClick={() => setActiveColorIndex(isActive ? null : idx)}
+              onClick={() => setActiveColorIndex(idx)}
               aria-label={`Color ${idx + 1}`}
               aria-pressed={isActive}
             >
