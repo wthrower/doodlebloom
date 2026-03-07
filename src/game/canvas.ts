@@ -130,7 +130,7 @@ function drawNumbers(
     const { x, y } = region.centroid
     const label = String(colorDisplayNumbers[region.colorIndex] ?? region.colorIndex + 1)
 
-    const fontSize = Math.max(9, Math.min(region.labelRadius - 1, 16))
+    const fontSize = Math.max(9, Math.min(Math.round(region.labelRadius * 0.8), 28))
     ctx.font = `${fontSize}px sans-serif`
     ctx.fillStyle = 'rgba(0,0,0,0.6)'
     ctx.fillText(label, x, y + 0.5)

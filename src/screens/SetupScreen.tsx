@@ -132,7 +132,7 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, selected
                 </button>
                 {previewUrl && (
                   <button className="btn btn-secondary btn-large" onClick={onPaint}>
-                    Paint this!
+                    Play!
                   </button>
                 )}
               </>
@@ -169,7 +169,7 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, selected
           </div>
 
           {previewUrl && !isGenerating && (
-            <div className="preview-inline" onClick={onPaint} title="Paint this!">
+            <div className="preview-inline" onClick={onPaint} title="Play!">
               <img src={previewUrl} alt="Selected" className="preview-inline-img" />
             </div>
           )}

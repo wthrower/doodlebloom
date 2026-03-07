@@ -12,7 +12,7 @@ export function PreviewScreen({ imageUrl, onPaint, onTryAgain }: Props) {
       </div>
       <div className="preview-actions">
         <button className="btn btn-primary btn-large" onClick={onPaint}>
-          Paint this!
+          Play!
         </button>
         <button className="btn btn-ghost" onClick={onTryAgain}>
           Try again
