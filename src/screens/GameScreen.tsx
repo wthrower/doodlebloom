@@ -170,9 +170,9 @@ export function GameScreen({ state, actions, onNewPuzzle }: Props) {
         if (regionColorMap.get(regionId) !== activeColorIndex) continue
         if (playerColors[regionId] !== undefined) continue
         const pi = i * 4
-        data[pi]     = Math.round(data[pi]     * 0.3 + 255 * 0.7)
-        data[pi + 1] = Math.round(data[pi + 1] * 0.3)
-        data[pi + 2] = Math.round(data[pi + 2] * 0.3 + 255 * 0.7)
+        data[pi]     = 255
+        data[pi + 1] = 0
+        data[pi + 2] = 255
       }
       ctx.putImageData(imageData, 0, 0)
     }
@@ -408,7 +408,11 @@ export function GameScreen({ state, actions, onNewPuzzle }: Props) {
         {state.screen !== 'complete' && (
           <button
             className={`btn btn-small ${cheatActive ? 'btn-active' : 'btn-ghost'}`}
-            onClick={() => setCheatActive(v => !v)}
+            onMouseDown={() => setCheatActive(true)}
+            onMouseUp={() => setCheatActive(false)}
+            onMouseLeave={() => setCheatActive(false)}
+            onTouchStart={e => { e.preventDefault(); setCheatActive(true) }}
+            onTouchEnd={() => setCheatActive(false)}
           >
             Hint
           </button>
