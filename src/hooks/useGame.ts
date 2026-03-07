@@ -58,7 +58,7 @@ export function useGame(): [GameState, GameActions] {
 
         // Use stored indexMap if available (exact), otherwise rebuild from pixels
         const indexMap = storedIndexMap ?? rebuildIndexMap(imageData, saved.palette)
-        const { regionMap } = buildRegions(indexMap, saved.canvasWidth, saved.canvasHeight, saved.palette)
+        const { regionMap } = buildRegions(indexMap, saved.canvasWidth, saved.canvasHeight)
 
         indexMapRef.current = indexMap
         regionMapRef.current = regionMap
@@ -115,7 +115,7 @@ export function useGame(): [GameState, GameActions] {
     const originalImageData = imageData
 
     const { palette: rawPalette, indexMap: rawIndexMap } = quantizeImage(imageData, colorCountRef.current)
-    const { regions: rawRegions, regionMap } = buildRegions(rawIndexMap, cw, ch, rawPalette)
+    const { regions: rawRegions, regionMap } = buildRegions(rawIndexMap, cw, ch)
 
     // Compact palette: remove unused color indices so numbers shown to the player are gapless
     const usedIndices = [...new Set(rawRegions.map(r => r.colorIndex))].sort((a, b) => a - b)
@@ -227,6 +227,6 @@ async function rebuildMapsFromBlob(
   ctx.drawImage(img, 0, 0, width, height)
   const imageData = ctx.getImageData(0, 0, width, height)
   const indexMap = rebuildIndexMap(imageData, palette)
-  const { regionMap } = buildRegions(indexMap, width, height, palette)
+  const { regionMap } = buildRegions(indexMap, width, height)
   return { indexMap, regionMap, imageData }
 }
