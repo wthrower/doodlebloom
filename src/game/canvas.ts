@@ -7,7 +7,15 @@ export interface RenderOptions {
   revealMode: 'flat' | 'photo'
   originalImageData: ImageData | null
   colorDisplayNumbers: Record<number, number>
-  showOutline?: boolean
+}
+
+/** A chain of (x, y) boundary grid points in canvas coordinates. */
+export type OutlineChain = [number, number][]
+
+/** Outline chains plus per-chain bounding boxes for viewport culling. */
+export interface OutlineBatch {
+  chains: OutlineChain[]
+  bboxes: Float32Array  // [minX, minY, maxX, maxY] × chains.length, packed
 }
 
 /**
@@ -26,7 +34,7 @@ export function renderPuzzle(
   palette: PaletteColor[],
   opts: RenderOptions
 ): void {
-  const { playerColors, revealMode, originalImageData, colorDisplayNumbers, showOutline = true } = opts
+  const { playerColors, revealMode, originalImageData, colorDisplayNumbers } = opts
 
   // Build pixel buffer
   const imageData = ctx.createImageData(width, height)
@@ -72,48 +80,128 @@ export function renderPuzzle(
 
   ctx.putImageData(imageData, 0, 0)
 
-  // Draw region outlines: scan for pixel boundaries and darken edge pixels
-  if (showOutline) drawOutlines(ctx, width, height, regionMap, regions, playerColors)
-
   // Draw numbers at centroids for unfilled regions
   drawNumbers(ctx, regions, playerColors, colorDisplayNumbers)
 }
 
-function drawOutlines(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
+/**
+ * Build boundary chains for SVG outline rendering.
+ * Traces pixel-boundary edges into connected polylines and simplifies with
+ * Douglas-Peucker (ε=0.5px) to collapse pixel staircases into diagonals.
+ * Call once when the puzzle loads; pass chains to updateOutlineSvg on zoom/pan.
+ */
+export function buildOutlineChains(
   regionMap: Int32ArrayLike,
   regions: Region[],
-  _playerColors: Record<number, number>
-): void {
+  width: number,
+  height: number
+): OutlineBatch {
   const keptIds = new Set(regions.map(r => r.id))
 
-  // Draw single-pixel outlines by marking only the left/top pixel of each boundary.
-  // - For A|B boundaries: the pixel whose right or bottom neighbor differs gets marked.
-  //   The neighbor is NOT marked (it would mark from its left/top check, which we skip).
-  // - For region|background boundaries facing left or top: explicitly mark that pixel.
-  // This ensures each shared edge produces exactly 1 dark pixel instead of 2.
-  ctx.fillStyle = 'rgba(0,0,0,0.75)'
-  for (let y = 0; y < height; y++) {
+  // Boundary grid: integer coordinates (x ∈ [0,width], y ∈ [0,height]).
+  // Each pixel (px, py) occupies canvas rect [px, px+1] × [py, py+1].
+  const W1 = width + 1
+  const adj = new Map<number, Set<number>>()
+  const addEdge = (x1: number, y1: number, x2: number, y2: number) => {
+    const k1 = y1 * W1 + x1, k2 = y2 * W1 + x2
+    if (!adj.has(k1)) adj.set(k1, new Set())
+    if (!adj.has(k2)) adj.set(k2, new Set())
+    adj.get(k1)!.add(k2)
+    adj.get(k2)!.add(k1)
+  }
+
+  // Horizontal boundary segments (between pixel rows y and y+1)
+  for (let y = 0; y < height - 1; y++) {
     for (let x = 0; x < width; x++) {
-      const id = regionMap[y * width + x]
-      if (!keptIds.has(id)) continue
-
-      const right = x < width - 1 ? regionMap[y * width + x + 1] : -2
-      const down  = y < height - 1 ? regionMap[(y + 1) * width + x] : -2
-      const left  = x > 0 ? regionMap[y * width + x - 1] : -2
-      const top   = y > 0 ? regionMap[(y - 1) * width + x] : -2
-
-      const isEdge =
-        right !== id ||
-        down  !== id ||
-        (left !== id && !keptIds.has(left)) ||
-        (top  !== id && !keptIds.has(top))
-
-      if (isEdge) ctx.fillRect(x, y, 1, 1)
+      const a = regionMap[y * width + x], b = regionMap[(y + 1) * width + x]
+      if (a !== b && (keptIds.has(a) || keptIds.has(b))) addEdge(x, y + 1, x + 1, y + 1)
     }
   }
+
+  // Vertical boundary segments (between pixel columns x and x+1)
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width - 1; x++) {
+      const a = regionMap[y * width + x], b = regionMap[y * width + x + 1]
+      if (a !== b && (keptIds.has(a) || keptIds.has(b))) addEdge(x + 1, y, x + 1, y + 1)
+    }
+  }
+
+  // Image border edges
+  for (let x = 0; x < width; x++) {
+    if (keptIds.has(regionMap[x])) addEdge(x, 0, x + 1, 0)
+    if (keptIds.has(regionMap[(height - 1) * width + x])) addEdge(x, height, x + 1, height)
+  }
+  for (let y = 0; y < height; y++) {
+    if (keptIds.has(regionMap[y * width])) addEdge(0, y, 0, y + 1)
+    if (keptIds.has(regionMap[y * width + width - 1])) addEdge(width, y, width, y + 1)
+  }
+
+  // Trace connected chains, deleting edges as visited.
+  const toXY = (k: number): [number, number] => [k % W1, (k / W1) | 0]
+  const rawChains: OutlineChain[] = []
+
+  for (const [startK, startNeighbors] of adj) {
+    while (startNeighbors.size > 0) {
+      const nextK = startNeighbors.values().next().value!
+      startNeighbors.delete(nextK)
+      adj.get(nextK)!.delete(startK)
+
+      const chain: OutlineChain = [toXY(startK), toXY(nextK)]
+      let currK = nextK
+
+      while (true) {
+        const neighbors = adj.get(currK)!
+        if (neighbors.size !== 1) break
+        const cont = neighbors.values().next().value!
+        neighbors.delete(cont)
+        adj.get(cont)!.delete(currK)
+        chain.push(toXY(cont))
+        currK = cont
+      }
+
+      rawChains.push(chain)
+    }
+  }
+
+  // Compute per-chain bounding boxes (used for viewport culling in updateOutlineSvg).
+  const bboxes = new Float32Array(rawChains.length * 4)
+  for (let i = 0; i < rawChains.length; i++) {
+    const c = rawChains[i]
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (const [x, y] of c) {
+      if (x < minX) minX = x; if (x > maxX) maxX = x
+      if (y < minY) minY = y; if (y > maxY) maxY = y
+    }
+    bboxes[i * 4]     = minX
+    bboxes[i * 4 + 1] = minY
+    bboxes[i * 4 + 2] = maxX
+    bboxes[i * 4 + 3] = maxY
+  }
+
+  return { chains: rawChains, bboxes }
+}
+
+/** Douglas-Peucker polyline simplification (exported for zoom-adaptive use in callers). */
+export function dpSimplify(pts: [number, number][], epsilon: number): [number, number][] {
+  if (pts.length <= 2) return pts
+  const [x1, y1] = pts[0]
+  const [x2, y2] = pts[pts.length - 1]
+  const dx = x2 - x1, dy = y2 - y1
+  const lenSq = dx * dx + dy * dy
+
+  let maxDist = 0, maxIdx = 1
+  for (let i = 1; i < pts.length - 1; i++) {
+    const [px, py] = pts[i]
+    const dist = lenSq === 0
+      ? Math.hypot(px - x1, py - y1)
+      : Math.abs((py - y1) * dx - (px - x1) * dy) / Math.sqrt(lenSq)
+    if (dist > maxDist) { maxDist = dist; maxIdx = i }
+  }
+
+  if (maxDist <= epsilon) return [pts[0], pts[pts.length - 1]]
+  const left = dpSimplify(pts.slice(0, maxIdx + 1), epsilon)
+  const right = dpSimplify(pts.slice(maxIdx), epsilon)
+  return [...left.slice(0, -1), ...right]
 }
 
 function drawNumbers(

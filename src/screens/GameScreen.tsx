@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Maximize2, Minimize2, ScanSearch } from 'lucide-react'
 import type { GameActions, GameState } from '../App'
 import { PillToggle } from '../components/PillToggle'
-import { renderPuzzle, flashRegion } from '../game/canvas'
+import { renderPuzzle, flashRegion, buildOutlineChains, dpSimplify } from '../game/canvas'
+import type { OutlineBatch } from '../game/canvas'
 import { colorDist } from '../game/colorDistance'
 import { getRegionAt } from '../game/regions'
 import { CURSOR_CAN_FILL, CURSOR_CANT_FILL } from '../game/cursors'
@@ -32,6 +33,9 @@ function clampTransform(t: Transform): Transform {
 export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggleFullscreen }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
+  const outlineSvgRef = useRef<SVGSVGElement>(null)
+  const outlineChainsRef = useRef<OutlineBatch | null>(null)
+  const outlineRafRef = useRef(0)
   const [activeColorIndex, setActiveColorIndex] = useState<number | null>(() => {
     const rs = state.regions
     if (rs.length === 0) return null
@@ -119,6 +123,101 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
     setActiveColorIndex(next)
   }, [playerColors, activeColorIndex, regions])
 
+  // --- SVG outline overlay: redraws in screen coordinates on every zoom/pan/resize ---
+  // The SVG is not CSS-transformed, so its paths are rendered at screen resolution.
+  // Throttled to one update per animation frame; adaptive DP epsilon reduces point
+  // count at low zoom (fewer points = faster SVG render + fewer string ops).
+  const updateOutlineSvg = useCallback(() => {
+    cancelAnimationFrame(outlineRafRef.current)
+    outlineRafRef.current = requestAnimationFrame(() => {
+      const svg = outlineSvgRef.current
+      const canvas = canvasRef.current
+      const wrap = wrapRef.current
+      const batch = outlineChainsRef.current
+      if (!svg || !canvas || !wrap || !batch) return
+
+      const { tx, ty, scale } = transformRef.current
+      const displayW = displaySizeRef.current || canvasWidth
+      const pixelScale = (displayW / canvasWidth) * scale
+      const ox = canvas.offsetLeft + tx
+      const oy = canvas.offsetTop + ty
+      const wrapW = wrap.clientWidth
+      const wrapH = wrap.clientHeight
+
+      // Epsilon in canvas units: target ~2 screen pixels of tolerance so noisy
+      // pixel-level detail collapses into smooth region boundaries.
+      // Scales up at low zoom (fewer points needed when image is small on screen).
+      const epsilon = Math.max(2, 2 / pixelScale)
+
+      // Convert canvas coords to screen coords
+      const sx = (cx: number) => (ox + cx * pixelScale).toFixed(1)
+      const sy = (cy: number) => (oy + cy * pixelScale).toFixed(1)
+
+      // Visible canvas bounds (with small margin for curves that extend slightly outside bbox)
+      const margin = epsilon * 2
+      const visMinX = (-ox / pixelScale) - margin
+      const visMinY = (-oy / pixelScale) - margin
+      const visMaxX = visMinX + (wrapW / pixelScale) + margin * 2
+      const visMaxY = visMinY + (wrapH / pixelScale) + margin * 2
+
+      const { chains, bboxes } = batch
+      const t = 0.6 // Catmull-Rom tension
+      const parts: string[] = []
+
+      for (let ci = 0; ci < chains.length; ci++) {
+        // Viewport cull: skip chains entirely outside the visible area
+        const bi = ci * 4
+        if (bboxes[bi + 2] < visMinX || bboxes[bi] > visMaxX ||
+            bboxes[bi + 3] < visMinY || bboxes[bi + 1] > visMaxY) continue
+
+        const pts = dpSimplify(chains[ci], epsilon)
+        if (pts.length < 2) continue
+        parts.push(`M${sx(pts[0][0])},${sy(pts[0][1])}`)
+
+        // Catmull-Rom → cubic Bezier, with straight-line fallback.
+        // If both control points deviate less than 1 canvas px from the chord,
+        // the curve is imperceptibly different from a line -- use L to avoid
+        // bowing long straight segments at sharp-angled junctions.
+        for (let i = 0; i < pts.length - 1; i++) {
+          const p0 = pts[Math.max(0, i - 1)]
+          const p1 = pts[i]
+          const p2 = pts[i + 1]
+          const p3 = pts[Math.min(pts.length - 1, i + 2)]
+          const cp1x = p1[0] + (p2[0] - p0[0]) * t / 3
+          const cp1y = p1[1] + (p2[1] - p0[1]) * t / 3
+          const cp2x = p2[0] - (p3[0] - p1[0]) * t / 3
+          const cp2y = p2[1] - (p3[1] - p1[1]) * t / 3
+          // Only curve short segments -- long segments are straight lines and
+          // Catmull-Rom would bow them based on the angle at their endpoints.
+          const segLen = Math.sqrt((p2[0]-p1[0])**2 + (p2[1]-p1[1])**2)
+          if (segLen > 12) {
+            parts.push(`L${sx(p2[0])},${sy(p2[1])}`)
+          } else {
+            parts.push(`C${sx(cp1x)},${sy(cp1y)} ${sx(cp2x)},${sy(cp2y)} ${sx(p2[0])},${sy(p2[1])}`)
+          }
+        }
+      }
+
+      // Line thickness scales with zoom so outlines stay proportional to image content.
+      // Clamped to 1px minimum when the image is displayed smaller than native.
+      const strokeWidth = Math.max(1, scale)
+
+      // Update SVG elements directly (bypass React VDOM for perf)
+      const path = svg.querySelector('path')
+      if (path) {
+        path.setAttribute('d', parts.join(' '))
+        path.setAttribute('stroke-width', strokeWidth.toFixed(2))
+      }
+    })
+  }, [canvasWidth])
+
+  // Rebuild outline chains when puzzle changes
+  useEffect(() => {
+    if (!regionMapRef.current || regions.length === 0) { outlineChainsRef.current = null; return }
+    outlineChainsRef.current = buildOutlineChains(regionMapRef.current, regions, canvasWidth, canvasHeight)
+    updateOutlineSvg()
+  }, [regions, canvasWidth, canvasHeight, regionMapRef, updateOutlineSvg])
+
   // Trigger a CSS transform + state re-render
   const [, forceRender] = useState(0)
   const setTransform = useCallback((t: Transform) => {
@@ -128,8 +227,9 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
       canvas.style.transformOrigin = '0 0'
       canvas.style.transform = `translate(${t.tx}px,${t.ty}px) scale(${t.scale})`
     }
+    updateOutlineSvg()
     forceRender(n => n + 1)
-  }, [])
+  }, [updateOutlineSvg])
 
   // --- ResizeObserver: fit canvas inside wrap, maintaining aspect ratio ---
   useEffect(() => {
@@ -144,10 +244,11 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
       displaySizeRef.current = w
       canvas.style.width = `${w}px`
       canvas.style.height = `${h}px`
+      updateOutlineSvg()
     })
     observer.observe(wrap)
     return () => observer.disconnect()
-  }, [])
+  }, [updateOutlineSvg])
 
   // --- Render puzzle pixels ---
   useEffect(() => {
@@ -160,7 +261,6 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
       revealMode,
       originalImageData: originalImageDataRef.current,
       colorDisplayNumbers,
-      showOutline: screen === 'complete' ? showOutline : true,
     })
 
     if (cheatActive && activeColorIndex !== null) {
@@ -452,6 +552,14 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
           height={canvasHeight}
           className="puzzle-canvas"
         />
+        {/* SVG outline overlay: not CSS-transformed, redrawn in screen coords on zoom/pan */}
+        <svg
+          ref={outlineSvgRef}
+          className="outline-svg"
+          style={{ visibility: (state.screen === 'complete' && !showOutline) ? 'hidden' : 'visible' }}
+        >
+          <path fill="none" stroke="rgba(0,0,0,0.75)" strokeWidth="1" strokeLinejoin="round" strokeLinecap="round" />
+        </svg>
       </div>
 
       {state.screen === 'complete' ? (
