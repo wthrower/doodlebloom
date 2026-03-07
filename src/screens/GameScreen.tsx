@@ -335,6 +335,8 @@ export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Pr
           if (regionsOfColor.length === 0) return null
           const isActive = activeColorIndex === idx
           const isComplete = regionsOfColor.every(region => playerColors[region.id] === idx)
+          const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+          const checkColor = luminance < 0.5 ? '#fff' : '#000'
           return (
             <button
               key={idx}
@@ -345,7 +347,7 @@ export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Pr
               aria-pressed={isActive}
             >
               <span className="swatch-number">{idx + 1}</span>
-              {isComplete && <span className="swatch-check">✓</span>}
+              {isComplete && <span className="swatch-check" style={{ color: checkColor }}>✓</span>}
             </button>
           )
         })}
