@@ -46,6 +46,15 @@ export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Pr
   useEffect(() => { playerColorsRef.current = playerColors }, [playerColors])
   useEffect(() => { fillRegionRef.current = fillRegion }, [fillRegion])
 
+  // Deselect swatch when its color becomes fully filled
+  useEffect(() => {
+    if (activeColorIndex === null) return
+    const allFilled = regions
+      .filter(r => r.colorIndex === activeColorIndex)
+      .every(r => playerColors[r.id] !== undefined)
+    if (allFilled) setActiveColorIndex(null)
+  }, [playerColors, activeColorIndex, regions])
+
   // Trigger a CSS transform + state re-render
   const [, forceRender] = useState(0)
   const setTransform = useCallback((t: Transform) => {
