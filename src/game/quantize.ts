@@ -7,26 +7,37 @@ export interface QuantizeResult {
   indexMap: Uint8Array
 }
 
+/** Stage 1 of 2: blur + MMCQ palette. Returns blurred pixel data and raw palette. */
+export function analyzeColors(
+  imageData: ImageData,
+  colorCount: number
+): { blurred: Uint8ClampedArray; palette: PaletteColor[] } {
+  const { data, width, height } = imageData
+  const pixels = width * height
+  const blurred = edgeAwareBlur(data, width, height)
+  const allPixels = buildPixelArray(blurred, pixels)
+  const palette = mmcqPalette(allPixels, colorCount * 2)
+  return { blurred, palette }
+}
+
+/** Stage 2 of 2: assign each pixel to its nearest palette color, then refine palette. */
+export function assignColors(
+  blurred: Uint8ClampedArray,
+  palette: PaletteColor[],
+  imageData: ImageData
+): Uint8Array {
+  const pixels = imageData.width * imageData.height
+  const indexMap = assignPixels(blurred, pixels, palette)
+  refinePalette(palette, indexMap, imageData)
+  return indexMap
+}
+
 export function quantizeImage(
   imageData: ImageData,
   colorCount: number
 ): QuantizeResult {
-  const { data, width, height } = imageData
-  const pixels = width * height
-
-  // Blur gradients, restore pixels that shifted too far (edge pixels).
-  // This gives MMCQ cleaner color zones to quantize.
-  const blurred = edgeAwareBlur(data, width, height)
-
-  const allPixels = buildPixelArray(blurred, pixels)
-  // Overshoot by 2× to give MMCQ room to find varied colors. The caller is
-  // responsible for merging the palette back down after region structure is known.
-  const palette = mmcqPalette(allPixels, colorCount * 2)
-  const indexMap = assignPixels(blurred, pixels, palette)
-
-  // Refine on original data so palette colors match the actual image, not the blur.
-  refinePalette(palette, indexMap, imageData)
-
+  const { blurred, palette } = analyzeColors(imageData, colorCount)
+  const indexMap = assignColors(blurred, palette, imageData)
   return { palette, indexMap }
 }
 

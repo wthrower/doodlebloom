@@ -83,18 +83,25 @@ class MinHeap<T> {
   }
 }
 
-export function buildRegions(
+/** Opaque intermediate state passed between pipeline phases. */
+export interface RegionIntermediate {
+  regionMap: Int32Array
+  regionMeta: Map<number, RegionMeta>
+  width: number
+  height: number
+}
+
+/** Phase 1: BFS connected components + adjacency tracking. */
+export function traceRegions(
   indexMap: Uint8Array,
   width: number,
   height: number,
-  palette: PaletteColor[] = []
-): { regions: Region[]; regionMap: Int32Array } {
+): RegionIntermediate {
   const pixels = width * height
   const regionMap = new Int32Array(pixels).fill(-1)
   const regionMeta = new Map<number, RegionMeta>()
   let nextId = 0
 
-  // Phase 1: BFS connected components + adjacency tracking
   for (let start = 0; start < pixels; start++) {
     if (regionMap[start] !== -1) continue
 
@@ -110,7 +117,6 @@ export function buildRegions(
       const idx = queue.pop()!
       count++
       const x = idx % width
-      const y = Math.floor(idx / width)
       const neighbors = [
         idx - width,
         idx + width,
@@ -135,13 +141,19 @@ export function buildRegions(
     meta.pixelCount = count
   }
 
-  // Region merge: absorb regions below MIN_REGION_PIXELS into best adjacent neighbor.
-  // Prefer same colorIndex; otherwise prefer nearest Lab color.
+  return { regionMap, regionMeta, width, height }
+}
+
+/** Phase 2: Absorb regions below MIN_REGION_PIXELS into best adjacent neighbor.
+ *  Mutates regionMap and regionMeta in place. */
+export function mergeRegions(state: RegionIntermediate, palette: PaletteColor[]): void {
+  const { regionMap, regionMeta, width, height } = state
+  const pixels = width * height
+
   const parent = new Map<number, number>()
   const find = (x: number): number => {
     let root = x
     while (parent.has(root)) root = parent.get(root)!
-    // Path compression
     while (parent.has(x)) {
       const next = parent.get(x)!
       parent.set(x, root)
@@ -153,10 +165,9 @@ export function buildRegions(
   const heap = new MinHeap<RegionMeta>(regionMeta.values(), r => r.pixelCount)
   while (!heap.empty() && heap.min().pixelCount < MIN_REGION_PIXELS) {
     const s = heap.pop()
-    if (find(s.id) !== s.id) continue  // already absorbed as non-canonical
-    if (s.adjIds.size === 0) continue   // image-boundary isolate
+    if (find(s.id) !== s.id) continue
+    if (s.adjIds.size === 0) continue
 
-    // Best neighbor: same colorIndex (score 0) > nearest Lab color (score > 0)
     let best: RegionMeta | null = null
     let bestScore = Infinity
     for (const adjId of s.adjIds) {
@@ -175,7 +186,6 @@ export function buildRegions(
     }
     if (!best) continue
 
-    // Merge s into best via union-find
     parent.set(s.id, best.id)
     best.pixelCount += s.pixelCount
     for (const adjId of s.adjIds) {
@@ -191,13 +201,20 @@ export function buildRegions(
     heap.update(best)
   }
 
-  // Apply union-find to regionMap: O(n)
   for (let i = 0; i < pixels; i++) {
     if (regionMap[i] >= 0) regionMap[i] = find(regionMap[i])
   }
+}
 
-  // Phase 2: Multi-source BFS distance transform.
-  // Each pixel gets the L1 distance to the nearest pixel outside its region.
+/** Phase 3: Distance transform → pole finding → thin region absorption → final Region list. */
+export function finalizeRegions(
+  state: RegionIntermediate,
+  palette: PaletteColor[]
+): { regions: Region[]; regionMap: Int32Array } {
+  const { regionMap, regionMeta, width, height } = state
+  const pixels = width * height
+
+  // Multi-source BFS distance transform
   const dist = new Int32Array(pixels).fill(-1)
   const bfsQueue: number[] = []
 
@@ -235,8 +252,7 @@ export function buildRegions(
     }
   }
 
-  // Phase 3: Pole finding + labelRadius filter.
-  // Regions where max distance < MIN_LABEL_RADIUS are thin/elongated -- absorb them.
+  // Pole finding + thin region filter
   const regionBest = new Map<number, { maxDist: number; bestPixel: number }>()
   for (let i = 0; i < pixels; i++) {
     const rid = regionMap[i]
@@ -263,7 +279,7 @@ export function buildRegions(
     })
   }
 
-  // Absorb thin regions: BFS from kept-region borders inward.
+  // Absorb thin regions via BFS from kept-region borders inward
   if (thinIds.size > 0) {
     const thinQueue: number[] = []
     for (let i = 0; i < pixels; i++) {
@@ -278,7 +294,7 @@ export function buildRegions(
     let tHead = 0
     while (tHead < thinQueue.length) {
       const i = thinQueue[tHead++]
-      if (!thinIds.has(regionMap[i])) continue  // already absorbed
+      if (!thinIds.has(regionMap[i])) continue
 
       const x = i % width, y = Math.floor(i / width)
       const ns = [x > 0 ? i - 1 : -1, x < width - 1 ? i + 1 : -1, y > 0 ? i - width : -1, y < height - 1 ? i + width : -1]
@@ -310,6 +326,17 @@ export function buildRegions(
   }
 
   return { regions, regionMap }
+}
+
+export function buildRegions(
+  indexMap: Uint8Array,
+  width: number,
+  height: number,
+  palette: PaletteColor[] = []
+): { regions: Region[]; regionMap: Int32Array } {
+  const state = traceRegions(indexMap, width, height)
+  mergeRegions(state, palette)
+  return finalizeRegions(state, palette)
 }
 
 /** Merge adjacent regions that now share the same colorIndex (e.g. after a

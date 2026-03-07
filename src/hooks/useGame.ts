@@ -3,8 +3,8 @@ import { DEFAULT_STATE } from '../types'
 import type { GameState, PaletteColor, Region, Screen } from '../types'
 import { useStorage } from './useStorage'
 import { colorDist } from '../game/colorDistance'
-import { quantizeImage } from '../game/quantize'
-import { buildRegions, fuseSameColorRegions } from '../game/regions' // fuseSameColorRegions kept for old-session fallback
+import { analyzeColors, assignColors } from '../game/quantize'
+import { buildRegions, fuseSameColorRegions, traceRegions, mergeRegions, finalizeRegions } from '../game/regions'
 import { loadApiKey, saveApiKey } from '../game/storage'
 
 /** Scale image so its shorter side = this many pixels. */
@@ -25,11 +25,14 @@ export interface GameActions {
   indexMapRef: React.MutableRefObject<Uint8Array | null>
   regionMapRef: React.MutableRefObject<Int32Array | null>
   originalImageDataRef: React.MutableRefObject<ImageData | null>
+  processingStage: string | null
 }
+
 
 export function useGame(): [GameState, GameActions] {
   const [state, setState] = useState<GameState>(() => DEFAULT_STATE)
   const [apiKey, setApiKeyState] = useState<string>(() => loadApiKey())
+  const [processingStage, setProcessingStage] = useState<string | null>(null)
   const { persistState, restoreState, wipeState, storeImage, retrieveImage, storeRegionMap, retrieveRegionMap } = useStorage()
 
   const indexMapRef = useRef<Uint8Array | null>(null)
@@ -107,24 +110,41 @@ export function useGame(): [GameState, GameActions] {
     const sessionId = crypto.randomUUID()
     await storeImage(sessionId, blob)
 
-    const img = await loadBlobAsImage(blob)
+    setProcessingStage('decode')
 
-    // Derive canvas size from image aspect ratio, shorter side = CANVAS_SHORT
+    const img = await loadBlobAsImage(blob)
     const scale = CANVAS_SHORT / Math.min(img.naturalWidth, img.naturalHeight)
     const cw = Math.round(img.naturalWidth * scale)
     const ch = Math.round(img.naturalHeight * scale)
-
     const canvas = document.createElement('canvas')
     canvas.width = cw
     canvas.height = ch
     const ctx = canvas.getContext('2d')!
-
     ctx.drawImage(img, 0, 0, cw, ch)
     const imageData = ctx.getImageData(0, 0, cw, ch)
-    const originalImageData = imageData
 
-    const { palette: rawPalette, indexMap } = quantizeImage(imageData, colorCountRef.current)
-    const { regions: rawRegions, regionMap } = buildRegions(indexMap, cw, ch, rawPalette)
+    setProcessingStage('palette')
+
+    const { blurred, palette: rawPalette } = analyzeColors(imageData, colorCountRef.current)
+
+    setProcessingStage('assign')
+
+    const indexMap = assignColors(blurred, rawPalette, imageData)
+
+    setProcessingStage('trace')
+
+    const regionState = traceRegions(indexMap, cw, ch)
+
+    setProcessingStage('merge')
+
+    mergeRegions(regionState, rawPalette)
+
+    setProcessingStage('measure')
+
+    const { regions: rawRegions, regionMap } = finalizeRegions(regionState, rawPalette)
+
+    setProcessingStage('finish')
+
 
     // Compact: remove palette colors with no surviving regions
     const usedIndices = [...new Set(rawRegions.map(r => r.colorIndex))].sort((a, b) => a - b)
@@ -132,21 +152,18 @@ export function useGame(): [GameState, GameActions] {
     let palette = usedIndices.map(i => rawPalette[i])
     let regions = rawRegions.map(r => ({ ...r, colorIndex: compactRemap.get(r.colorIndex)! }))
 
-    // If compaction still leaves more colors than the target, merge the closest
-    // Lab pairs among the survivors -- now we know which colors own real regions.
     if (palette.length > colorCountRef.current) {
       mergeToTarget(palette, regions, colorCountRef.current)
     }
-    // Fuse adjacent same-color regions -- handles adjacencies from both the
-    // size merge (in buildRegions) and the color merge (mergeToTarget) above.
     regions = fuseSameColorRegions(regions, regionMap, cw)
 
     await storeRegionMap(sessionId, regionMap)
 
     indexMapRef.current = indexMap
     regionMapRef.current = regionMap
-    originalImageDataRef.current = originalImageData
+    originalImageDataRef.current = imageData
 
+    setProcessingStage(null)
     update({
       screen: 'playing',
       sessionId,
@@ -189,6 +206,7 @@ export function useGame(): [GameState, GameActions] {
     setRevealMode,
     setShowOutline,
     setApiKey,
+    processingStage,
     apiKey,
     goTo,
     processImage,

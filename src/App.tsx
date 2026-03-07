@@ -17,6 +17,7 @@ import { useGame } from './hooks/useGame'
 import { useOpenAI } from './hooks/useOpenAI'
 import { SetupScreen } from './screens/SetupScreen'
 import { GameScreen } from './screens/GameScreen'
+import { ProcessingScreen } from './screens/ProcessingScreen'
 import { saveImage, loadImage, deleteImage } from './game/storage'
 
 const PREVIEW_KEY = '__preview__'
@@ -110,7 +111,10 @@ export default function App() {
         </div>
       )}
 
-      {isSetupPhase && (
+      {actions.processingStage !== null && (
+        <ProcessingScreen stage={actions.processingStage} />
+      )}
+      {isSetupPhase && actions.processingStage === null && (
         <SetupScreen
           state={state}
           actions={actions}
