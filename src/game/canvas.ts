@@ -37,10 +37,10 @@ export function renderPuzzle(
     const region = regionId >= 0 ? regionById.get(regionId) : undefined
 
     if (!region) {
-      // Safety fallback -- should not occur after merge phase
-      buf[i * 4] = 245
-      buf[i * 4 + 1] = 245
-      buf[i * 4 + 2] = 245
+      // Unmerged tiny fragment -- paint gray so it reads as background, not a fillable region
+      buf[i * 4] = 160
+      buf[i * 4 + 1] = 160
+      buf[i * 4 + 2] = 160
       buf[i * 4 + 3] = 255
       continue
     }
