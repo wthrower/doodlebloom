@@ -36,7 +36,61 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, onGenera
   return (
     <div className="screen setup-screen">
       <h1 className="app-title">Doodlebloom</h1>
-      <p className="app-subtitle">Generate an image, paint it by number.</p>
+
+      <div className="setup-shared-settings">
+        <div className="form-group">
+          <label htmlFor="colorCount">
+            Colors: <strong>{state.colorCount}</strong>
+          </label>
+          <input
+            id="colorCount"
+            type="range"
+            min={4}
+            max={32}
+            value={state.colorCount}
+            onChange={e => actions.setColorCount(Number(e.target.value))}
+            disabled={isGenerating}
+          />
+          <div className="range-labels">
+            <span>4 (simpler)</span>
+            <span>32 (complex)</span>
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label>Reveal style</label>
+          <PillToggle
+            options={[{ value: 'flat', label: 'Flat' }, { value: 'photo', label: 'Reveal' }]}
+            value={state.revealMode}
+            onChange={actions.setRevealMode}
+            disabled={isGenerating}
+          />
+        </div>
+      </div>
+
+      <div className="stock-section">
+        <label className="stock-label">Pick an image</label>
+        <div className="stock-strip">
+          {STOCK_IMAGES.map(({ file, label }) => (
+            <button
+              key={file}
+              className="stock-thumb-btn"
+              onClick={() => onSelectStock(`${BASE}images/${file}.png`)}
+              aria-label={label}
+              disabled={isGenerating}
+            >
+              <img
+                src={`${BASE}images/thumbs/${file}.jpg`}
+                alt={label}
+                className="stock-thumb-img"
+              />
+              <span className="stock-thumb-label">{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="setup-divider">or generate your own</div>
 
       <div className="form-group">
         <label htmlFor="prompt">Prompt</label>
@@ -48,25 +102,6 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, onGenera
           onChange={e => actions.setPrompt(e.target.value)}
           disabled={isGenerating}
         />
-      </div>
-
-      <div className="form-group">
-        <label htmlFor="colorCount">
-          Colors: <strong>{state.colorCount}</strong>
-        </label>
-        <input
-          id="colorCount"
-          type="range"
-          min={4}
-          max={32}
-          value={state.colorCount}
-          onChange={e => actions.setColorCount(Number(e.target.value))}
-          disabled={isGenerating}
-        />
-        <div className="range-labels">
-          <span>4 (simpler)</span>
-          <span>32 (complex)</span>
-        </div>
       </div>
 
       <div className="form-group">
@@ -101,16 +136,6 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, onGenera
         )}
       </div>
 
-      <div className="form-group">
-        <label>Reveal style</label>
-        <PillToggle
-          options={[{ value: 'flat', label: 'Flat' }, { value: 'photo', label: 'Reveal' }]}
-          value={state.revealMode}
-          onChange={actions.setRevealMode}
-          disabled={isGenerating}
-        />
-      </div>
-
       <div className="setup-generate-row">
         {isGenerating ? (
           <>
@@ -137,28 +162,6 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, onGenera
           <img src={previewUrl} alt="Generated" className="preview-inline-img" />
         </div>
       )}
-
-      <div className="stock-section">
-        <label className="stock-label">Sample images</label>
-        <div className="stock-strip">
-          {STOCK_IMAGES.map(({ file, label }) => (
-            <button
-              key={file}
-              className="stock-thumb-btn"
-              onClick={() => onSelectStock(`${BASE}images/${file}.png`)}
-              aria-label={label}
-              disabled={isGenerating}
-            >
-              <img
-                src={`${BASE}images/thumbs/${file}.jpg`}
-                alt={label}
-                className="stock-thumb-img"
-              />
-              <span className="stock-thumb-label">{label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   )
 }
