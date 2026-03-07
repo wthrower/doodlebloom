@@ -126,8 +126,128 @@ export function buildRegions(
     })
   }
 
-  // Small excluded regions are left in regionMap with their original IDs (not in keptIds).
-  // canvas.ts renders them as gray so they read as settled background, not fillable regions.
+  // Phase 4: Promote large clusters of excluded pixels to labeled regions.
+  // BFS on excluded pixels finds spatially contiguous "gray splotches"; large ones
+  // get promoted to kept regions labeled with their most common palette color.
+  const superRegionMap = new Int32Array(pixels).fill(-1)
+  const superRegionPixelLists = new Map<number, number[]>()
+  let superNextId = 0
+
+  for (let start = 0; start < pixels; start++) {
+    const rid = regionMap[start]
+    if (rid < 0 || keptIds.has(rid)) continue
+    if (superRegionMap[start] >= 0) continue
+
+    const spid = superNextId++
+    const pixelList: number[] = []
+    const queue: number[] = [start]
+    superRegionMap[start] = spid
+    let head = 0
+
+    while (head < queue.length) {
+      const i = queue[head++]
+      pixelList.push(i)
+      const x = i % width, y = Math.floor(i / width)
+      const ns = [
+        x > 0 ? i - 1 : -1,
+        x < width - 1 ? i + 1 : -1,
+        y > 0 ? i - width : -1,
+        y < height - 1 ? i + width : -1,
+      ]
+      for (const n of ns) {
+        if (n >= 0 && superRegionMap[n] < 0) {
+          const nrid = regionMap[n]
+          if (nrid >= 0 && !keptIds.has(nrid)) {
+            superRegionMap[n] = spid
+            queue.push(n)
+          }
+        }
+      }
+    }
+    superRegionPixelLists.set(spid, pixelList)
+  }
+
+  // Distance transform for super-regions to find inscribed radius and best centroid pixel
+  const superDist = new Int32Array(pixels).fill(-1)
+  const superBfsQueue: number[] = []
+
+  for (let i = 0; i < pixels; i++) {
+    const spid = superRegionMap[i]
+    if (spid < 0) continue
+    const x = i % width, y = Math.floor(i / width)
+    const ns = [
+      x > 0 ? i - 1 : -1,
+      x < width - 1 ? i + 1 : -1,
+      y > 0 ? i - width : -1,
+      y < height - 1 ? i + width : -1,
+    ]
+    for (const n of ns) {
+      if (n < 0 || superRegionMap[n] !== spid) {
+        superDist[i] = 0
+        superBfsQueue.push(i)
+        break
+      }
+    }
+  }
+
+  {
+    let head = 0
+    while (head < superBfsQueue.length) {
+      const i = superBfsQueue[head++]
+      const spid = superRegionMap[i]
+      const x = i % width, y = Math.floor(i / width)
+      const ns = [
+        x > 0 ? i - 1 : -1,
+        x < width - 1 ? i + 1 : -1,
+        y > 0 ? i - width : -1,
+        y < height - 1 ? i + width : -1,
+      ]
+      for (const n of ns) {
+        if (n >= 0 && superRegionMap[n] === spid && superDist[n] < 0) {
+          superDist[n] = superDist[i] + 1
+          superBfsQueue.push(n)
+        }
+      }
+    }
+  }
+
+  const superBest = new Map<number, { maxDist: number; bestPixel: number }>()
+  for (let i = 0; i < pixels; i++) {
+    const spid = superRegionMap[i]
+    if (spid < 0) continue
+    const d = superDist[i]
+    const cur = superBest.get(spid)
+    if (!cur || d > cur.maxDist) superBest.set(spid, { maxDist: d, bestPixel: i })
+  }
+
+  for (const [spid, best] of superBest) {
+    if (best.maxDist < MIN_LABEL_RADIUS) continue
+
+    const pixelList = superRegionPixelLists.get(spid)!
+    const colorCounts = new Map<number, number>()
+    for (const i of pixelList) {
+      const ci = indexMap[i]
+      colorCounts.set(ci, (colorCounts.get(ci) ?? 0) + 1)
+    }
+    let modeColor = 0, modeCount = 0
+    for (const [ci, cnt] of colorCounts) {
+      if (cnt > modeCount) { modeCount = cnt; modeColor = ci }
+    }
+
+    const newId = nextId++
+    for (const i of pixelList) regionMap[i] = newId
+    keptIds.add(newId)
+    regions.push({
+      id: newId,
+      colorIndex: modeColor,
+      centroid: {
+        x: best.bestPixel % width,
+        y: Math.floor(best.bestPixel / width),
+      },
+      pixelCount: pixelList.length,
+      labelRadius: best.maxDist,
+    })
+  }
 
   return { regions, regionMap }
 }

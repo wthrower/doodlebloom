@@ -321,6 +321,26 @@ export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Pr
   const progress = totalCount > 0 ? Math.round((filledCount / totalCount) * 100) : 0
   const isZoomed = transformRef.current.scale > 1.05
 
+  // Sort palette indices by hue (then lightness) for a natural color-wheel order
+  const sortedPaletteIndices = palette
+    .map((color, idx) => {
+      const r = color.r / 255, g = color.g / 255, b = color.b / 255
+      const max = Math.max(r, g, b), min = Math.min(r, g, b)
+      const l = (max + min) / 2
+      let h = 0
+      if (max !== min) {
+        const d = max - min
+        switch (max) {
+          case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break
+          case g: h = ((b - r) / d + 2) / 6; break
+          case b: h = ((r - g) / d + 4) / 6; break
+        }
+      }
+      return { idx, h, l }
+    })
+    .sort((a, b) => a.h - b.h || a.l - b.l)
+    .map(x => x.idx)
+
   return (
     <div className="screen game-screen">
       <div className="game-header">
@@ -365,7 +385,8 @@ export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Pr
         </div>
       ) : (
       <div className="palette">
-        {palette.map((color, idx) => {
+        {sortedPaletteIndices.map(idx => {
+          const color = palette[idx]
           const { r, g, b } = color
           const regionsOfColor = regions.filter(region => region.colorIndex === idx)
           if (regionsOfColor.length === 0) return null

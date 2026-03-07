@@ -37,7 +37,7 @@ export function renderPuzzle(
     const region = regionId >= 0 ? regionById.get(regionId) : undefined
 
     if (!region) {
-      // Unmerged tiny fragment -- paint gray so it reads as background, not a fillable region
+      // Unmerged tiny fragment too small to promote -- paint gray as settled background.
       buf[i * 4] = 160
       buf[i * 4 + 1] = 160
       buf[i * 4 + 2] = 160
