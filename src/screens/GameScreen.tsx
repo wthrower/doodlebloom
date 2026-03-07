@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { GameActions, GameState } from '../App'
 import { renderPuzzle, flashRegion } from '../game/canvas'
 import { getRegionAt } from '../game/regions'
@@ -45,6 +45,31 @@ export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Pr
   useEffect(() => { regionsRef.current = regions }, [regions])
   useEffect(() => { playerColorsRef.current = playerColors }, [playerColors])
   useEffect(() => { fillRegionRef.current = fillRegion }, [fillRegion])
+
+  // Sort palette indices by hue (then lightness) for a natural color-wheel order
+  const { sortedPaletteIndices, colorDisplayNumbers } = useMemo(() => {
+    const sorted = palette
+      .map((color, idx) => {
+        const r = color.r / 255, g = color.g / 255, b = color.b / 255
+        const max = Math.max(r, g, b), min = Math.min(r, g, b)
+        const l = (max + min) / 2
+        let h = 0
+        if (max !== min) {
+          const d = max - min
+          switch (max) {
+            case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break
+            case g: h = ((b - r) / d + 2) / 6; break
+            case b: h = ((r - g) / d + 4) / 6; break
+          }
+        }
+        return { idx, h, l }
+      })
+      .sort((a, b) => a.h - b.h || a.l - b.l)
+      .map(x => x.idx)
+    const displayNums: Record<number, number> = {}
+    sorted.forEach((colorIdx, pos) => { displayNums[colorIdx] = pos + 1 })
+    return { sortedPaletteIndices: sorted, colorDisplayNumbers: displayNums }
+  }, [palette])
 
   // Deselect swatch when its color becomes fully filled
   useEffect(() => {
@@ -95,6 +120,7 @@ export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Pr
       activeColorIndex,
       revealMode,
       originalImageData: originalImageDataRef.current,
+      colorDisplayNumbers,
     })
 
     if (cheatActive && activeColorIndex !== null) {
@@ -113,7 +139,7 @@ export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Pr
       }
       ctx.putImageData(imageData, 0, 0)
     }
-  }, [playerColors, activeColorIndex, regions, palette, revealMode, canvasWidth, canvasHeight, indexMapRef, regionMapRef, originalImageDataRef, cheatActive])
+  }, [playerColors, activeColorIndex, regions, palette, revealMode, canvasWidth, canvasHeight, indexMapRef, regionMapRef, originalImageDataRef, cheatActive, colorDisplayNumbers])
 
   // --- Coordinate mapping: screen → canvas pixels ---
   // Use wrap rect + canvas.offsetLeft/Top (layout position, no transform) + explicit transform.
@@ -321,26 +347,6 @@ export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Pr
   const progress = totalCount > 0 ? Math.round((filledCount / totalCount) * 100) : 0
   const isZoomed = transformRef.current.scale > 1.05
 
-  // Sort palette indices by hue (then lightness) for a natural color-wheel order
-  const sortedPaletteIndices = palette
-    .map((color, idx) => {
-      const r = color.r / 255, g = color.g / 255, b = color.b / 255
-      const max = Math.max(r, g, b), min = Math.min(r, g, b)
-      const l = (max + min) / 2
-      let h = 0
-      if (max !== min) {
-        const d = max - min
-        switch (max) {
-          case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break
-          case g: h = ((b - r) / d + 2) / 6; break
-          case b: h = ((r - g) / d + 4) / 6; break
-        }
-      }
-      return { idx, h, l }
-    })
-    .sort((a, b) => a.h - b.h || a.l - b.l)
-    .map(x => x.idx)
-
   return (
     <div className="screen game-screen">
       <div className="game-header">
@@ -403,7 +409,7 @@ export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Pr
               aria-label={`Color ${idx + 1}`}
               aria-pressed={isActive}
             >
-              <span className="swatch-number">{idx + 1}</span>
+              <span className="swatch-number">{colorDisplayNumbers[idx]}</span>
               {isComplete && <span className="swatch-check" style={{ color: checkColor }}>✓</span>}
             </button>
           )

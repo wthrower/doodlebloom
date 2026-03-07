@@ -6,6 +6,7 @@ export interface RenderOptions {
   activeColorIndex: number | null
   revealMode: 'flat' | 'photo'
   originalImageData: ImageData | null
+  colorDisplayNumbers: Record<number, number>
 }
 
 /**
@@ -24,7 +25,7 @@ export function renderPuzzle(
   palette: PaletteColor[],
   opts: RenderOptions
 ): void {
-  const { playerColors, revealMode, originalImageData } = opts
+  const { playerColors, revealMode, originalImageData, colorDisplayNumbers } = opts
 
   // Build pixel buffer
   const imageData = ctx.createImageData(width, height)
@@ -74,7 +75,7 @@ export function renderPuzzle(
   drawOutlines(ctx, width, height, regionMap, regions, playerColors)
 
   // Draw numbers at centroids for unfilled regions
-  drawNumbers(ctx, regions, playerColors)
+  drawNumbers(ctx, regions, playerColors, colorDisplayNumbers)
 }
 
 function drawOutlines(
@@ -117,7 +118,8 @@ function drawOutlines(
 function drawNumbers(
   ctx: CanvasRenderingContext2D,
   regions: Region[],
-  playerColors: Record<number, number>
+  playerColors: Record<number, number>,
+  colorDisplayNumbers: Record<number, number>
 ): void {
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
@@ -125,7 +127,7 @@ function drawNumbers(
   for (const region of regions) {
     if (playerColors[region.id] !== undefined) continue
     const { x, y } = region.centroid
-    const label = String(region.colorIndex + 1)
+    const label = String(colorDisplayNumbers[region.colorIndex] ?? region.colorIndex + 1)
 
     const fontSize = Math.max(9, Math.min(region.labelRadius - 1, 16))
     ctx.font = `${fontSize}px sans-serif`
