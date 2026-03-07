@@ -126,8 +126,10 @@ export function useGame(): [GameState, GameActions] {
     // Lab pairs among the survivors -- now we know which colors own real regions.
     if (palette.length > colorCountRef.current) {
       mergeToTarget(palette, regions, colorCountRef.current)
-      regions = fuseSameColorRegions(regions, regionMap, cw)
     }
+    // Fuse adjacent same-color regions -- handles adjacencies from both the
+    // size merge (in buildRegions) and the color merge (mergeToTarget) above.
+    regions = fuseSameColorRegions(regions, regionMap, cw)
 
     await storeIndexMap(sessionId, indexMap)
 

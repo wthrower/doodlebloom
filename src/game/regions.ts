@@ -191,28 +191,6 @@ export function buildRegions(
     heap.update(best)
   }
 
-  // Merge adjacent same-color canonical regions.
-  // Scan all pixel boundaries; wherever two canonical regions share a colorIndex, union them.
-  // Reuses the existing union-find -- no extra data structures needed.
-  for (let i = 0; i < pixels; i++) {
-    const x = i % width
-    const right  = x < width - 1 ? i + 1 : -1
-    const bottom = i + width < pixels ? i + width : -1
-    for (const j of [right, bottom]) {
-      if (j < 0) continue
-      const ridA = find(regionMap[i])
-      const ridB = find(regionMap[j])
-      if (ridA === ridB) continue
-      const metaA = regionMeta.get(ridA)!
-      const metaB = regionMeta.get(ridB)!
-      if (metaA.colorIndex !== metaB.colorIndex) continue
-      // Merge smaller into larger to keep the better pole as canonical
-      const [small, large] = metaA.pixelCount <= metaB.pixelCount ? [ridA, ridB] : [ridB, ridA]
-      parent.set(small, large)
-      regionMeta.get(large)!.pixelCount += regionMeta.get(small)!.pixelCount
-    }
-  }
-
   // Apply union-find to regionMap: O(n)
   for (let i = 0; i < pixels; i++) {
     if (regionMap[i] >= 0) regionMap[i] = find(regionMap[i])

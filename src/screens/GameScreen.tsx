@@ -93,13 +93,27 @@ export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Pr
     return { sortedPaletteIndices: bestChain, colorDisplayNumbers: displayNums }
   }, [palette])
 
-  // Deselect swatch when its color becomes fully filled
+  // When the active color becomes fully filled, auto-select the color with the most remaining unfilled pixels
   useEffect(() => {
     if (activeColorIndex === null) return
     const allFilled = regions
       .filter(r => r.colorIndex === activeColorIndex)
       .every(r => playerColors[r.id] !== undefined)
-    if (allFilled) setActiveColorIndex(null)
+    if (!allFilled) return
+
+    const unfilled = new Map<number, number>()
+    for (const r of regions) {
+      if (playerColors[r.id] === undefined) {
+        unfilled.set(r.colorIndex, (unfilled.get(r.colorIndex) ?? 0) + r.pixelCount)
+      }
+    }
+    if (unfilled.size === 0) { setActiveColorIndex(null); return }
+
+    let next = activeColorIndex, max = 0
+    for (const [ci, total] of unfilled) {
+      if (total > max) { max = total; next = ci }
+    }
+    setActiveColorIndex(next)
   }, [playerColors, activeColorIndex, regions])
 
   // Trigger a CSS transform + state re-render
