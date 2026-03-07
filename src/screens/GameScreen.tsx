@@ -39,7 +39,7 @@ export function GameScreen({ state, actions, onNewPuzzle }: Props) {
     return dominant
   })
   const [cheatActive, setCheatActive] = useState(false)
-  const { palette, regions, playerColors, canvasWidth, canvasHeight, revealMode, showOutline } = state
+  const { palette, regions, playerColors, canvasWidth, canvasHeight, revealMode, showOutline, screen } = state
   const { indexMapRef, regionMapRef, originalImageDataRef, fillRegion } = actions
 
   // --- Refs for event handlers (avoid stale closures, avoid re-adding listeners) ---
@@ -157,7 +157,7 @@ export function GameScreen({ state, actions, onNewPuzzle }: Props) {
       revealMode,
       originalImageData: originalImageDataRef.current,
       colorDisplayNumbers,
-      showOutline: state.screen === 'complete' ? showOutline : true,
+      showOutline: screen === 'complete' ? showOutline : true,
     })
 
     if (cheatActive && activeColorIndex !== null) {
@@ -176,7 +176,7 @@ export function GameScreen({ state, actions, onNewPuzzle }: Props) {
       }
       ctx.putImageData(imageData, 0, 0)
     }
-  }, [playerColors, activeColorIndex, regions, palette, revealMode, showOutline, canvasWidth, canvasHeight, indexMapRef, regionMapRef, originalImageDataRef, cheatActive, colorDisplayNumbers])
+  }, [playerColors, activeColorIndex, regions, palette, revealMode, showOutline, screen, canvasWidth, canvasHeight, indexMapRef, regionMapRef, originalImageDataRef, cheatActive, colorDisplayNumbers])
 
   // --- Coordinate mapping: screen → canvas pixels ---
   // Use wrap rect + canvas.offsetLeft/Top (layout position, no transform) + explicit transform.

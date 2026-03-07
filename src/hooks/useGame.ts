@@ -173,12 +173,12 @@ export function useGame(): [GameState, GameActions] {
   }, [persistState])
 
   const resetPuzzle = useCallback(async () => {
-    const { sessionId, prompt, colorCount, revealMode } = state
+    const { sessionId, prompt, colorCount, revealMode, showOutline } = state
     indexMapRef.current = null
     regionMapRef.current = null
     originalImageDataRef.current = null
     await wipeState(sessionId)
-    const next = { ...DEFAULT_STATE, prompt, colorCount, revealMode }
+    const next = { ...DEFAULT_STATE, prompt, colorCount, revealMode, showOutline }
     persistState(next)
     setState(next)
   }, [state, wipeState, persistState])
