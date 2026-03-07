@@ -29,7 +29,7 @@ export interface GameActions {
 export function useGame(): [GameState, GameActions] {
   const [state, setState] = useState<GameState>(() => DEFAULT_STATE)
   const [apiKey, setApiKeyState] = useState<string>(() => loadApiKey())
-  const { persistState, restoreState, wipeState, storeImage, retrieveImage, storeIndexMap, retrieveIndexMap } = useStorage()
+  const { persistState, restoreState, wipeState, storeImage, retrieveImage, storeIndexMap, retrieveIndexMap, storeRegionMap, retrieveRegionMap } = useStorage()
 
   const indexMapRef = useRef<Uint8Array | null>(null)
   const regionMapRef = useRef<Int32Array | null>(null)
@@ -48,7 +48,8 @@ export function useGame(): [GameState, GameActions] {
       Promise.all([
         retrieveImage(saved.sessionId),
         retrieveIndexMap(saved.sessionId),
-      ]).then(async ([blob, storedIndexMap]) => {
+        retrieveRegionMap(saved.sessionId),
+      ]).then(async ([blob, storedIndexMap, storedRegionMap]) => {
         if (!blob) { setState(DEFAULT_STATE); return }
 
         const img = await loadBlobAsImage(blob)
@@ -59,15 +60,18 @@ export function useGame(): [GameState, GameActions] {
 
         ctx.drawImage(img, 0, 0, saved.canvasWidth, saved.canvasHeight)
         const imageData = ctx.getImageData(0, 0, saved.canvasWidth, saved.canvasHeight)
-        const originalImageData = imageData
 
         const indexMap = storedIndexMap ?? rebuildIndexMap(imageData, saved.palette)
-        const { regionMap } = buildRegions(indexMap, saved.canvasWidth, saved.canvasHeight, saved.rawPalette ?? [])
-        fuseSameColorRegions(saved.regions, regionMap, saved.canvasWidth)
+        let regionMap = storedRegionMap
+        if (!regionMap) {
+          const built = buildRegions(indexMap, saved.canvasWidth, saved.canvasHeight, saved.rawPalette ?? [])
+          regionMap = built.regionMap
+          fuseSameColorRegions(saved.regions, regionMap, saved.canvasWidth)
+        }
 
         indexMapRef.current = indexMap
         regionMapRef.current = regionMap
-        originalImageDataRef.current = originalImageData
+        originalImageDataRef.current = imageData
         setState(saved)
       }).catch(() => setState(DEFAULT_STATE))
       return
@@ -136,7 +140,10 @@ export function useGame(): [GameState, GameActions] {
     // size merge (in buildRegions) and the color merge (mergeToTarget) above.
     regions = fuseSameColorRegions(regions, regionMap, cw)
 
-    await storeIndexMap(sessionId, indexMap)
+    await Promise.all([
+      storeIndexMap(sessionId, indexMap),
+      storeRegionMap(sessionId, regionMap),
+    ])
 
     indexMapRef.current = indexMap
     regionMapRef.current = regionMap

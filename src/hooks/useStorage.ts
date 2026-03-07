@@ -8,6 +8,8 @@ import {
   deleteImage,
   saveIndexMap,
   loadIndexMap,
+  saveRegionMap,
+  loadRegionMap,
 } from '../game/storage'
 import type { GameState } from '../types'
 
@@ -43,5 +45,13 @@ export function useStorage() {
     return loadIndexMap(sessionId)
   }, [])
 
-  return { persistState, restoreState, wipeState, storeImage, retrieveImage, storeIndexMap, retrieveIndexMap }
+  const storeRegionMap = useCallback(async (sessionId: string, regionMap: Int32Array) => {
+    await saveRegionMap(sessionId, regionMap)
+  }, [])
+
+  const retrieveRegionMap = useCallback(async (sessionId: string): Promise<Int32Array | null> => {
+    return loadRegionMap(sessionId)
+  }, [])
+
+  return { persistState, restoreState, wipeState, storeImage, retrieveImage, storeIndexMap, retrieveIndexMap, storeRegionMap, retrieveRegionMap }
 }

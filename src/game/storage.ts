@@ -73,6 +73,32 @@ export async function loadIndexMap(sessionId: string): Promise<Uint8Array | null
   })
 }
 
+export async function saveRegionMap(sessionId: string, regionMap: Int32Array): Promise<void> {
+  const db = await openDb()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite')
+    const store = tx.objectStore(IDB_STORE)
+    const req = store.put(new Blob([regionMap]), sessionId + '_regions')
+    req.onsuccess = () => resolve()
+    req.onerror = () => reject(req.error)
+  })
+}
+
+export async function loadRegionMap(sessionId: string): Promise<Int32Array | null> {
+  const db = await openDb()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readonly')
+    const store = tx.objectStore(IDB_STORE)
+    const req = store.get(sessionId + '_regions')
+    req.onsuccess = async () => {
+      if (!req.result) { resolve(null); return }
+      const buf = await (req.result as Blob).arrayBuffer()
+      resolve(new Int32Array(buf))
+    }
+    req.onerror = () => reject(req.error)
+  })
+}
+
 export async function saveImage(sessionId: string, blob: Blob): Promise<void> {
   const db = await openDb()
   return new Promise((resolve, reject) => {
@@ -107,7 +133,9 @@ export async function deleteImage(sessionId: string): Promise<void> {
   await new Promise<void>((resolve) => {
     openDb().then(db2 => {
       const tx = db2.transaction(IDB_STORE, 'readwrite')
-      tx.objectStore(IDB_STORE).delete(sessionId + '_index')
+      const store = tx.objectStore(IDB_STORE)
+      store.delete(sessionId + '_index')
+      store.delete(sessionId + '_regions')
       tx.oncomplete = () => resolve()
       tx.onerror = () => resolve() // best effort
     })
