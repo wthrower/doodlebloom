@@ -29,7 +29,15 @@ function clampTransform(t: Transform): Transform {
 export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
-  const [activeColorIndex, setActiveColorIndex] = useState<number | null>(null)
+  const [activeColorIndex, setActiveColorIndex] = useState<number | null>(() => {
+    const rs = state.regions
+    if (rs.length === 0) return null
+    const totals = new Map<number, number>()
+    for (const r of rs) totals.set(r.colorIndex, (totals.get(r.colorIndex) ?? 0) + r.pixelCount)
+    let dominant = 0, max = 0
+    for (const [ci, total] of totals) { if (total > max) { max = total; dominant = ci } }
+    return dominant
+  })
   const [cheatActive, setCheatActive] = useState(false)
   const { palette, regions, playerColors, canvasWidth, canvasHeight, revealMode } = state
   const { indexMapRef, regionMapRef, originalImageDataRef, fillRegion } = actions
