@@ -41,7 +41,7 @@ export function useGame(): [GameState, GameActions] {
     const saved = restoreState()
     if (!saved) return
     if (!saved.sessionId) {
-      setState(prev => ({ ...prev, prompt: saved.prompt, colorCount: saved.colorCount, revealMode: saved.revealMode, showOutline: saved.showOutline ?? true }))
+      setState(prev => ({ ...prev, prompt: saved.prompt, colorCount: saved.colorCount, revealMode: saved.revealMode, showOutline: saved.showOutline ?? false }))
       return
     }
 

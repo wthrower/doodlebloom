@@ -45,7 +45,7 @@ export const DEFAULT_STATE: GameState = {
   regions: [],
   playerColors: {},
   revealMode: 'photo',
-  showOutline: true,
+  showOutline: false,
   canvasWidth: 512,
   canvasHeight: 512,
 }
