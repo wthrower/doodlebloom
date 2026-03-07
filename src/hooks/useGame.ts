@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DEFAULT_STATE } from '../types'
-import type { GameState, PaletteColor, Screen } from '../types'
+import type { GameState, PaletteColor, Region, Screen } from '../types'
 import { useStorage } from './useStorage'
+import { colorDist } from '../game/colorDistance'
 import { quantizeImage } from '../game/quantize'
-import { buildRegions } from '../game/regions'
+import { buildRegions, fuseSameColorRegions } from '../game/regions'
 import { loadApiKey, saveApiKey } from '../game/storage'
 
 /** Scale image so its shorter side = this many pixels. */
@@ -115,11 +116,18 @@ export function useGame(): [GameState, GameActions] {
     const { palette: rawPalette, indexMap } = quantizeImage(imageData, colorCountRef.current)
     const { regions: rawRegions, regionMap } = buildRegions(indexMap, cw, ch, rawPalette)
 
-    // Compact palette: remove color indices unused by any surviving region
+    // Compact: remove palette colors with no surviving regions
     const usedIndices = [...new Set(rawRegions.map(r => r.colorIndex))].sort((a, b) => a - b)
-    const remap = new Map(usedIndices.map((old, i) => [old, i]))
-    const palette = usedIndices.map(i => rawPalette[i])
-    const regions = rawRegions.map(r => ({ ...r, colorIndex: remap.get(r.colorIndex)! }))
+    const compactRemap = new Map(usedIndices.map((old, i) => [old, i]))
+    let palette = usedIndices.map(i => rawPalette[i])
+    let regions = rawRegions.map(r => ({ ...r, colorIndex: compactRemap.get(r.colorIndex)! }))
+
+    // If compaction still leaves more colors than the target, merge the closest
+    // Lab pairs among the survivors -- now we know which colors own real regions.
+    if (palette.length > colorCountRef.current) {
+      mergeToTarget(palette, regions, colorCountRef.current)
+      regions = fuseSameColorRegions(regions, regionMap, cw)
+    }
 
     await storeIndexMap(sessionId, indexMap)
 
@@ -187,6 +195,36 @@ function loadBlobAsImage(blob: Blob): Promise<HTMLImageElement> {
     img.onerror = reject
     img.src = url
   })
+}
+
+/** Merge the closest Lab pairs in palette until palette.length === targetCount.
+ *  Mutates palette and regions in place. The larger (by pixel count) color survives. */
+function mergeToTarget(palette: PaletteColor[], regions: Region[], targetCount: number): void {
+  // Sum pixel counts per colorIndex
+  const counts = new Array(palette.length).fill(0)
+  for (const r of regions) counts[r.colorIndex] += r.pixelCount
+
+  while (palette.length > targetCount) {
+    // Find closest Lab pair
+    let minDist = Infinity, minI = 0, minJ = 1
+    for (let a = 0; a < palette.length; a++) {
+      for (let b = a + 1; b < palette.length; b++) {
+        const d = colorDist(palette[a].r, palette[a].g, palette[a].b,
+                            palette[b].r, palette[b].g, palette[b].b)
+        if (d < minDist) { minDist = d; minI = a; minJ = b }
+      }
+    }
+    const [keep, drop] = counts[minI] >= counts[minJ] ? [minI, minJ] : [minJ, minI]
+    counts[keep] += counts[drop]
+    palette.splice(drop, 1)
+    counts.splice(drop, 1)
+    // Remap regions: dropped index → keep (adjusted for the splice shift)
+    const keepAdj = keep > drop ? keep - 1 : keep
+    for (const r of regions) {
+      if (r.colorIndex === drop) r.colorIndex = keepAdj
+      else if (r.colorIndex > drop) r.colorIndex--
+    }
+  }
 }
 
 function rebuildIndexMap(imageData: ImageData, palette: PaletteColor[]): Uint8Array {

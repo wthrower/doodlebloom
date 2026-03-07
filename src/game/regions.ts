@@ -334,6 +334,61 @@ export function buildRegions(
   return { regions, regionMap }
 }
 
+/** Merge adjacent regions that now share the same colorIndex (e.g. after a
+ *  palette color merge). Mutates regionMap in place, returns the updated
+ *  region list with the smaller partner absorbed into the larger. */
+export function fuseSameColorRegions(
+  regions: Region[],
+  regionMap: Int32Array,
+  width: number,
+): Region[] {
+  const colorOf = new Map<number, number>()
+  for (const r of regions) colorOf.set(r.id, r.colorIndex)
+
+  const parent = new Map<number, number>()
+  const find = (x: number): number => {
+    let root = x
+    while (parent.has(root)) root = parent.get(root)!
+    while (parent.has(x)) { const next = parent.get(x)!; parent.set(x, root); x = next }
+    return root
+  }
+
+  const pixels = regionMap.length
+  for (let i = 0; i < pixels; i++) {
+    const rid = regionMap[i]
+    if (rid < 0) continue
+    const x = i % width
+    const right  = x < width - 1 ? i + 1 : -1
+    const bottom = i + width < pixels ? i + width : -1
+    for (const j of [right, bottom]) {
+      if (j < 0) continue
+      const nrid = regionMap[j]
+      if (nrid < 0) continue
+      const ra = find(rid), rb = find(nrid)
+      if (ra === rb) continue
+      if (colorOf.get(ra) === colorOf.get(rb)) parent.set(rb, ra)
+    }
+  }
+
+  for (let i = 0; i < pixels; i++) {
+    if (regionMap[i] >= 0) regionMap[i] = find(regionMap[i])
+  }
+
+  const merged = new Map<number, Region>()
+  for (const r of regions) {
+    const canon = find(r.id)
+    if (!merged.has(canon)) {
+      merged.set(canon, { ...r, id: canon })
+    } else {
+      const m = merged.get(canon)!
+      m.pixelCount += r.pixelCount
+      if (r.labelRadius > m.labelRadius) { m.labelRadius = r.labelRadius; m.centroid = r.centroid }
+    }
+  }
+
+  return [...merged.values()]
+}
+
 export function getRegionAt(
   x: number,
   y: number,

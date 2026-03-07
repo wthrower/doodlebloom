@@ -15,7 +15,9 @@ export function quantizeImage(
   const pixels = width * height
 
   const allPixels = buildPixelArray(data, pixels)
-  const palette = mmcqPalette(allPixels, colorCount)
+  // Overshoot by 2× to give MMCQ room to find varied colors. The caller is
+  // responsible for merging the palette back down after region structure is known.
+  const palette = mmcqPalette(allPixels, colorCount * 2)
   const indexMap = assignPixels(data, pixels, palette)
 
   // Replace MMCQ centroids with the actual median of assigned pixels
