@@ -1,14 +1,23 @@
-import type { Region } from '../types'
+import type { PaletteColor, Region } from '../types'
 
 /** A region whose "inscribed circle" radius is smaller than this won't have
  *  enough room to display a legible number label -- it stays as gray background. */
 const MIN_LABEL_RADIUS = 6
 
+export interface PromotedRegion {
+  regionId: number
+  pixelCount: number
+  meanR: number
+  meanG: number
+  meanB: number
+}
+
 export function buildRegions(
   indexMap: Uint8Array,
   width: number,
-  height: number
-): { regions: Region[]; regionMap: Int32Array } {
+  height: number,
+  palette: PaletteColor[] = []
+): { regions: Region[]; regionMap: Int32Array; promotedRegions: PromotedRegion[] } {
   const pixels = width * height
   const regionMap = new Int32Array(pixels).fill(-1)
   const regionMeta: Map<number, { colorIndex: number; pixelCount: number }> = new Map()
@@ -220,18 +229,36 @@ export function buildRegions(
     if (!cur || d > cur.maxDist) superBest.set(spid, { maxDist: d, bestPixel: i })
   }
 
+  const promotedRegions: PromotedRegion[] = []
+
   for (const [spid, best] of superBest) {
     if (best.maxDist < MIN_LABEL_RADIUS) continue
 
     const pixelList = superRegionPixelLists.get(spid)!
+
+    // Compute mean RGB weighted by pixel count per palette entry
     const colorCounts = new Map<number, number>()
     for (const i of pixelList) {
       const ci = indexMap[i]
       colorCounts.set(ci, (colorCounts.get(ci) ?? 0) + 1)
     }
-    let modeColor = 0, modeCount = 0
+    let meanR = 0, meanG = 0, meanB = 0
     for (const [ci, cnt] of colorCounts) {
-      if (cnt > modeCount) { modeCount = cnt; modeColor = ci }
+      const c = ci < palette.length ? palette[ci] : { r: 128, g: 128, b: 128 }
+      meanR += c.r * cnt; meanG += c.g * cnt; meanB += c.b * cnt
+    }
+    const total = pixelList.length
+    meanR = Math.round(meanR / total)
+    meanG = Math.round(meanG / total)
+    meanB = Math.round(meanB / total)
+
+    // Default: nearest existing palette color (caller may override with a new color)
+    let nearestIdx = 0, nearestDist = Infinity
+    for (let ci = 0; ci < palette.length; ci++) {
+      const c = palette[ci]
+      const dr = meanR - c.r, dg = meanG - c.g, db = meanB - c.b
+      const d = dr * dr + dg * dg + db * db
+      if (d < nearestDist) { nearestDist = d; nearestIdx = ci }
     }
 
     const newId = nextId++
@@ -239,7 +266,7 @@ export function buildRegions(
     keptIds.add(newId)
     regions.push({
       id: newId,
-      colorIndex: modeColor,
+      colorIndex: nearestIdx,
       centroid: {
         x: best.bestPixel % width,
         y: Math.floor(best.bestPixel / width),
@@ -247,6 +274,7 @@ export function buildRegions(
       pixelCount: pixelList.length,
       labelRadius: best.maxDist,
     })
+    promotedRegions.push({ regionId: newId, pixelCount: pixelList.length, meanR, meanG, meanB })
   }
 
   // Phase 5: Merge residual tiny fragments (still not in keptIds) into the largest
@@ -306,7 +334,7 @@ export function buildRegions(
     }
   }
 
-  return { regions, regionMap }
+  return { regions, regionMap, promotedRegions }
 }
 
 export function getRegionAt(

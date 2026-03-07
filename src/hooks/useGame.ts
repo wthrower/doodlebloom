@@ -4,6 +4,7 @@ import type { GameState, PaletteColor, Screen } from '../types'
 import { useStorage } from './useStorage'
 import { quantizeImage } from '../game/quantize'
 import { buildRegions } from '../game/regions'
+import type { PromotedRegion } from '../game/regions'
 import { loadApiKey, saveApiKey } from '../game/storage'
 
 /** Scale image so its shorter side = this many pixels. */
@@ -115,12 +116,25 @@ export function useGame(): [GameState, GameActions] {
     const originalImageData = imageData
 
     const { palette: rawPalette, indexMap: rawIndexMap } = quantizeImage(imageData, colorCountRef.current)
-    const { regions: rawRegions, regionMap } = buildRegions(rawIndexMap, cw, ch)
+    const { regions: rawRegions, regionMap, promotedRegions } = buildRegions(rawIndexMap, cw, ch, rawPalette)
+
+    // Extend palette with new colors from promoted gray splotches, up to the target color count.
+    // Largest splotches get priority. Once the target is reached, promoted regions keep their
+    // nearest-existing-color assignment from buildRegions.
+    const extPalette = [...rawPalette]
+    const sortedPromoted = [...promotedRegions].sort((a, b) => b.pixelCount - a.pixelCount)
+    for (const p of sortedPromoted) {
+      if (extPalette.length >= colorCountRef.current) break
+      const newColorIdx = extPalette.length
+      extPalette.push({ r: p.meanR, g: p.meanG, b: p.meanB })
+      const region = rawRegions.find(r => r.id === p.regionId)
+      if (region) region.colorIndex = newColorIdx
+    }
 
     // Compact palette: remove unused color indices so numbers shown to the player are gapless
     const usedIndices = [...new Set(rawRegions.map(r => r.colorIndex))].sort((a, b) => a - b)
     const remap = new Map(usedIndices.map((old, i) => [old, i]))
-    const palette = usedIndices.map(i => rawPalette[i])
+    const palette = usedIndices.map(i => extPalette[i])
     const regions = rawRegions.map(r => ({ ...r, colorIndex: remap.get(r.colorIndex)! }))
     // Store rawIndexMap (pre-compaction) so restore calls buildRegions with the same
     // index values, producing identical region IDs and a consistent regionMap.
