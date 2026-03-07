@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Maximize2, Minimize2, ScanSearch } from 'lucide-react'
 import type { GameActions, GameState } from '../App'
 import { PillToggle } from '../components/PillToggle'
 import { renderPuzzle, flashRegion } from '../game/canvas'
@@ -10,6 +11,8 @@ interface Props {
   state: GameState
   actions: GameActions
   onNewPuzzle: () => void
+  isFullscreen: boolean
+  onToggleFullscreen: () => void
 }
 
 interface Transform { scale: number; tx: number; ty: number }
@@ -26,7 +29,7 @@ function clampTransform(t: Transform): Transform {
   return t
 }
 
-export function GameScreen({ state, actions, onNewPuzzle }: Props) {
+export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggleFullscreen }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const [activeColorIndex, setActiveColorIndex] = useState<number | null>(() => {
@@ -419,12 +422,20 @@ export function GameScreen({ state, actions, onNewPuzzle }: Props) {
         )}
         {isZoomed && (
           <button
-            className="btn btn-ghost btn-small"
+            className="btn btn-ghost btn-icon btn-small"
             onClick={() => setTransform({ scale: 1, tx: 0, ty: 0 })}
+            aria-label="Reset zoom"
           >
-            Reset
+            <ScanSearch size={15} />
           </button>
         )}
+        <button
+          className="btn btn-ghost btn-icon btn-small"
+          onClick={onToggleFullscreen}
+          aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+        >
+          {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+        </button>
       </div>
 
       <div className="canvas-wrap" ref={wrapRef}>

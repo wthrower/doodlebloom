@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "lucide-react": "^0.577.0",
     "openai": "^4.98.0",
     "quantize": "^1.0.2",
     "react": "^19.0.0",

@@ -101,9 +101,6 @@ export default function App() {
 
   return (
     <div className="app">
-      <button className="fullscreen-btn" onClick={toggleFullscreen} aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}>
-        {isFullscreen ? '⊠' : '⛶'}
-      </button>
       {genError && (
         <div className="error-banner">
           {genError}
@@ -131,6 +128,8 @@ export default function App() {
           state={state}
           actions={actions}
           onNewPuzzle={handleNewPuzzle}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={toggleFullscreen}
         />
       )}
     </div>
