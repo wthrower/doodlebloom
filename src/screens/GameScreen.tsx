@@ -29,6 +29,7 @@ export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Pr
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const [activeColorIndex, setActiveColorIndex] = useState<number | null>(null)
+  const [cheatActive, setCheatActive] = useState(false)
   const { palette, regions, playerColors, canvasWidth, canvasHeight, revealMode } = state
   const { indexMapRef, regionMapRef, originalImageDataRef, fillRegion } = actions
 
@@ -86,7 +87,24 @@ export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Pr
       revealMode,
       originalImageData: originalImageDataRef.current,
     })
-  }, [playerColors, activeColorIndex, regions, palette, revealMode, canvasWidth, canvasHeight, indexMapRef, regionMapRef, originalImageDataRef])
+
+    if (cheatActive && activeColorIndex !== null) {
+      const imageData = ctx.getImageData(0, 0, canvasWidth, canvasHeight)
+      const data = imageData.data
+      const regionColorMap = new Map(regions.map(r => [r.id, r.colorIndex]))
+      for (let i = 0; i < canvasWidth * canvasHeight; i++) {
+        const regionId = regionMapRef.current![i]
+        if (regionId < 0) continue
+        if (regionColorMap.get(regionId) !== activeColorIndex) continue
+        if (playerColors[regionId] !== undefined) continue
+        const pi = i * 4
+        data[pi]     = Math.round(data[pi]     * 0.3 + 255 * 0.7)
+        data[pi + 1] = Math.round(data[pi + 1] * 0.3)
+        data[pi + 2] = Math.round(data[pi + 2] * 0.3 + 255 * 0.7)
+      }
+      ctx.putImageData(imageData, 0, 0)
+    }
+  }, [playerColors, activeColorIndex, regions, palette, revealMode, canvasWidth, canvasHeight, indexMapRef, regionMapRef, originalImageDataRef, cheatActive])
 
   // --- Coordinate mapping: screen → canvas pixels ---
   // Use wrap rect + canvas.offsetLeft/Top (layout position, no transform) + explicit transform.
@@ -122,6 +140,15 @@ export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Pr
       flashRegion(canvas.getContext('2d')!, regionId, regionMapRef.current, canvasWidth, canvasHeight)
     }
   }, [canvasWidth, canvasHeight, regionMapRef, screenToCanvas])
+
+  // --- Cheat key (x): highlight unfilled cells of selected color ---
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => { if (e.key === 'x' || e.key === 'X') setCheatActive(true) }
+    const up   = (e: KeyboardEvent) => { if (e.key === 'x' || e.key === 'X') setCheatActive(false) }
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
+  }, [])
 
   // --- Wheel + mouse + touch gesture listeners (non-passive) ---
   useEffect(() => {
