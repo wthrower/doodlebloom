@@ -249,6 +249,63 @@ export function buildRegions(
     })
   }
 
+  // Phase 5: Merge residual tiny fragments (still not in keptIds) into the largest
+  // adjacent kept region. BFS outward from kept-region borders into excluded pixels.
+  // "Largest" = kept region with most pixels overall (regionMeta pixelCount).
+  const regionSize = new Map<number, number>()
+  for (const r of regions) regionSize.set(r.id, r.pixelCount)
+
+  const phase5Queue: number[] = []
+  for (let i = 0; i < pixels; i++) {
+    if (keptIds.has(regionMap[i])) {
+      const x = i % width, y = Math.floor(i / width)
+      const ns = [
+        x > 0 ? i - 1 : -1,
+        x < width - 1 ? i + 1 : -1,
+        y > 0 ? i - width : -1,
+        y < height - 1 ? i + width : -1,
+      ]
+      for (const n of ns) {
+        if (n >= 0 && regionMap[n] >= 0 && !keptIds.has(regionMap[n])) {
+          phase5Queue.push(n)
+        }
+      }
+    }
+  }
+
+  // For each excluded pixel, pick the largest adjacent kept region
+  {
+    let head = 0
+    while (head < phase5Queue.length) {
+      const i = phase5Queue[head++]
+      if (keptIds.has(regionMap[i])) continue  // already absorbed
+      const x = i % width, y = Math.floor(i / width)
+      const ns = [
+        x > 0 ? i - 1 : -1,
+        x < width - 1 ? i + 1 : -1,
+        y > 0 ? i - width : -1,
+        y < height - 1 ? i + width : -1,
+      ]
+      let bestId = -1, bestSize = -1
+      for (const n of ns) {
+        if (n < 0) continue
+        const nrid = regionMap[n]
+        if (!keptIds.has(nrid)) continue
+        const sz = regionSize.get(nrid) ?? 0
+        if (sz > bestSize) { bestSize = sz; bestId = nrid }
+      }
+      if (bestId >= 0) {
+        regionMap[i] = bestId
+        // Propagate to excluded neighbors
+        for (const n of ns) {
+          if (n >= 0 && regionMap[n] >= 0 && !keptIds.has(regionMap[n])) {
+            phase5Queue.push(n)
+          }
+        }
+      }
+    }
+  }
+
   return { regions, regionMap }
 }
 
