@@ -326,9 +326,15 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
       for (const t of Array.from(e.changedTouches)) touches.set(t.identifier, { x: t.clientX, y: t.clientY })
       const all = [...touches.values()]
 
-      if (all.length === 1 && tapStart) {
+      if (all.length === 1) {
         const p = all[0]
-        if (Math.hypot(p.x - tapStart.x, p.y - tapStart.y) > 8) tapStart = null
+        if (tapStart && Math.hypot(p.x - tapStart.x, p.y - tapStart.y) > 8) {
+          panStart = { x: p.x, y: p.y, ...transformRef.current }
+          tapStart = null
+        }
+        if (panStart) {
+          setTransform(clampTransform({ scale: panStart.scale, tx: panStart.tx + (p.x - panStart.x), ty: panStart.ty + (p.y - panStart.y) }))
+        }
       } else if (all.length >= 2 && pinchStart) {
         const [a, b] = all
         const dist = Math.hypot(b.x - a.x, b.y - a.y)
@@ -457,8 +463,8 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
               value={showOutline}
               onChange={actions.setShowOutline}
             />
+            <button className="btn btn-secondary" onClick={onNewPuzzle}>New puzzle</button>
             <button className="btn btn-primary" onClick={handleDownload}>Download</button>
-            <button className="btn btn-ghost" onClick={onNewPuzzle}>New puzzle</button>
           </div>
         </div>
       ) : (

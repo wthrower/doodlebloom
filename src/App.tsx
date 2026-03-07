@@ -18,7 +18,7 @@ import { useOpenAI } from './hooks/useOpenAI'
 import { SetupScreen } from './screens/SetupScreen'
 import { GameScreen } from './screens/GameScreen'
 import { ProcessingScreen } from './screens/ProcessingScreen'
-import { saveImage, loadImage, deleteImage } from './game/storage'
+import { saveImage, loadImage, deleteImage, loadSelectedStockUrl, saveSelectedStockUrl } from './game/storage'
 
 const PREVIEW_KEY = '__preview__'
 
@@ -33,6 +33,7 @@ export default function App() {
 
   const previewBlobRef = useRef<Blob | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [selectedStockUrl, setSelectedStockUrl] = useState<string | null>(() => loadSelectedStockUrl())
   const [genError, setGenError] = useState<string | null>(null)
 
   // Restore preview image from IDB on mount
@@ -54,6 +55,8 @@ export default function App() {
 
   const handleGenerate = useCallback(async () => {
     setGenError(null)
+    setSelectedStockUrl(null)
+    saveSelectedStockUrl(null)
     actions.goTo('generating')
     const blob = await generate(state.prompt, actions.apiKey, getImageSize())
     if (!blob) {
@@ -85,6 +88,8 @@ export default function App() {
     if (previewUrl) URL.revokeObjectURL(previewUrl)
     const url = URL.createObjectURL(blob)
     setPreviewUrl(url)
+    setSelectedStockUrl(imageUrl)
+    saveSelectedStockUrl(imageUrl)
     saveImage(PREVIEW_KEY, blob).catch(() => undefined)
     actions.goTo('setup')
   }, [previewUrl, actions])
@@ -92,6 +97,8 @@ export default function App() {
   const handleNewPuzzle = useCallback(async () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl)
     setPreviewUrl(null)
+    setSelectedStockUrl(null)
+    saveSelectedStockUrl(null)
     previewBlobRef.current = null
     deleteImage(PREVIEW_KEY).catch(() => undefined)
     await actions.resetPuzzle()
@@ -117,6 +124,7 @@ export default function App() {
           actions={actions}
           isGenerating={state.screen === 'generating'}
           previewUrl={previewUrl}
+          selectedStockUrl={selectedStockUrl}
           onGenerate={handleGenerate}
           onCancel={handleCancel}
           onPaint={handlePaint}
