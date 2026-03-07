@@ -29,9 +29,9 @@ export interface GameState {
   /** canvas dimensions used when building regions */
   canvasWidth: number
   canvasHeight: number
-  /** Pairs [oldId, canonicalId] for regions merged during same-color adjacency fix.
-   *  Applied to rebuilt regionMap during session restore. */
-  regionRemap?: [number, number][]
+  /** Raw (pre-compaction) palette stored so session restore can call buildRegions
+   *  with the same palette, producing an identical deterministic merge. */
+  rawPalette?: PaletteColor[]
 }
 
 export const DEFAULT_STATE: GameState = {

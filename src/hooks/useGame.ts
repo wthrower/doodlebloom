@@ -2,10 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { DEFAULT_STATE } from '../types'
 import type { GameState, PaletteColor, Screen } from '../types'
 import { useStorage } from './useStorage'
-import { colorDist } from '../game/colorDistance'
 import { quantizeImage } from '../game/quantize'
-import { buildRegions, mergeAdjacentSameColorRegions } from '../game/regions'
-import type { PromotedRegion } from '../game/regions'
+import { buildRegions } from '../game/regions'
 import { loadApiKey, saveApiKey } from '../game/storage'
 
 /** Scale image so its shorter side = this many pixels. */
@@ -58,18 +56,8 @@ export function useGame(): [GameState, GameActions] {
         const imageData = ctx.getImageData(0, 0, saved.canvasWidth, saved.canvasHeight)
         const originalImageData = imageData
 
-        // Use stored indexMap if available (exact), otherwise rebuild from pixels
         const indexMap = storedIndexMap ?? rebuildIndexMap(imageData, saved.palette)
-        const { regionMap } = buildRegions(indexMap, saved.canvasWidth, saved.canvasHeight)
-
-        // Re-apply the same-color merge that was done at puzzle creation time
-        if (saved.regionRemap && saved.regionRemap.length > 0) {
-          const remapMap = new Map(saved.regionRemap)
-          for (let i = 0; i < regionMap.length; i++) {
-            const c = remapMap.get(regionMap[i])
-            if (c !== undefined) regionMap[i] = c
-          }
-        }
+        const { regionMap } = buildRegions(indexMap, saved.canvasWidth, saved.canvasHeight, saved.rawPalette ?? [])
 
         indexMapRef.current = indexMap
         regionMapRef.current = regionMap
@@ -108,7 +96,6 @@ export function useGame(): [GameState, GameActions] {
     const sessionId = crypto.randomUUID()
     await storeImage(sessionId, blob)
 
-
     const img = await loadBlobAsImage(blob)
 
     // Derive canvas size from image aspect ratio, shorter side = CANVAS_SHORT
@@ -125,40 +112,18 @@ export function useGame(): [GameState, GameActions] {
     const imageData = ctx.getImageData(0, 0, cw, ch)
     const originalImageData = imageData
 
-    const { palette: rawPalette, indexMap: rawIndexMap } = quantizeImage(imageData, colorCountRef.current)
-    const { regions: rawRegions, regionMap, promotedRegions } = buildRegions(rawIndexMap, cw, ch, rawPalette)
+    const { palette: rawPalette, indexMap } = quantizeImage(imageData, colorCountRef.current)
+    const { regions: rawRegions, regionMap } = buildRegions(indexMap, cw, ch, rawPalette)
 
-    // Extend palette with new colors from promoted gray splotches, up to the target color count.
-    // Largest splotches get priority. Skip any color too similar to one already in the palette.
-    const MIN_PROMOTE_DIST = 15  // ΔE76 perceptual distance
-    const extPalette = [...rawPalette]
-    const sortedPromoted = [...promotedRegions].sort((a, b) => b.pixelCount - a.pixelCount)
-    for (const p of sortedPromoted) {
-      if (extPalette.length >= colorCountRef.current) break
-      const tooClose = extPalette.some(c =>
-        colorDist(p.meanR, p.meanG, p.meanB, c.r, c.g, c.b) < MIN_PROMOTE_DIST
-      )
-      if (tooClose) continue
-      const newColorIdx = extPalette.length
-      extPalette.push({ r: p.meanR, g: p.meanG, b: p.meanB })
-      const region = rawRegions.find(r => r.id === p.regionId)
-      if (region) region.colorIndex = newColorIdx
-    }
-
-    // Compact palette: remove unused color indices so numbers shown to the player are gapless
+    // Compact palette: remove color indices unused by any surviving region
     const usedIndices = [...new Set(rawRegions.map(r => r.colorIndex))].sort((a, b) => a - b)
     const remap = new Map(usedIndices.map((old, i) => [old, i]))
-    const palette = usedIndices.map(i => extPalette[i])
-    const compactedRegions = rawRegions.map(r => ({ ...r, colorIndex: remap.get(r.colorIndex)! }))
+    const palette = usedIndices.map(i => rawPalette[i])
+    const regions = rawRegions.map(r => ({ ...r, colorIndex: remap.get(r.colorIndex)! }))
 
-    // Merge adjacent regions that share the same color after compaction
-    const { regions, remap: regionRemap } = mergeAdjacentSameColorRegions(compactedRegions, regionMap, cw)
+    await storeIndexMap(sessionId, indexMap)
 
-    // Store rawIndexMap (pre-compaction) so restore calls buildRegions with the same
-    // index values, producing identical region IDs and a consistent regionMap.
-    await storeIndexMap(sessionId, rawIndexMap)
-
-    indexMapRef.current = rawIndexMap
+    indexMapRef.current = indexMap
     regionMapRef.current = regionMap
     originalImageDataRef.current = originalImageData
 
@@ -170,7 +135,7 @@ export function useGame(): [GameState, GameActions] {
       playerColors: {},
       canvasWidth: cw,
       canvasHeight: ch,
-      regionRemap: regionRemap.length > 0 ? regionRemap : undefined,
+      rawPalette,
     })
   }, [storeImage, update])
 
@@ -244,22 +209,4 @@ function rebuildIndexMap(imageData: ImageData, palette: PaletteColor[]): Uint8Ar
     indexMap[i] = best
   }
   return indexMap
-}
-
-async function rebuildMapsFromBlob(
-  blob: Blob,
-  width: number,
-  height: number,
-  palette: PaletteColor[]
-): Promise<{ indexMap: Uint8Array; regionMap: Int32Array; imageData: ImageData }> {
-  const img = await loadBlobAsImage(blob)
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const ctx = canvas.getContext('2d')!
-  ctx.drawImage(img, 0, 0, width, height)
-  const imageData = ctx.getImageData(0, 0, width, height)
-  const indexMap = rebuildIndexMap(imageData, palette)
-  const { regionMap } = buildRegions(indexMap, width, height)
-  return { indexMap, regionMap, imageData }
 }

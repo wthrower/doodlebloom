@@ -2,15 +2,85 @@ import { colorDist } from './colorDistance'
 import type { PaletteColor, Region } from '../types'
 
 /** A region whose "inscribed circle" radius is smaller than this won't have
- *  enough room to display a legible number label -- it stays as gray background. */
+ *  enough room to display a legible number label -- absorb it into a neighbor. */
 const MIN_LABEL_RADIUS = 6
 
-export interface PromotedRegion {
-  regionId: number
+/** Regions with fewer pixels than this are absorbed into the best adjacent neighbor. */
+const MIN_REGION_PIXELS = 200
+
+interface RegionMeta {
+  id: number
+  colorIndex: number
   pixelCount: number
-  meanR: number
-  meanG: number
-  meanB: number
+  adjIds: Set<number>
+}
+
+class MinHeap<T> {
+  private items: T[] = []
+  private index = new Map<T, number>()
+  private key: (item: T) => number
+
+  constructor(items: Iterable<T>, key: (item: T) => number) {
+    this.key = key
+    for (const item of items) this._push(item)
+  }
+
+  empty(): boolean { return this.items.length === 0 }
+  min(): T { return this.items[0] }
+
+  pop(): T {
+    const top = this.items[0]
+    const last = this.items.pop()!
+    this.index.delete(top)
+    if (this.items.length > 0) {
+      this.items[0] = last
+      this.index.set(last, 0)
+      this._siftDown(0)
+    }
+    return top
+  }
+
+  update(item: T): void {
+    const i = this.index.get(item)
+    if (i === undefined) return
+    this._siftUp(i)
+    this._siftDown(this.index.get(item)!)
+  }
+
+  private _push(item: T): void {
+    const i = this.items.length
+    this.items.push(item)
+    this.index.set(item, i)
+    this._siftUp(i)
+  }
+
+  private _siftUp(i: number): void {
+    while (i > 0) {
+      const p = (i - 1) >> 1
+      if (this.key(this.items[p]) <= this.key(this.items[i])) break
+      this._swap(i, p)
+      i = p
+    }
+  }
+
+  private _siftDown(i: number): void {
+    const n = this.items.length
+    while (true) {
+      const l = 2 * i + 1, r = 2 * i + 2
+      let s = i
+      if (l < n && this.key(this.items[l]) < this.key(this.items[s])) s = l
+      if (r < n && this.key(this.items[r]) < this.key(this.items[s])) s = r
+      if (s === i) break
+      this._swap(i, s)
+      i = s
+    }
+  }
+
+  private _swap(i: number, j: number): void {
+    this.index.set(this.items[i], j)
+    this.index.set(this.items[j], i)
+    ;[this.items[i], this.items[j]] = [this.items[j], this.items[i]]
+  }
 }
 
 export function buildRegions(
@@ -18,28 +88,29 @@ export function buildRegions(
   width: number,
   height: number,
   palette: PaletteColor[] = []
-): { regions: Region[]; regionMap: Int32Array; promotedRegions: PromotedRegion[] } {
+): { regions: Region[]; regionMap: Int32Array } {
   const pixels = width * height
   const regionMap = new Int32Array(pixels).fill(-1)
-  const regionMeta: Map<number, { colorIndex: number; pixelCount: number }> = new Map()
+  const regionMeta = new Map<number, RegionMeta>()
   let nextId = 0
 
-  // Phase 1: BFS connected components
+  // Phase 1: BFS connected components + adjacency tracking
   for (let start = 0; start < pixels; start++) {
     if (regionMap[start] !== -1) continue
 
     const colorIndex = indexMap[start]
     const regionId = nextId++
+    const meta: RegionMeta = { id: regionId, colorIndex, pixelCount: 0, adjIds: new Set() }
+    regionMeta.set(regionId, meta)
     const queue: number[] = [start]
     regionMap[start] = regionId
     let count = 0
 
     while (queue.length > 0) {
       const idx = queue.pop()!
+      count++
       const x = idx % width
       const y = Math.floor(idx / width)
-      count++
-
       const neighbors = [
         idx - width,
         idx + width,
@@ -47,41 +118,123 @@ export function buildRegions(
         x < width - 1 ? idx + 1 : -1,
       ]
       for (const n of neighbors) {
-        if (n >= 0 && n < pixels && regionMap[n] === -1 && indexMap[n] === colorIndex) {
-          regionMap[n] = regionId
-          queue.push(n)
+        if (n < 0 || n >= pixels) continue
+        const nrid = regionMap[n]
+        if (nrid === -1) {
+          if (indexMap[n] === colorIndex) {
+            regionMap[n] = regionId
+            queue.push(n)
+          }
+        } else if (nrid !== regionId) {
+          meta.adjIds.add(nrid)
+          regionMeta.get(nrid)!.adjIds.add(regionId)
         }
       }
     }
 
-    regionMeta.set(regionId, { colorIndex, pixelCount: count })
+    meta.pixelCount = count
+  }
+
+  // Region merge: absorb regions below MIN_REGION_PIXELS into best adjacent neighbor.
+  // Prefer same colorIndex; otherwise prefer nearest Lab color.
+  const parent = new Map<number, number>()
+  const find = (x: number): number => {
+    let root = x
+    while (parent.has(root)) root = parent.get(root)!
+    // Path compression
+    while (parent.has(x)) {
+      const next = parent.get(x)!
+      parent.set(x, root)
+      x = next
+    }
+    return root
+  }
+
+  const heap = new MinHeap<RegionMeta>(regionMeta.values(), r => r.pixelCount)
+  while (!heap.empty() && heap.min().pixelCount < MIN_REGION_PIXELS) {
+    const s = heap.pop()
+    if (find(s.id) !== s.id) continue  // already absorbed as non-canonical
+    if (s.adjIds.size === 0) continue   // image-boundary isolate
+
+    // Best neighbor: same colorIndex (score 0) > nearest Lab color (score > 0)
+    let best: RegionMeta | null = null
+    let bestScore = Infinity
+    for (const adjId of s.adjIds) {
+      const canon = find(adjId)
+      const adj = regionMeta.get(canon)
+      if (!adj || adj.id === s.id) continue
+      const sc = adj.colorIndex === s.colorIndex
+        ? 0
+        : palette.length > 0
+          ? colorDist(
+              palette[s.colorIndex].r, palette[s.colorIndex].g, palette[s.colorIndex].b,
+              palette[adj.colorIndex].r, palette[adj.colorIndex].g, palette[adj.colorIndex].b
+            )
+          : 1
+      if (sc < bestScore) { bestScore = sc; best = adj }
+    }
+    if (!best) continue
+
+    // Merge s into best via union-find
+    parent.set(s.id, best.id)
+    best.pixelCount += s.pixelCount
+    for (const adjId of s.adjIds) {
+      const canon = find(adjId)
+      if (canon === best.id) continue
+      const adj = regionMeta.get(canon)
+      if (!adj) continue
+      adj.adjIds.delete(s.id)
+      adj.adjIds.add(best.id)
+      best.adjIds.add(canon)
+    }
+    best.adjIds.delete(s.id)
+    heap.update(best)
+  }
+
+  // Merge adjacent same-color canonical regions.
+  // Scan all pixel boundaries; wherever two canonical regions share a colorIndex, union them.
+  // Reuses the existing union-find -- no extra data structures needed.
+  for (let i = 0; i < pixels; i++) {
+    const x = i % width
+    const right  = x < width - 1 ? i + 1 : -1
+    const bottom = i + width < pixels ? i + width : -1
+    for (const j of [right, bottom]) {
+      if (j < 0) continue
+      const ridA = find(regionMap[i])
+      const ridB = find(regionMap[j])
+      if (ridA === ridB) continue
+      const metaA = regionMeta.get(ridA)!
+      const metaB = regionMeta.get(ridB)!
+      if (metaA.colorIndex !== metaB.colorIndex) continue
+      // Merge smaller into larger to keep the better pole as canonical
+      const [small, large] = metaA.pixelCount <= metaB.pixelCount ? [ridA, ridB] : [ridB, ridA]
+      parent.set(small, large)
+      regionMeta.get(large)!.pixelCount += regionMeta.get(small)!.pixelCount
+    }
+  }
+
+  // Apply union-find to regionMap: O(n)
+  for (let i = 0; i < pixels; i++) {
+    if (regionMap[i] >= 0) regionMap[i] = find(regionMap[i])
   }
 
   // Phase 2: Multi-source BFS distance transform.
-  // Each region pixel gets the L1 distance to the nearest pixel outside its region.
-  // Boundary pixels (distance 0) seed the BFS.
+  // Each pixel gets the L1 distance to the nearest pixel outside its region.
   const dist = new Int32Array(pixels).fill(-1)
   const bfsQueue: number[] = []
 
   for (let i = 0; i < pixels; i++) {
     const rid = regionMap[i]
     if (rid < 0) { dist[i] = 0; continue }
-
-    const x = i % width
-    const y = Math.floor(i / width)
+    const x = i % width, y = Math.floor(i / width)
     const ns = [
       x > 0 ? i - 1 : -1,
       x < width - 1 ? i + 1 : -1,
       y > 0 ? i - width : -1,
       y < height - 1 ? i + width : -1,
     ]
-
     for (const n of ns) {
-      if (n < 0 || regionMap[n] !== rid) {
-        dist[i] = 0
-        bfsQueue.push(i)
-        break
-      }
+      if (n < 0 || regionMap[n] !== rid) { dist[i] = 0; bfsQueue.push(i); break }
     }
   }
 
@@ -89,8 +242,7 @@ export function buildRegions(
   while (head < bfsQueue.length) {
     const i = bfsQueue[head++]
     const rid = regionMap[i]
-    const x = i % width
-    const y = Math.floor(i / width)
+    const x = i % width, y = Math.floor(i / width)
     const ns = [
       x > 0 ? i - 1 : -1,
       x < width - 1 ? i + 1 : -1,
@@ -105,309 +257,81 @@ export function buildRegions(
     }
   }
 
-  // Phase 3: For each region, find the pixel with max distance (pole of inaccessibility).
-  // Regions where max distance < MIN_LABEL_RADIUS are too small to label.
+  // Phase 3: Pole finding + labelRadius filter.
+  // Regions where max distance < MIN_LABEL_RADIUS are thin/elongated -- absorb them.
   const regionBest = new Map<number, { maxDist: number; bestPixel: number }>()
   for (let i = 0; i < pixels; i++) {
     const rid = regionMap[i]
     if (rid < 0) continue
     const d = dist[i]
     const cur = regionBest.get(rid)
-    if (!cur || d > cur.maxDist) {
-      regionBest.set(rid, { maxDist: d, bestPixel: i })
-    }
+    if (!cur || d > cur.maxDist) regionBest.set(rid, { maxDist: d, bestPixel: i })
   }
 
-  const keptIds = new Set<number>()
+  const thinIds = new Set<number>()
   const regions: Region[] = []
   for (const [rid, best] of regionBest) {
-    if (best.maxDist < MIN_LABEL_RADIUS) continue
-    keptIds.add(rid)
+    if (best.maxDist < MIN_LABEL_RADIUS) {
+      thinIds.add(rid)
+      continue
+    }
     const meta = regionMeta.get(rid)!
     regions.push({
       id: rid,
       colorIndex: meta.colorIndex,
-      centroid: {
-        x: best.bestPixel % width,
-        y: Math.floor(best.bestPixel / width),
-      },
+      centroid: { x: best.bestPixel % width, y: Math.floor(best.bestPixel / width) },
       pixelCount: meta.pixelCount,
       labelRadius: best.maxDist,
     })
   }
 
-  // Phase 4: Promote large clusters of excluded pixels to labeled regions.
-  // BFS on excluded pixels finds spatially contiguous "gray splotches"; large ones
-  // get promoted to kept regions labeled with their most common palette color.
-  const superRegionMap = new Int32Array(pixels).fill(-1)
-  const superRegionPixelLists = new Map<number, number[]>()
-  let superNextId = 0
-
-  for (let start = 0; start < pixels; start++) {
-    const rid = regionMap[start]
-    if (rid < 0 || keptIds.has(rid)) continue
-    if (superRegionMap[start] >= 0) continue
-
-    const spid = superNextId++
-    const pixelList: number[] = []
-    const queue: number[] = [start]
-    superRegionMap[start] = spid
-    let head = 0
-
-    while (head < queue.length) {
-      const i = queue[head++]
-      pixelList.push(i)
+  // Absorb thin regions: BFS from kept-region borders inward.
+  if (thinIds.size > 0) {
+    const thinQueue: number[] = []
+    for (let i = 0; i < pixels; i++) {
+      if (thinIds.has(regionMap[i])) continue
       const x = i % width, y = Math.floor(i / width)
-      const ns = [
-        x > 0 ? i - 1 : -1,
-        x < width - 1 ? i + 1 : -1,
-        y > 0 ? i - width : -1,
-        y < height - 1 ? i + width : -1,
-      ]
+      const ns = [x > 0 ? i - 1 : -1, x < width - 1 ? i + 1 : -1, y > 0 ? i - width : -1, y < height - 1 ? i + width : -1]
       for (const n of ns) {
-        if (n >= 0 && superRegionMap[n] < 0) {
-          const nrid = regionMap[n]
-          if (nrid >= 0 && !keptIds.has(nrid)) {
-            superRegionMap[n] = spid
-            queue.push(n)
-          }
-        }
+        if (n >= 0 && thinIds.has(regionMap[n])) thinQueue.push(n)
       }
     }
-    superRegionPixelLists.set(spid, pixelList)
-  }
 
-  // Distance transform for super-regions to find inscribed radius and best centroid pixel
-  const superDist = new Int32Array(pixels).fill(-1)
-  const superBfsQueue: number[] = []
+    let tHead = 0
+    while (tHead < thinQueue.length) {
+      const i = thinQueue[tHead++]
+      if (!thinIds.has(regionMap[i])) continue  // already absorbed
 
-  for (let i = 0; i < pixels; i++) {
-    const spid = superRegionMap[i]
-    if (spid < 0) continue
-    const x = i % width, y = Math.floor(i / width)
-    const ns = [
-      x > 0 ? i - 1 : -1,
-      x < width - 1 ? i + 1 : -1,
-      y > 0 ? i - width : -1,
-      y < height - 1 ? i + width : -1,
-    ]
-    for (const n of ns) {
-      if (n < 0 || superRegionMap[n] !== spid) {
-        superDist[i] = 0
-        superBfsQueue.push(i)
-        break
-      }
-    }
-  }
-
-  {
-    let head = 0
-    while (head < superBfsQueue.length) {
-      const i = superBfsQueue[head++]
-      const spid = superRegionMap[i]
       const x = i % width, y = Math.floor(i / width)
-      const ns = [
-        x > 0 ? i - 1 : -1,
-        x < width - 1 ? i + 1 : -1,
-        y > 0 ? i - width : -1,
-        y < height - 1 ? i + width : -1,
-      ]
+      const ns = [x > 0 ? i - 1 : -1, x < width - 1 ? i + 1 : -1, y > 0 ? i - width : -1, y < height - 1 ? i + width : -1]
+      const smeta = regionMeta.get(regionMap[i])
+      let bestId = -1, bestScore = Infinity
       for (const n of ns) {
-        if (n >= 0 && superRegionMap[n] === spid && superDist[n] < 0) {
-          superDist[n] = superDist[i] + 1
-          superBfsQueue.push(n)
-        }
-      }
-    }
-  }
-
-  const superBest = new Map<number, { maxDist: number; bestPixel: number }>()
-  for (let i = 0; i < pixels; i++) {
-    const spid = superRegionMap[i]
-    if (spid < 0) continue
-    const d = superDist[i]
-    const cur = superBest.get(spid)
-    if (!cur || d > cur.maxDist) superBest.set(spid, { maxDist: d, bestPixel: i })
-  }
-
-  const promotedRegions: PromotedRegion[] = []
-
-  for (const [spid, best] of superBest) {
-    if (best.maxDist < MIN_LABEL_RADIUS) continue
-
-    const pixelList = superRegionPixelLists.get(spid)!
-
-    // Compute mean RGB weighted by pixel count per palette entry
-    const colorCounts = new Map<number, number>()
-    for (const i of pixelList) {
-      const ci = indexMap[i]
-      colorCounts.set(ci, (colorCounts.get(ci) ?? 0) + 1)
-    }
-    let meanR = 0, meanG = 0, meanB = 0
-    for (const [ci, cnt] of colorCounts) {
-      const c = ci < palette.length ? palette[ci] : { r: 128, g: 128, b: 128 }
-      meanR += c.r * cnt; meanG += c.g * cnt; meanB += c.b * cnt
-    }
-    const total = pixelList.length
-    meanR = Math.round(meanR / total)
-    meanG = Math.round(meanG / total)
-    meanB = Math.round(meanB / total)
-
-    // Default: nearest existing palette color (caller may override with a new color)
-    let nearestIdx = 0, nearestDist = Infinity
-    for (let ci = 0; ci < palette.length; ci++) {
-      const c = palette[ci]
-      const d = colorDist(meanR, meanG, meanB, c.r, c.g, c.b)
-      if (d < nearestDist) { nearestDist = d; nearestIdx = ci }
-    }
-
-    const newId = nextId++
-    for (const i of pixelList) regionMap[i] = newId
-    keptIds.add(newId)
-    regions.push({
-      id: newId,
-      colorIndex: nearestIdx,
-      centroid: {
-        x: best.bestPixel % width,
-        y: Math.floor(best.bestPixel / width),
-      },
-      pixelCount: pixelList.length,
-      labelRadius: best.maxDist,
-    })
-    promotedRegions.push({ regionId: newId, pixelCount: pixelList.length, meanR, meanG, meanB })
-  }
-
-  // Phase 5: Merge residual tiny fragments (still not in keptIds) into the largest
-  // adjacent kept region. BFS outward from kept-region borders into excluded pixels.
-  // "Largest" = kept region with most pixels overall (regionMeta pixelCount).
-  const regionSize = new Map<number, number>()
-  for (const r of regions) regionSize.set(r.id, r.pixelCount)
-
-  const phase5Queue: number[] = []
-  for (let i = 0; i < pixels; i++) {
-    if (keptIds.has(regionMap[i])) {
-      const x = i % width, y = Math.floor(i / width)
-      const ns = [
-        x > 0 ? i - 1 : -1,
-        x < width - 1 ? i + 1 : -1,
-        y > 0 ? i - width : -1,
-        y < height - 1 ? i + width : -1,
-      ]
-      for (const n of ns) {
-        if (n >= 0 && regionMap[n] >= 0 && !keptIds.has(regionMap[n])) {
-          phase5Queue.push(n)
-        }
-      }
-    }
-  }
-
-  // For each excluded pixel, pick the largest adjacent kept region
-  {
-    let head = 0
-    while (head < phase5Queue.length) {
-      const i = phase5Queue[head++]
-      if (keptIds.has(regionMap[i])) continue  // already absorbed
-      const x = i % width, y = Math.floor(i / width)
-      const ns = [
-        x > 0 ? i - 1 : -1,
-        x < width - 1 ? i + 1 : -1,
-        y > 0 ? i - width : -1,
-        y < height - 1 ? i + width : -1,
-      ]
-      let bestId = -1, bestSize = -1
-      for (const n of ns) {
-        if (n < 0) continue
+        if (n < 0 || thinIds.has(regionMap[n])) continue
         const nrid = regionMap[n]
-        if (!keptIds.has(nrid)) continue
-        const sz = regionSize.get(nrid) ?? 0
-        if (sz > bestSize) { bestSize = sz; bestId = nrid }
+        if (nrid < 0) continue
+        const nmeta = regionMeta.get(nrid)
+        if (!nmeta || !smeta) continue
+        const sc = nmeta.colorIndex === smeta.colorIndex
+          ? 0
+          : palette.length > 0
+            ? colorDist(
+                palette[smeta.colorIndex].r, palette[smeta.colorIndex].g, palette[smeta.colorIndex].b,
+                palette[nmeta.colorIndex].r, palette[nmeta.colorIndex].g, palette[nmeta.colorIndex].b
+              )
+            : 1
+        if (sc < bestScore) { bestScore = sc; bestId = nrid }
       }
       if (bestId >= 0) {
         regionMap[i] = bestId
-        // Propagate to excluded neighbors
         for (const n of ns) {
-          if (n >= 0 && regionMap[n] >= 0 && !keptIds.has(regionMap[n])) {
-            phase5Queue.push(n)
-          }
+          if (n >= 0 && thinIds.has(regionMap[n])) thinQueue.push(n)
         }
       }
     }
   }
 
-  return { regions, regionMap, promotedRegions }
-}
-
-/** Merge adjacent regions that share the same colorIndex.
- *  Mutates regionMap in place. Returns the merged region list and a remap
- *  of [oldId, canonicalId] pairs for any IDs that were absorbed. */
-export function mergeAdjacentSameColorRegions(
-  regions: Region[],
-  regionMap: Int32Array,
-  width: number,
-): { regions: Region[]; remap: [number, number][] } {
-  const colorOf = new Map<number, number>()
-  for (const r of regions) colorOf.set(r.id, r.colorIndex)
-
-  // Union-Find
-  const parent = new Map<number, number>()
-  const find = (x: number): number => {
-    if (!parent.has(x)) return x
-    const p = find(parent.get(x)!)
-    parent.set(x, p)
-    return p
-  }
-  const union = (a: number, b: number) => {
-    a = find(a); b = find(b)
-    if (a !== b) parent.set(b, a)
-  }
-
-  const pixels = regionMap.length
-  for (let i = 0; i < pixels; i++) {
-    const rid = regionMap[i]
-    if (rid < 0) continue
-    const x = i % width
-    if (x < width - 1) {
-      const nrid = regionMap[i + 1]
-      if (nrid >= 0 && nrid !== rid && colorOf.get(rid) === colorOf.get(nrid)) union(rid, nrid)
-    }
-    if (i + width < pixels) {
-      const nrid = regionMap[i + width]
-      if (nrid >= 0 && nrid !== rid && colorOf.get(rid) === colorOf.get(nrid)) union(rid, nrid)
-    }
-  }
-
-  // Collect remap entries and update regionMap
-  const remap: [number, number][] = []
-  const seen = new Set<number>()
-  for (const r of regions) {
-    const canonical = find(r.id)
-    if (canonical !== r.id && !seen.has(r.id)) { remap.push([r.id, canonical]); seen.add(r.id) }
-  }
-  if (remap.length > 0) {
-    const remapMap = new Map(remap)
-    for (let i = 0; i < pixels; i++) {
-      const c = remapMap.get(regionMap[i])
-      if (c !== undefined) regionMap[i] = c
-    }
-  }
-
-  // Merge region metadata: keep canonical, accumulate pixelCount, keep best centroid
-  const merged = new Map<number, Region>()
-  for (const r of regions) {
-    const canonical = find(r.id)
-    if (!merged.has(canonical)) {
-      merged.set(canonical, { ...r, id: canonical })
-    } else {
-      const existing = merged.get(canonical)!
-      existing.pixelCount += r.pixelCount
-      if (r.labelRadius > existing.labelRadius) {
-        existing.labelRadius = r.labelRadius
-        existing.centroid = r.centroid
-      }
-    }
-  }
-
-  return { regions: [...merged.values()], remap }
+  return { regions, regionMap }
 }
 
 export function getRegionAt(
