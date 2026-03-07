@@ -126,7 +126,6 @@ export default function App() {
         <GameScreen
           state={state}
           actions={actions}
-          originalImageUrl={previewUrl}
           onNewPuzzle={handleNewPuzzle}
         />
       )}

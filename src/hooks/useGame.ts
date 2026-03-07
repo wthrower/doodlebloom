@@ -38,7 +38,11 @@ export function useGame(): [GameState, GameActions] {
   // Restore state on mount
   useEffect(() => {
     const saved = restoreState()
-    if (!saved || !saved.sessionId) return
+    if (!saved) return
+    if (!saved.sessionId) {
+      setState(prev => ({ ...prev, prompt: saved.prompt, colorCount: saved.colorCount, revealMode: saved.revealMode }))
+      return
+    }
 
     if (saved.screen === 'playing' || saved.screen === 'complete') {
       Promise.all([
@@ -59,6 +63,7 @@ export function useGame(): [GameState, GameActions] {
 
         const indexMap = storedIndexMap ?? rebuildIndexMap(imageData, saved.palette)
         const { regionMap } = buildRegions(indexMap, saved.canvasWidth, saved.canvasHeight, saved.rawPalette ?? [])
+        fuseSameColorRegions(saved.regions, regionMap, saved.canvasWidth)
 
         indexMapRef.current = indexMap
         regionMapRef.current = regionMap
@@ -163,13 +168,15 @@ export function useGame(): [GameState, GameActions] {
   }, [persistState])
 
   const resetPuzzle = useCallback(async () => {
-    const { sessionId } = state
+    const { sessionId, prompt, colorCount, revealMode } = state
     indexMapRef.current = null
     regionMapRef.current = null
     originalImageDataRef.current = null
     await wipeState(sessionId)
-    setState(DEFAULT_STATE)
-  }, [state, wipeState])
+    const next = { ...DEFAULT_STATE, prompt, colorCount, revealMode }
+    persistState(next)
+    setState(next)
+  }, [state, wipeState, persistState])
 
   const actions: GameActions = {
     setPrompt,

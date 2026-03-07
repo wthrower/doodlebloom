@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { GameActions, GameState } from '../App'
+import { PillToggle } from '../components/PillToggle'
 import { renderPuzzle, flashRegion } from '../game/canvas'
 import { colorDist } from '../game/colorDistance'
 import { getRegionAt } from '../game/regions'
@@ -8,7 +9,6 @@ import { CURSOR_CAN_FILL, CURSOR_CANT_FILL } from '../game/cursors'
 interface Props {
   state: GameState
   actions: GameActions
-  originalImageUrl: string | null
   onNewPuzzle: () => void
 }
 
@@ -26,7 +26,7 @@ function clampTransform(t: Transform): Transform {
   return t
 }
 
-export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Props) {
+export function GameScreen({ state, actions, onNewPuzzle }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const [activeColorIndex, setActiveColorIndex] = useState<number | null>(() => {
@@ -389,6 +389,11 @@ export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Pr
         <button className="btn btn-ghost btn-small" onClick={actions.resetPuzzle}>
           New
         </button>
+        <PillToggle
+          options={[{ value: 'flat', label: 'Flat' }, { value: 'photo', label: 'Reveal' }]}
+          value={revealMode}
+          onChange={actions.setRevealMode}
+        />
         <div className="progress-bar">
           <div className="progress-fill" style={{ width: `${progress}%` }} />
         </div>
@@ -410,11 +415,7 @@ export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Pr
           width={canvasWidth}
           height={canvasHeight}
           className="puzzle-canvas"
-          style={state.screen === 'complete' ? { display: 'none' } : undefined}
         />
-        {state.screen === 'complete' && originalImageUrl && (
-          <img src={originalImageUrl} alt="Original" className="win-reveal-image" />
-        )}
       </div>
 
       {state.screen === 'complete' ? (

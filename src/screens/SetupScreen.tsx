@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { GameActions, GameState } from '../App'
+import { PillToggle } from '../components/PillToggle'
 
 const BASE = import.meta.env.BASE_URL
 
@@ -102,30 +103,12 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, onGenera
 
       <div className="form-group">
         <label>Reveal style</label>
-        <div className="radio-group">
-          <label>
-            <input
-              type="radio"
-              name="revealMode"
-              value="flat"
-              checked={state.revealMode === 'flat'}
-              onChange={() => actions.setRevealMode('flat')}
-              disabled={isGenerating}
-            />
-            Flat color
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="revealMode"
-              value="photo"
-              checked={state.revealMode === 'photo'}
-              onChange={() => actions.setRevealMode('photo')}
-              disabled={isGenerating}
-            />
-            Image reveal
-          </label>
-        </div>
+        <PillToggle
+          options={[{ value: 'flat', label: 'Flat' }, { value: 'photo', label: 'Reveal' }]}
+          value={state.revealMode}
+          onChange={actions.setRevealMode}
+          disabled={isGenerating}
+        />
       </div>
 
       <div className="setup-generate-row">
