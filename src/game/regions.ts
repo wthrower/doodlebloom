@@ -1,3 +1,4 @@
+import { colorDist } from './colorDistance'
 import type { PaletteColor, Region } from '../types'
 
 /** A region whose "inscribed circle" radius is smaller than this won't have
@@ -256,8 +257,7 @@ export function buildRegions(
     let nearestIdx = 0, nearestDist = Infinity
     for (let ci = 0; ci < palette.length; ci++) {
       const c = palette[ci]
-      const dr = meanR - c.r, dg = meanG - c.g, db = meanB - c.b
-      const d = dr * dr + dg * dg + db * db
+      const d = colorDist(meanR, meanG, meanB, c.r, c.g, c.b)
       if (d < nearestDist) { nearestDist = d; nearestIdx = ci }
     }
 
@@ -335,6 +335,79 @@ export function buildRegions(
   }
 
   return { regions, regionMap, promotedRegions }
+}
+
+/** Merge adjacent regions that share the same colorIndex.
+ *  Mutates regionMap in place. Returns the merged region list and a remap
+ *  of [oldId, canonicalId] pairs for any IDs that were absorbed. */
+export function mergeAdjacentSameColorRegions(
+  regions: Region[],
+  regionMap: Int32Array,
+  width: number,
+): { regions: Region[]; remap: [number, number][] } {
+  const colorOf = new Map<number, number>()
+  for (const r of regions) colorOf.set(r.id, r.colorIndex)
+
+  // Union-Find
+  const parent = new Map<number, number>()
+  const find = (x: number): number => {
+    if (!parent.has(x)) return x
+    const p = find(parent.get(x)!)
+    parent.set(x, p)
+    return p
+  }
+  const union = (a: number, b: number) => {
+    a = find(a); b = find(b)
+    if (a !== b) parent.set(b, a)
+  }
+
+  const pixels = regionMap.length
+  for (let i = 0; i < pixels; i++) {
+    const rid = regionMap[i]
+    if (rid < 0) continue
+    const x = i % width
+    if (x < width - 1) {
+      const nrid = regionMap[i + 1]
+      if (nrid >= 0 && nrid !== rid && colorOf.get(rid) === colorOf.get(nrid)) union(rid, nrid)
+    }
+    if (i + width < pixels) {
+      const nrid = regionMap[i + width]
+      if (nrid >= 0 && nrid !== rid && colorOf.get(rid) === colorOf.get(nrid)) union(rid, nrid)
+    }
+  }
+
+  // Collect remap entries and update regionMap
+  const remap: [number, number][] = []
+  const seen = new Set<number>()
+  for (const r of regions) {
+    const canonical = find(r.id)
+    if (canonical !== r.id && !seen.has(r.id)) { remap.push([r.id, canonical]); seen.add(r.id) }
+  }
+  if (remap.length > 0) {
+    const remapMap = new Map(remap)
+    for (let i = 0; i < pixels; i++) {
+      const c = remapMap.get(regionMap[i])
+      if (c !== undefined) regionMap[i] = c
+    }
+  }
+
+  // Merge region metadata: keep canonical, accumulate pixelCount, keep best centroid
+  const merged = new Map<number, Region>()
+  for (const r of regions) {
+    const canonical = find(r.id)
+    if (!merged.has(canonical)) {
+      merged.set(canonical, { ...r, id: canonical })
+    } else {
+      const existing = merged.get(canonical)!
+      existing.pixelCount += r.pixelCount
+      if (r.labelRadius > existing.labelRadius) {
+        existing.labelRadius = r.labelRadius
+        existing.centroid = r.centroid
+      }
+    }
+  }
+
+  return { regions: [...merged.values()], remap }
 }
 
 export function getRegionAt(

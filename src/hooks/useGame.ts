@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { DEFAULT_STATE } from '../types'
 import type { GameState, PaletteColor, Screen } from '../types'
 import { useStorage } from './useStorage'
+import { colorDist } from '../game/colorDistance'
 import { quantizeImage } from '../game/quantize'
-import { buildRegions } from '../game/regions'
+import { buildRegions, mergeAdjacentSameColorRegions } from '../game/regions'
 import type { PromotedRegion } from '../game/regions'
 import { loadApiKey, saveApiKey } from '../game/storage'
 
@@ -60,6 +61,15 @@ export function useGame(): [GameState, GameActions] {
         // Use stored indexMap if available (exact), otherwise rebuild from pixels
         const indexMap = storedIndexMap ?? rebuildIndexMap(imageData, saved.palette)
         const { regionMap } = buildRegions(indexMap, saved.canvasWidth, saved.canvasHeight)
+
+        // Re-apply the same-color merge that was done at puzzle creation time
+        if (saved.regionRemap && saved.regionRemap.length > 0) {
+          const remapMap = new Map(saved.regionRemap)
+          for (let i = 0; i < regionMap.length; i++) {
+            const c = remapMap.get(regionMap[i])
+            if (c !== undefined) regionMap[i] = c
+          }
+        }
 
         indexMapRef.current = indexMap
         regionMapRef.current = regionMap
@@ -120,15 +130,14 @@ export function useGame(): [GameState, GameActions] {
 
     // Extend palette with new colors from promoted gray splotches, up to the target color count.
     // Largest splotches get priority. Skip any color too similar to one already in the palette.
-    const MIN_PROMOTE_DIST = 30  // Euclidean RGB distance
+    const MIN_PROMOTE_DIST = 15  // ΔE76 perceptual distance
     const extPalette = [...rawPalette]
     const sortedPromoted = [...promotedRegions].sort((a, b) => b.pixelCount - a.pixelCount)
     for (const p of sortedPromoted) {
       if (extPalette.length >= colorCountRef.current) break
-      const tooClose = extPalette.some(c => {
-        const dr = p.meanR - c.r, dg = p.meanG - c.g, db = p.meanB - c.b
-        return Math.sqrt(dr * dr + dg * dg + db * db) < MIN_PROMOTE_DIST
-      })
+      const tooClose = extPalette.some(c =>
+        colorDist(p.meanR, p.meanG, p.meanB, c.r, c.g, c.b) < MIN_PROMOTE_DIST
+      )
       if (tooClose) continue
       const newColorIdx = extPalette.length
       extPalette.push({ r: p.meanR, g: p.meanG, b: p.meanB })
@@ -140,7 +149,11 @@ export function useGame(): [GameState, GameActions] {
     const usedIndices = [...new Set(rawRegions.map(r => r.colorIndex))].sort((a, b) => a - b)
     const remap = new Map(usedIndices.map((old, i) => [old, i]))
     const palette = usedIndices.map(i => extPalette[i])
-    const regions = rawRegions.map(r => ({ ...r, colorIndex: remap.get(r.colorIndex)! }))
+    const compactedRegions = rawRegions.map(r => ({ ...r, colorIndex: remap.get(r.colorIndex)! }))
+
+    // Merge adjacent regions that share the same color after compaction
+    const { regions, remap: regionRemap } = mergeAdjacentSameColorRegions(compactedRegions, regionMap, cw)
+
     // Store rawIndexMap (pre-compaction) so restore calls buildRegions with the same
     // index values, producing identical region IDs and a consistent regionMap.
     await storeIndexMap(sessionId, rawIndexMap)
@@ -157,6 +170,7 @@ export function useGame(): [GameState, GameActions] {
       playerColors: {},
       canvasWidth: cw,
       canvasHeight: ch,
+      regionRemap: regionRemap.length > 0 ? regionRemap : undefined,
     })
   }, [storeImage, update])
 

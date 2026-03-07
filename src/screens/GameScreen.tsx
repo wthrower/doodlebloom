@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { GameActions, GameState } from '../App'
 import { renderPuzzle, flashRegion } from '../game/canvas'
+import { colorDist } from '../game/colorDistance'
 import { getRegionAt } from '../game/regions'
 import { CURSOR_CAN_FILL, CURSOR_CANT_FILL } from '../game/cursors'
 
@@ -46,29 +47,42 @@ export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Pr
   useEffect(() => { playerColorsRef.current = playerColors }, [playerColors])
   useEffect(() => { fillRegionRef.current = fillRegion }, [fillRegion])
 
-  // Sort palette indices by hue (then lightness) for a natural color-wheel order
+  // Sort palette by nearest-neighbor chaining (greedy, RGB Euclidean distance)
   const { sortedPaletteIndices, colorDisplayNumbers } = useMemo(() => {
-    const sorted = palette
-      .map((color, idx) => {
-        const r = color.r / 255, g = color.g / 255, b = color.b / 255
-        const max = Math.max(r, g, b), min = Math.min(r, g, b)
-        const l = (max + min) / 2
-        let h = 0
-        if (max !== min) {
-          const d = max - min
-          switch (max) {
-            case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break
-            case g: h = ((b - r) / d + 2) / 6; break
-            case b: h = ((r - g) / d + 4) / 6; break
+    const n = palette.length
+    const dist = (a: number, b: number) =>
+      colorDist(palette[a].r, palette[a].g, palette[a].b, palette[b].r, palette[b].g, palette[b].b)
+
+    let bestChain: number[] = []
+    let bestTotal = Infinity
+
+    for (let start = 0; start < n; start++) {
+      const visited = new Uint8Array(n)
+      const chain: number[] = []
+      let current = start
+      let total = 0
+
+      while (chain.length < n) {
+        visited[current] = 1
+        chain.push(current)
+        let nearest = -1, nearestDist = Infinity
+        for (let i = 0; i < n; i++) {
+          if (!visited[i]) {
+            const d = dist(current, i)
+            if (d < nearestDist) { nearestDist = d; nearest = i }
           }
         }
-        return { idx, h, l }
-      })
-      .sort((a, b) => a.h - b.h || a.l - b.l)
-      .map(x => x.idx)
+        if (nearest < 0) break
+        total += nearestDist
+        current = nearest
+      }
+
+      if (total < bestTotal) { bestTotal = total; bestChain = chain }
+    }
+
     const displayNums: Record<number, number> = {}
-    sorted.forEach((colorIdx, pos) => { displayNums[colorIdx] = pos + 1 })
-    return { sortedPaletteIndices: sorted, colorDisplayNumbers: displayNums }
+    bestChain.forEach((colorIdx, pos) => { displayNums[colorIdx] = pos + 1 })
+    return { sortedPaletteIndices: bestChain, colorDisplayNumbers: displayNums }
   }, [palette])
 
   // Deselect swatch when its color becomes fully filled
