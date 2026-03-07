@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GameActions, GameState } from '../App'
 import { renderPuzzle, flashRegion } from '../game/canvas'
 import { getRegionAt } from '../game/regions'
+import { CURSOR_CAN_FILL, CURSOR_CANT_FILL } from '../game/cursors'
 
 interface Props {
   state: GameState
@@ -128,9 +129,26 @@ export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Pr
     const wrap = wrapRef.current
     if (!canvas || !wrap) return
 
+    // Set initial cursor
+    canvas.style.cursor = CURSOR_CANT_FILL
+
     // Mouse pan
     let mouseDown: { x: number; y: number; tx: number; ty: number; scale: number } | null = null
     let mouseDragged = false
+
+    const updateCursor = (clientX: number, clientY: number) => {
+      const pos = screenToCanvas(clientX, clientY)
+      if (pos && regionMapRef.current && activeColorRef.current !== null) {
+        const regionId = getRegionAt(pos.x, pos.y, regionMapRef.current, canvasWidth, canvasHeight)
+        const region = regionId >= 0 ? regionsRef.current.find(r => r.id === regionId) : null
+        const canFill = region
+          && playerColorsRef.current[regionId] === undefined
+          && activeColorRef.current === region.colorIndex
+        canvas.style.cursor = canFill ? CURSOR_CAN_FILL : CURSOR_CANT_FILL
+      } else {
+        canvas.style.cursor = CURSOR_CANT_FILL
+      }
+    }
 
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return
@@ -138,6 +156,7 @@ export function GameScreen({ state, actions, originalImageUrl, onNewPuzzle }: Pr
       mouseDragged = false
     }
     const onMouseMove = (e: MouseEvent) => {
+      updateCursor(e.clientX, e.clientY)
       if (!mouseDown) return
       const dx = e.clientX - mouseDown.x
       const dy = e.clientY - mouseDown.y
