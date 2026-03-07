@@ -119,12 +119,17 @@ export function useGame(): [GameState, GameActions] {
     const { regions: rawRegions, regionMap, promotedRegions } = buildRegions(rawIndexMap, cw, ch, rawPalette)
 
     // Extend palette with new colors from promoted gray splotches, up to the target color count.
-    // Largest splotches get priority. Once the target is reached, promoted regions keep their
-    // nearest-existing-color assignment from buildRegions.
+    // Largest splotches get priority. Skip any color too similar to one already in the palette.
+    const MIN_PROMOTE_DIST = 30  // Euclidean RGB distance
     const extPalette = [...rawPalette]
     const sortedPromoted = [...promotedRegions].sort((a, b) => b.pixelCount - a.pixelCount)
     for (const p of sortedPromoted) {
       if (extPalette.length >= colorCountRef.current) break
+      const tooClose = extPalette.some(c => {
+        const dr = p.meanR - c.r, dg = p.meanG - c.g, db = p.meanB - c.b
+        return Math.sqrt(dr * dr + dg * dg + db * db) < MIN_PROMOTE_DIST
+      })
+      if (tooClose) continue
       const newColorIdx = extPalette.length
       extPalette.push({ r: p.meanR, g: p.meanG, b: p.meanB })
       const region = rawRegions.find(r => r.id === p.regionId)
