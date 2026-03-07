@@ -29,6 +29,8 @@ export interface GameActions {
 }
 
 
+const tick = () => new Promise<void>(r => setTimeout(r, 0))
+
 export function useGame(): [GameState, GameActions] {
   const [state, setState] = useState<GameState>(() => DEFAULT_STATE)
   const [apiKey, setApiKeyState] = useState<string>(() => loadApiKey())
@@ -111,7 +113,7 @@ export function useGame(): [GameState, GameActions] {
     await storeImage(sessionId, blob)
 
     setProcessingStage('decode')
-
+    await tick()
     const img = await loadBlobAsImage(blob)
     const scale = CANVAS_SHORT / Math.min(img.naturalWidth, img.naturalHeight)
     const cw = Math.round(img.naturalWidth * scale)
@@ -124,27 +126,27 @@ export function useGame(): [GameState, GameActions] {
     const imageData = ctx.getImageData(0, 0, cw, ch)
 
     setProcessingStage('palette')
-
+    await tick()
     const { blurred, palette: rawPalette } = analyzeColors(imageData, colorCountRef.current)
 
     setProcessingStage('assign')
-
+    await tick()
     const indexMap = assignColors(blurred, rawPalette, imageData)
 
     setProcessingStage('trace')
-
+    await tick()
     const regionState = traceRegions(indexMap, cw, ch)
 
     setProcessingStage('merge')
-
+    await tick()
     mergeRegions(regionState, rawPalette)
 
     setProcessingStage('measure')
-
+    await tick()
     const { regions: rawRegions, regionMap } = finalizeRegions(regionState, rawPalette)
 
     setProcessingStage('finish')
-
+    await tick()
 
     // Compact: remove palette colors with no surviving regions
     const usedIndices = [...new Set(rawRegions.map(r => r.colorIndex))].sort((a, b) => a - b)
