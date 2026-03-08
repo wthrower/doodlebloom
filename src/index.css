@@ -954,6 +954,7 @@ input[type="range"]::-webkit-slider-thumb {
 
   .preview-inline-img {
     max-height: 65vh;
+    max-width: 100%;
     width: auto;
     object-fit: contain;
   }
