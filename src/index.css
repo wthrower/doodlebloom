@@ -21,7 +21,7 @@
 }
 
 html, body {
-  height: 100%;
+  min-height: 100%;
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font);
@@ -31,17 +31,16 @@ html, body {
 }
 
 #root {
-  height: 100%;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
 /* ── App shell ── */
 .app {
-  height: 100%;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 
 /* ── Screens ── */
@@ -49,11 +48,21 @@ html, body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
   padding: 1.25rem 1rem;
   max-width: 540px;
   width: 100%;
   margin: 0 auto;
+}
+
+/* Game screen needs fixed viewport height -- opt in explicitly */
+.game-screen, .preview-screen {
+  height: 100vh;
+  overflow: hidden;
+  position: fixed;
+  inset: 0;
+  max-width: none;
+  width: 100%;
+  margin: 0;
 }
 
 /* ── Setup screen ── */
@@ -535,8 +544,6 @@ input[type="range"]::-webkit-slider-thumb {
 .preview-screen {
   padding: 0;
   gap: 0;
-  max-width: none;
-  margin: 0;
 }
 
 .preview-image-wrap {
@@ -567,8 +574,6 @@ input[type="range"]::-webkit-slider-thumb {
 .game-screen {
   padding: 0;
   gap: 0;
-  max-width: none;
-  margin: 0;
 }
 
 .game-header {
@@ -608,7 +613,7 @@ input[type="range"]::-webkit-slider-thumb {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #c8e0c8;
+  background: #1a2a1a;
   touch-action: none;
   position: relative;
 }
@@ -868,13 +873,13 @@ input[type="range"]::-webkit-slider-thumb {
   }
 
   .setup-left {
-    width: 280px;
-    flex-shrink: 0;
+    flex: 1;
+    min-width: 0;
   }
 
   .setup-right {
-    flex: 1;
-    min-width: 0;
+    width: 280px;
+    flex-shrink: 0;
   }
 
   .setup-shared-settings {
@@ -885,18 +890,16 @@ input[type="range"]::-webkit-slider-thumb {
     margin-top: 0;
   }
 
-  .stock-strip {
-    flex-wrap: wrap;
-    overflow-x: visible;
-    gap: 0.75rem;
-  }
-
   .setup-generate-row .btn-large {
     width: auto;
   }
 
+  .preview-inline {
+    margin-top: 0.75rem;
+  }
+
   .preview-inline-img {
-    max-height: 260px;
+    max-height: 40vh;
     object-fit: contain;
   }
 

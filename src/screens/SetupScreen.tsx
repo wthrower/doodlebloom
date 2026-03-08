@@ -4,17 +4,15 @@ import { PillToggle } from '../components/PillToggle'
 
 const BASE = import.meta.env.BASE_URL
 
-const STOCK_IMAGES = [
-  { file: 'parrot',     label: 'Parrot' },
-  { file: 'mountain',   label: 'Mountain' },
-  { file: 'toucan',     label: 'Toucan' },
-  { file: 'balloon',    label: 'Balloon' },
-  { file: 'lion',       label: 'Lion' },
-  { file: 'barn',       label: 'Barn' },
-  { file: 'tiger',      label: 'Tiger' },
-  { file: 'sunflowers', label: 'Sunflowers' },
-  { file: 'puffin',     label: 'Puffin' },
-]
+// Auto-discover stock images from public/images/thumbs/
+const thumbModules = import.meta.glob('/public/images/thumbs/*.jpg', { eager: true, query: '?url', import: 'default' }) as Record<string, string>
+const STOCK_IMAGES = Object.entries(thumbModules)
+  .map(([path, thumbUrl]) => {
+    const file = path.replace('/public/images/thumbs/', '').replace('.jpg', '')
+    const label = file.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+    return { file, label, thumbUrl }
+  })
+  .sort((a, b) => a.label.localeCompare(b.label))
 
 interface Props {
   state: GameState
@@ -59,8 +57,43 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, selected
       </h1>
 
       <div className="setup-columns">
-        {/* Left: settings + generate */}
+        {/* Left: stock images + preview */}
         <div className="setup-left">
+          <div className="stock-section">
+            <label className="stock-label">Pick an image</label>
+            <div className="stock-strip">
+              {STOCK_IMAGES.map(({ file, label, thumbUrl }) => {
+                const url = `${BASE}images/${file}.png`
+                const isSelected = selectedStockUrl === url
+                return (
+                  <button
+                    key={file}
+                    className={`stock-thumb-btn${isSelected ? ' selected' : ''}`}
+                    onClick={() => onSelectStock(url)}
+                    aria-label={label}
+                    disabled={isGenerating}
+                  >
+                    <img
+                      src={thumbUrl}
+                      alt={label}
+                      className="stock-thumb-img"
+                    />
+                    <span className="stock-thumb-label">{label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {previewUrl && !isGenerating && (
+            <div className="preview-inline" onClick={onPaint} title="Play!">
+              <img src={previewUrl} alt="Selected" className="preview-inline-img" />
+            </div>
+          )}
+        </div>
+
+        {/* Right: settings + generate */}
+        <div className="setup-right">
           <div className="setup-shared-settings">
             <div className="form-group">
               <label htmlFor="colorCount">
@@ -158,41 +191,6 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, selected
               </>
             )}
           </div>
-        </div>
-
-        {/* Right: stock images + preview */}
-        <div className="setup-right">
-          <div className="stock-section">
-            <label className="stock-label">Pick an image</label>
-            <div className="stock-strip">
-              {STOCK_IMAGES.map(({ file, label }) => {
-                const url = `${BASE}images/${file}.png`
-                const isSelected = selectedStockUrl === url
-                return (
-                  <button
-                    key={file}
-                    className={`stock-thumb-btn${isSelected ? ' selected' : ''}`}
-                    onClick={() => onSelectStock(url)}
-                    aria-label={label}
-                    disabled={isGenerating}
-                  >
-                    <img
-                      src={`${BASE}images/thumbs/${file}.jpg`}
-                      alt={label}
-                      className="stock-thumb-img"
-                    />
-                    <span className="stock-thumb-label">{label}</span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {previewUrl && !isGenerating && (
-            <div className="preview-inline" onClick={onPaint} title="Play!">
-              <img src={previewUrl} alt="Selected" className="preview-inline-img" />
-            </div>
-          )}
         </div>
       </div>
     </div>
