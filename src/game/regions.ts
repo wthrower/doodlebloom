@@ -398,6 +398,75 @@ export function fuseSameColorRegions(
   return [...merged.values()]
 }
 
+/** Merge adjacent region pairs whose shared boundary has low average luminance
+ *  contrast in the original image -- collapses gradient splits (e.g. sky bands)
+ *  while leaving real edges intact. Mutates regionMap in place, returns updated regions. */
+export function mergeGradientSeams(
+  regions: Region[],
+  regionMap: Int32Array,
+  imageData: ImageData,
+  width: number,
+  threshold = 0.01
+): Region[] {
+  const pixels = regionMap.length
+  const data = imageData.data
+
+  // Accumulate per-pair average boundary contrast
+  const pairs = new Map<string, { sum: number; count: number; ridA: number; ridB: number }>()
+  for (let i = 0; i < pixels; i++) {
+    const ridA = regionMap[i]
+    if (ridA < 0) continue
+    const x = i % width
+    for (const j of [x < width - 1 ? i + 1 : -1, i + width < pixels ? i + width : -1]) {
+      if (j < 0) continue
+      const ridB = regionMap[j]
+      if (ridB < 0 || ridB === ridA) continue
+      const key = ridA < ridB ? `${ridA}|${ridB}` : `${ridB}|${ridA}`
+      const lA = (0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2]) / 255
+      const lB = (0.299 * data[j * 4] + 0.587 * data[j * 4 + 1] + 0.114 * data[j * 4 + 2]) / 255
+      const p = pairs.get(key)
+      if (p) { p.sum += Math.abs(lA - lB); p.count++ }
+      else pairs.set(key, { sum: Math.abs(lA - lB), count: 1, ridA, ridB })
+    }
+  }
+
+  // Union-find: merge pairs below threshold
+  const regionById = new Map(regions.map(r => [r.id, r]))
+  const parent = new Map<number, number>()
+  const find = (x: number): number => {
+    while (parent.has(x)) x = parent.get(x)!
+    return x
+  }
+
+  for (const [, { sum, count, ridA, ridB }] of pairs) {
+    if (sum / count >= threshold) continue
+    const ca = find(ridA), cb = find(ridB)
+    if (ca === cb) continue
+    const ra = regionById.get(ca), rb = regionById.get(cb)
+    if (!ra || !rb) continue
+    const [keep, drop] = ra.pixelCount >= rb.pixelCount ? [ca, cb] : [cb, ca]
+    parent.set(drop, keep)
+  }
+
+  // Apply to regionMap
+  for (let i = 0; i < pixels; i++) {
+    if (regionMap[i] >= 0) regionMap[i] = find(regionMap[i])
+  }
+
+  // Rebuild region list
+  const merged = new Map<number, Region>()
+  for (const r of regions) {
+    const canon = find(r.id)
+    if (!merged.has(canon)) merged.set(canon, { ...r, id: canon })
+    else {
+      const m = merged.get(canon)!
+      m.pixelCount += r.pixelCount
+      if (r.labelRadius > m.labelRadius) { m.labelRadius = r.labelRadius; m.centroid = r.centroid }
+    }
+  }
+  return [...merged.values()]
+}
+
 export function getRegionAt(
   x: number,
   y: number,

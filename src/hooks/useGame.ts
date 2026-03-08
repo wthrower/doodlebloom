@@ -4,7 +4,7 @@ import type { GameState, PaletteColor, Region, Screen } from '../types'
 import { useStorage } from './useStorage'
 import { colorDist } from '../game/colorDistance'
 import { analyzeColors, assignColors } from '../game/quantize'
-import { buildRegions, fuseSameColorRegions, traceRegions, mergeRegions, finalizeRegions } from '../game/regions'
+import { buildRegions, fuseSameColorRegions, traceRegions, mergeRegions, finalizeRegions, mergeGradientSeams } from '../game/regions'
 import { loadApiKey, saveApiKey } from '../game/storage'
 
 /** Scale image so its shorter side = this many pixels. */
@@ -145,14 +145,18 @@ export function useGame(): [GameState, GameActions] {
     await tick()
     const { regions: rawRegions, regionMap } = finalizeRegions(regionState, rawPalette)
 
+    setProcessingStage('seams')
+    await tick()
+    const { regions: seamedRegions } = { regions: mergeGradientSeams(rawRegions, regionMap, imageData, cw) }
+
     setProcessingStage('finish')
     await tick()
 
     // Compact: remove palette colors with no surviving regions
-    const usedIndices = [...new Set(rawRegions.map(r => r.colorIndex))].sort((a, b) => a - b)
+    const usedIndices = [...new Set(seamedRegions.map(r => r.colorIndex))].sort((a, b) => a - b)
     const compactRemap = new Map(usedIndices.map((old, i) => [old, i]))
     let palette = usedIndices.map(i => rawPalette[i])
-    let regions = rawRegions.map(r => ({ ...r, colorIndex: compactRemap.get(r.colorIndex)! }))
+    let regions = seamedRegions.map(r => ({ ...r, colorIndex: compactRemap.get(r.colorIndex)! }))
 
     if (palette.length > colorCountRef.current) {
       mergeToTarget(palette, regions, colorCountRef.current)

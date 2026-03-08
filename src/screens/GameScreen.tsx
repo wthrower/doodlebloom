@@ -648,7 +648,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
           height={canvasHeight}
           className="puzzle-canvas"
         />
-        {/* SVG outline overlay: not CSS-transformed, redrawn in screen coords on zoom/pan */}
+{/* SVG outline overlay: not CSS-transformed, redrawn in screen coords on zoom/pan */}
         <svg
           ref={outlineSvgRef}
           className="outline-svg"
