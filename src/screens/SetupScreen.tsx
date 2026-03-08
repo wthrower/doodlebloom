@@ -11,7 +11,7 @@ const STOCK_IMAGES = Object.entries(thumbModules)
     const label = file.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
     return { file, label, thumbUrl }
   })
-  .sort((a, b) => a.label.localeCompare(b.label))
+  .sort(() => Math.random() - 0.5)
 
 interface Props {
   state: GameState
