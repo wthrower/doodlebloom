@@ -36,7 +36,27 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, selected
 
   return (
     <div className="screen setup-screen">
-      <h1 className="app-title">Doodlebloom</h1>
+      <h1 className="app-title-wrap" aria-label="Doodlebloom">
+        <svg className="app-title" overflow="visible" height="3rem" aria-hidden="true">
+          <defs>
+            <linearGradient id="title-gradient" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#ffc49a" />
+              <stop offset="50%" stopColor="#f9a8d4" />
+              <stop offset="100%" stopColor="#86efac" />
+            </linearGradient>
+          </defs>
+          <text
+            x="0" y="2.4rem"
+            fontFamily="Acme, sans-serif"
+            fontSize="2.5rem"
+            fill="url(#title-gradient)"
+            stroke="black"
+            strokeWidth="2"
+            paintOrder="stroke fill"
+            filter="drop-shadow(0 2px 6px rgba(40,100,50,0.4))"
+          >Doodlebloom</text>
+        </svg>
+      </h1>
 
       <div className="setup-columns">
         {/* Left: settings + generate */}
@@ -64,7 +84,7 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, selected
             <div className="form-group">
               <label>Reveal style</label>
               <PillToggle
-                options={[{ value: 'flat', label: 'Flat' }, { value: 'photo', label: 'Reveal' }]}
+                options={[{ value: 'flat', label: 'Flat' }, { value: 'photo', label: 'Image' }]}
                 value={state.revealMode}
                 onChange={actions.setRevealMode}
                 disabled={isGenerating}
