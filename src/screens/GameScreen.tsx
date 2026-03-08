@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Maximize2, Minimize2, ScanSearch } from 'lucide-react'
 import type { GameActions, GameState } from '../App'
 import { PillToggle } from '../components/PillToggle'
+import { REVEAL_MODE_OPTIONS } from '../types'
 import { renderPuzzle, flashRegion, buildOutlineChains, dpSimplify } from '../game/canvas'
 import type { OutlineBatch } from '../game/canvas'
 import { colorDist } from '../game/colorDistance'
@@ -602,7 +603,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
           New
         </button>
         <PillToggle
-          options={[{ value: 'flat', label: 'Flat' }, { value: 'photo', label: 'Reveal' }]}
+          options={REVEAL_MODE_OPTIONS}
           value={revealMode}
           onChange={actions.setRevealMode}
         />

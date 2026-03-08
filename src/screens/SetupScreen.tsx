@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { GameActions, GameState } from '../App'
 import { PillToggle } from '../components/PillToggle'
+import { REVEAL_MODE_OPTIONS } from '../types'
 
 const BASE = import.meta.env.BASE_URL
 
@@ -117,7 +118,7 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, selected
             <div className="form-group">
               <label>Reveal style</label>
               <PillToggle
-                options={[{ value: 'flat', label: 'Flat' }, { value: 'photo', label: 'Image' }]}
+                options={REVEAL_MODE_OPTIONS}
                 value={state.revealMode}
                 onChange={actions.setRevealMode}
                 disabled={isGenerating}
@@ -135,6 +136,7 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, selected
               placeholder="A fox sitting on a mushroom in an enchanted forest..."
               value={state.prompt}
               onChange={e => actions.setPrompt(e.target.value)}
+              onFocus={e => setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 300)}
               disabled={isGenerating}
             />
           </div>

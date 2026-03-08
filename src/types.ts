@@ -1,5 +1,10 @@
 export type Screen = 'setup' | 'generating' | 'preview' | 'playing' | 'complete'
 
+export const REVEAL_MODE_OPTIONS = [
+  { value: 'flat' as const, label: 'Flat' },
+  { value: 'photo' as const, label: 'Image' },
+]
+
 export interface PaletteColor {
   r: number
   g: number
