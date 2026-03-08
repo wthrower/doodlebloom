@@ -607,6 +607,15 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
           value={revealMode}
           onChange={actions.setRevealMode}
         />
+        {activeColorIndex !== null && state.screen !== 'complete' && (() => {
+          const c = palette[activeColorIndex]
+          return (
+            <div className="toolbar-active-color" aria-label={`Selected color ${colorDisplayNumbers[activeColorIndex]}`}>
+              <div className="toolbar-active-swatch" style={{ background: `rgb(${c.r},${c.g},${c.b})` }} />
+              <span className="toolbar-active-num">{colorDisplayNumbers[activeColorIndex]}</span>
+            </div>
+          )
+        })()}
         <div className="progress-bar">
           <div className="progress-fill" style={{ width: `${progress}%` }} />
         </div>

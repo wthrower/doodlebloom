@@ -1,7 +1,5 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { GameActions, GameState } from '../App'
-import { PillToggle } from '../components/PillToggle'
-import { REVEAL_MODE_OPTIONS } from '../types'
 
 const BASE = import.meta.env.BASE_URL
 
@@ -30,6 +28,29 @@ interface Props {
 export function SetupScreen({ state, actions, isGenerating, previewUrl, selectedStockUrl, onGenerate, onCancel, onPaint, onSelectStock }: Props) {
   const [showKey, setShowKey] = useState(false)
   const [showKeyInput, setShowKeyInput] = useState(false)
+  const stripRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<{ startX: number; scrollLeft: number; dragging: boolean } | null>(null)
+
+  const onStripMouseDown = (e: React.MouseEvent) => {
+    const el = stripRef.current
+    if (!el) return
+    dragRef.current = { startX: e.pageX, scrollLeft: el.scrollLeft, dragging: false }
+    e.preventDefault()
+  }
+
+  const onStripMouseMove = (e: React.MouseEvent) => {
+    if (!dragRef.current || !stripRef.current) return
+    const dx = e.pageX - dragRef.current.startX
+    if (!dragRef.current.dragging && Math.abs(dx) > 4) dragRef.current.dragging = true
+    if (dragRef.current.dragging) stripRef.current.scrollLeft = dragRef.current.scrollLeft - dx
+  }
+
+  const onStripMouseUp = () => { dragRef.current = null }
+
+  const onStripClick = (e: React.MouseEvent, cb: () => void) => {
+    if (dragRef.current?.dragging) { e.preventDefault(); return }
+    cb()
+  }
 
   const canGenerate = !isGenerating && state.prompt.trim().length > 0 && actions.apiKey.trim().length > 0
 
@@ -62,7 +83,14 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, selected
         <div className="setup-left">
           <div className="stock-section">
             <label className="stock-label">Pick an image</label>
-            <div className="stock-strip">
+            <div
+              className="stock-strip"
+              ref={stripRef}
+              onMouseDown={onStripMouseDown}
+              onMouseMove={onStripMouseMove}
+              onMouseUp={onStripMouseUp}
+              onMouseLeave={onStripMouseUp}
+            >
               {STOCK_IMAGES.map(({ file, label, thumbUrl }) => {
                 const url = `${BASE}images/${file}.png`
                 const isSelected = selectedStockUrl === url
@@ -70,7 +98,7 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, selected
                   <button
                     key={file}
                     className={`stock-thumb-btn${isSelected ? ' selected' : ''}`}
-                    onClick={() => onSelectStock(url)}
+                    onClick={e => onStripClick(e, () => onSelectStock(url))}
                     aria-label={label}
                     disabled={isGenerating}
                   >
@@ -87,7 +115,7 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, selected
           </div>
 
           {previewUrl && !isGenerating && (
-            <div className="preview-inline" onClick={onPaint} title="Play!">
+            <div className="preview-inline" onClick={onPaint} title="Paint!">
               <img src={previewUrl} alt="Selected" className="preview-inline-img" />
             </div>
           )}
@@ -95,37 +123,6 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, selected
 
         {/* Right: settings + generate */}
         <div className="setup-right">
-          <div className="setup-shared-settings">
-            <div className="form-group">
-              <label htmlFor="colorCount">
-                Colors: <strong>{state.colorCount}</strong>
-              </label>
-              <input
-                id="colorCount"
-                type="range"
-                min={4}
-                max={32}
-                value={state.colorCount}
-                onChange={e => actions.setColorCount(Number(e.target.value))}
-                disabled={isGenerating}
-              />
-              <div className="range-labels">
-                <span>4 (simpler)</span>
-                <span>32 (complex)</span>
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label>Reveal style</label>
-              <PillToggle
-                options={REVEAL_MODE_OPTIONS}
-                value={state.revealMode}
-                onChange={actions.setRevealMode}
-                disabled={isGenerating}
-              />
-            </div>
-          </div>
-
           <div className="setup-divider">or generate your own</div>
 
           <div className="form-group">
@@ -173,6 +170,21 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, selected
             )}
           </div>
 
+          {!isGenerating && (
+            <div className="form-group color-count-inline">
+              <label htmlFor="colorCount">Colors: <strong>{state.colorCount}</strong></label>
+              <input
+                id="colorCount"
+                type="range"
+                min={4}
+                max={32}
+                value={state.colorCount}
+                onChange={e => actions.setColorCount(Number(e.target.value))}
+                disabled={isGenerating}
+              />
+            </div>
+          )}
+
           <div className="setup-generate-row">
             {isGenerating ? (
               <>
@@ -187,7 +199,7 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, selected
                 </button>
                 {previewUrl && (
                   <button className="btn btn-secondary btn-large" onClick={onPaint}>
-                    Play!
+                    Paint!
                   </button>
                 )}
               </>
