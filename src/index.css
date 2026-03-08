@@ -674,10 +674,11 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .swatch-number {
-  font-size: 0.625rem;
+  font-size: 0.85rem;
   font-weight: 700;
   color: rgba(255,255,255,0.9);
-  text-shadow: 0 0 3px rgba(0,0,0,0.8);
+  -webkit-text-stroke: 2px black;
+  paint-order: stroke fill;
   padding: 1px 3px;
   line-height: 1;
 }
