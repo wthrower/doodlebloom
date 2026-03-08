@@ -130,14 +130,19 @@ function refinePalette(palette: PaletteColor[], indexMap: Uint8Array, imageData:
 
   for (let i = 0; i < n; i++) {
     if (rs[i].length === 0) continue
-    palette[i] = { r: median(rs[i]), g: median(gs[i]), b: median(bs[i]) }
+    palette[i] = { r: mode(rs[i]), g: mode(gs[i]), b: mode(bs[i]) }
   }
 }
 
-function median(values: number[]): number {
-  values.sort((a, b) => a - b)
-  const mid = values.length >> 1
-  return values.length % 2 === 1 ? values[mid] : Math.round((values[mid - 1] + values[mid]) / 2)
+const MODE_BIN = 16
+
+function mode(values: number[]): number {
+  const bins = Math.ceil(256 / MODE_BIN)
+  const counts = new Uint32Array(bins)
+  for (const v of values) counts[Math.min(bins - 1, Math.floor(v / MODE_BIN))]++
+  let best = 0
+  for (let i = 1; i < bins; i++) if (counts[i] > counts[best]) best = i
+  return best * MODE_BIN + MODE_BIN / 2
 }
 
 function nearestPaletteIndex(r: number, g: number, b: number, palette: PaletteColor[]): number {
