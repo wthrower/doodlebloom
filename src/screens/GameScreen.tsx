@@ -276,16 +276,9 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
           const len = Math.hypot(dx1, dy1) * Math.hypot(dx2, dy2)
           return len > 0 && (dx1*dx2 + dy1*dy2) / len <= 0.7
         }
-        // Short segments (<8px): always CR -- too small to bow noticeably.
-        // Long segments (>15px): always L -- CR would bow a long straight run.
-        // Medium segments: L at sharp turns, CR otherwise.
-        const spineLen = (i: number) => Math.hypot(pts[i+1][0]-pts[i][0], pts[i+1][1]-pts[i][1])
-        const useCR = (i: number): boolean => {
-          const sl = spineLen(i)
-          if (sl < 8) return true
-          if (sl > 15) return false
-          return !spineSharp(i) && !spineSharp(i + 1)
-        }
+        // Use CR everywhere except at sharp spine corners.
+        // CR on collinear points is a straight line, so no bowing on long straight runs.
+        const useCR = (i: number): boolean => !spineSharp(i) && !spineSharp(i + 1)
         const rightRev = [...right].reverse()
         const f = ([x, y]: [number, number]) => `${x.toFixed(1)},${y.toFixed(1)}`
         const segs = [`M${f(left[0])}`]
