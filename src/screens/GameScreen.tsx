@@ -46,6 +46,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
     return dominant
   })
   const [cheatActive, setCheatActive] = useState(false)
+  const [outlineMagenta, setOutlineMagenta] = useState(false)
   const { palette, regions, playerColors, canvasWidth, canvasHeight, revealMode, showOutline, screen } = state
   const { indexMapRef, regionMapRef, originalImageDataRef, fillRegion } = actions
 
@@ -161,53 +162,147 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
       const visMaxY = visMinY + (wrapH / pixelScale) + margin * 2
 
       const { chains, bboxes } = batch
-      const t = 0.6 // Catmull-Rom tension
-      const parts: string[] = []
+      const imgData = originalImageDataRef.current
+      const imgW = canvasWidth
+
+      // Sample contrast at a boundary-grid point (gx, gy) from the original image.
+      // High contrast (dark next to bright) → thick line; low contrast → thin line.
+      // Uses luminance range (max − min) across a small neighborhood so that
+      // nearby boundary points get consistent weights even across chain junctions.
+      // Returns 0 (no contrast) – 1 (max contrast).
+      const sampleRadius = 4
+      const sampleContrast = (gx: number, gy: number): number => {
+        if (!imgData) return 0.5
+        let minL = 1, maxL = 0
+        for (let py = gy - sampleRadius; py <= gy + sampleRadius; py++) {
+          for (let px = gx - sampleRadius; px <= gx + sampleRadius; px++) {
+            if (px < 0 || py < 0 || px >= imgW || py >= imgData.height) continue
+            const i = (py * imgW + px) * 4
+            const d = imgData.data
+            const L = (0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2]) / 255
+            if (L < minL) minL = L
+            if (L > maxL) maxL = L
+          }
+        }
+        return maxL - minL
+      }
+
+      // Half-width range in screen pixels (thin for bright, thick for dark)
+      const minHW = 0.5
+      const maxHW = Math.min(3, Math.max(0.75, scale * 0.75))
+      const t = 0.5 // Catmull-Rom tension
+
+      // Catmull-Rom → cubic Bezier, clamping control vectors to chord length.
+      // When a control vector exceeds the chord, the curve can loop -- clamping
+      // prevents overshooting without abandoning smooth curves elsewhere.
+      const crSeg = (arr: [number, number][], i: number): string => {
+        const p0 = arr[Math.max(0, i - 1)]
+        const p1 = arr[i]
+        const p2 = arr[i + 1]
+        const p3 = arr[Math.min(arr.length - 1, i + 2)]
+        let cp1x = p1[0] + (p2[0] - p0[0]) * t / 3
+        let cp1y = p1[1] + (p2[1] - p0[1]) * t / 3
+        let cp2x = p2[0] - (p3[0] - p1[0]) * t / 3
+        let cp2y = p2[1] - (p3[1] - p1[1]) * t / 3
+        const chord = Math.hypot(p2[0] - p1[0], p2[1] - p1[1])
+        const cv1 = Math.hypot(cp1x - p1[0], cp1y - p1[1])
+        const cv2 = Math.hypot(cp2x - p2[0], cp2y - p2[1])
+        if (cv1 > chord && cv1 > 0) { const s = chord / cv1; cp1x = p1[0] + (cp1x - p1[0]) * s; cp1y = p1[1] + (cp1y - p1[1]) * s }
+        if (cv2 > chord && cv2 > 0) { const s = chord / cv2; cp2x = p2[0] + (cp2x - p2[0]) * s; cp2y = p2[1] + (cp2y - p2[1]) * s }
+        return `C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`
+      }
+
+      const polygons: string[] = []
 
       for (let ci = 0; ci < chains.length; ci++) {
-        // Viewport cull: skip chains entirely outside the visible area
+        // Viewport cull
         const bi = ci * 4
         if (bboxes[bi + 2] < visMinX || bboxes[bi] > visMaxX ||
             bboxes[bi + 3] < visMinY || bboxes[bi + 1] > visMaxY) continue
 
         const pts = dpSimplify(chains[ci], epsilon)
         if (pts.length < 2) continue
-        parts.push(`M${sx(pts[0][0])},${sy(pts[0][1])}`)
+        const n = pts.length
 
-        // Catmull-Rom → cubic Bezier, with straight-line fallback.
-        // If both control points deviate less than 1 canvas px from the chord,
-        // the curve is imperceptibly different from a line -- use L to avoid
-        // bowing long straight segments at sharp-angled junctions.
-        for (let i = 0; i < pts.length - 1; i++) {
-          const p0 = pts[Math.max(0, i - 1)]
-          const p1 = pts[i]
-          const p2 = pts[i + 1]
-          const p3 = pts[Math.min(pts.length - 1, i + 2)]
-          const cp1x = p1[0] + (p2[0] - p0[0]) * t / 3
-          const cp1y = p1[1] + (p2[1] - p0[1]) * t / 3
-          const cp2x = p2[0] - (p3[0] - p1[0]) * t / 3
-          const cp2y = p2[1] - (p3[1] - p1[1]) * t / 3
-          // Only curve short segments -- long segments are straight lines and
-          // Catmull-Rom would bow them based on the angle at their endpoints.
-          const segLen = Math.sqrt((p2[0]-p1[0])**2 + (p2[1]-p1[1])**2)
-          if (segLen > 12) {
-            parts.push(`L${sx(p2[0])},${sy(p2[1])}`)
-          } else {
-            parts.push(`C${sx(cp1x)},${sy(cp1y)} ${sx(cp2x)},${sy(cp2y)} ${sx(p2[0])},${sy(p2[1])}`)
-          }
+        // Convert to screen coords
+        const sp = pts.map(([x, y]) => [ox + x * pixelScale, oy + y * pixelScale] as [number, number])
+
+        const hwCore = pts.map(([gx, gy]) => minHW + Math.max(0.5, sampleContrast(gx, gy)) * (maxHW - minHW))
+        const hwSmooth = hwCore.map((_, i) => {
+          let sum = 0, count = 0
+          for (let j = Math.max(0, i - 6); j <= Math.min(n - 1, i + 6); j++) { sum += hwCore[j]; count++ }
+          return sum / count
+        })
+        for (let i = 1; i < n - 1; i++) {
+          const dx1 = pts[i][0] - pts[i-1][0], dy1 = pts[i][1] - pts[i-1][1]
+          const dx2 = pts[i+1][0] - pts[i][0],  dy2 = pts[i+1][1] - pts[i][1]
+          const len = Math.hypot(dx1, dy1) * Math.hypot(dx2, dy2)
+          if (len > 0 && (dx1*dx2 + dy1*dy2) / len < 0) hwSmooth[i] = 0
         }
+        const taperK = 2
+        const taperFloor = 0.2
+        const hw = hwSmooth.map((v, i) => {
+          const taper = taperFloor + (1 - taperFloor) * Math.min(1, i / taperK) * Math.min(1, (n - 1 - i) / taperK)
+          return Math.max(0.75, v * taper)
+        })
+
+        // Per-vertex normals: perpendicular to the chord through neighbours
+        const normals: [number, number][] = pts.map((_, i) => {
+          const [ax, ay] = sp[Math.max(0, i - 1)]
+          const [bx, by] = sp[Math.min(n - 1, i + 1)]
+          const dx = bx - ax, dy = by - ay
+          const len = Math.hypot(dx, dy) || 1
+          return [-dy / len, dx / len]
+        })
+
+        // Build offset left/right sides
+        const left:  [number, number][] = []
+        const right: [number, number][] = []
+        for (let i = 0; i < n; i++) {
+          const [x, y] = sp[i]
+          const [nx, ny] = normals[i]
+          const h = hw[i]
+          left.push( [x + nx * h, y + ny * h])
+          right.push([x - nx * h, y - ny * h])
+        }
+
+        // Closed filled polygon: clamped CR for smooth curves, L at sharp spine
+        // corners (≥90°) to keep rectangle corners crisp and avoid offset-array loops.
+        const spineSharp = (i: number): boolean => {
+          if (i <= 0 || i >= n - 1) return false
+          const dx1 = pts[i][0] - pts[i-1][0], dy1 = pts[i][1] - pts[i-1][1]
+          const dx2 = pts[i+1][0] - pts[i][0],  dy2 = pts[i+1][1] - pts[i][1]
+          const len = Math.hypot(dx1, dy1) * Math.hypot(dx2, dy2)
+          return len > 0 && (dx1*dx2 + dy1*dy2) / len <= 0.7
+        }
+        // Short segments (<8px): always CR -- too small to bow noticeably.
+        // Long segments (>15px): always L -- CR would bow a long straight run.
+        // Medium segments: L at sharp turns, CR otherwise.
+        const spineLen = (i: number) => Math.hypot(pts[i+1][0]-pts[i][0], pts[i+1][1]-pts[i][1])
+        const useCR = (i: number): boolean => {
+          const sl = spineLen(i)
+          if (sl < 8) return true
+          if (sl > 15) return false
+          return !spineSharp(i) && !spineSharp(i + 1)
+        }
+        const rightRev = [...right].reverse()
+        const f = ([x, y]: [number, number]) => `${x.toFixed(1)},${y.toFixed(1)}`
+        const segs = [`M${f(left[0])}`]
+        for (let i = 0; i < n - 1; i++) {
+          segs.push(useCR(i) ? crSeg(left, i) : `L${f(left[i + 1])}`)
+        }
+        segs.push(`L${f(right[n - 1])}`)
+        for (let i = 0; i < n - 1; i++) {
+          const si = n - 2 - i
+          segs.push(useCR(si) ? crSeg(rightRev, i) : `L${f(rightRev[i + 1])}`)
+        }
+        segs.push('Z')
+        polygons.push(segs.join(' '))
       }
 
-      // Line thickness scales with zoom so outlines stay proportional to image content.
-      // Clamped to 1px minimum when the image is displayed smaller than native.
-      const strokeWidth = Math.max(1, scale)
-
-      // Update SVG elements directly (bypass React VDOM for perf)
+      // Update single path directly (bypass React VDOM for perf)
       const path = svg.querySelector('path')
-      if (path) {
-        path.setAttribute('d', parts.join(' '))
-        path.setAttribute('stroke-width', strokeWidth.toFixed(2))
-      }
+      if (path) path.setAttribute('d', polygons.join(' '))
     })
   }, [canvasWidth])
 
@@ -324,6 +419,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
       if (e.key === 'w' || e.key === 'W') {
         for (const r of regionsRef.current) fillRegionRef.current(r.id, r.colorIndex)
       }
+      if (e.key === '\\') setOutlineMagenta(v => !v)
     }
     const up = (e: KeyboardEvent) => { if (e.key === 'x' || e.key === 'X') setCheatActive(false) }
     window.addEventListener('keydown', down)
@@ -558,7 +654,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
           className="outline-svg"
           style={{ visibility: (state.screen === 'complete' && !showOutline) ? 'hidden' : 'visible' }}
         >
-          <path fill="none" stroke="rgba(0,0,0,0.75)" strokeWidth="1" strokeLinejoin="round" strokeLinecap="round" />
+          <path fill={outlineMagenta ? 'rgba(255,0,255,0.85)' : 'rgba(0,0,0,0.75)'} stroke="none" />
         </svg>
       </div>
 

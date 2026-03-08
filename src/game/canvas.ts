@@ -15,7 +15,7 @@ export type OutlineChain = [number, number][]
 /** Outline chains plus per-chain bounding boxes for viewport culling. */
 export interface OutlineBatch {
   chains: OutlineChain[]
-  bboxes: Float32Array  // [minX, minY, maxX, maxY] × chains.length, packed
+  bboxes: Float32Array    // [minX, minY, maxX, maxY] × chains.length, packed
 }
 
 /**
