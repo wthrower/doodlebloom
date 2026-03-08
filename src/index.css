@@ -911,23 +911,17 @@ input[type="range"]::-webkit-slider-thumb {
   .setup-screen {
     padding: 2rem 2.5rem;
     max-width: 900px;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
   }
 
   .setup-columns {
     flex-direction: row;
-    align-items: stretch;
+    align-items: flex-start;
     gap: 2.5rem;
-    min-height: 0;
   }
 
   .setup-left {
     flex: 1;
     min-width: 0;
-    display: flex;
-    flex-direction: column;
   }
 
   .setup-right {
@@ -949,19 +943,12 @@ input[type="range"]::-webkit-slider-thumb {
 
   .preview-inline {
     margin-top: 0.75rem;
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    align-items: flex-start;
   }
 
   .preview-inline-img {
-    max-height: 100%;
-    max-width: 100%;
+    max-height: 65vh;
     width: auto;
     object-fit: contain;
-    border-radius: var(--radius);
-    display: block;
   }
 
   /* Game: canvas left, palette/win-footer as right sidebar */
