@@ -18,7 +18,7 @@ export function useOpenAI(): UseOpenAIResult {
     setIsGenerating(false)
   }, [])
 
-  const generate = useCallback(async (prompt: string, apiKey: string, size: '1024x1024' | '1024x1536' | '1536x1024' = '1024x1024'): Promise<Blob | null> => {
+  const generate = useCallback(async (prompt: string, apiKey: string, size: '1024x1024' | '1024x1536' | '1536x1024' = '1024x1536'): Promise<Blob | null> => {
     setError(null)
     setIsGenerating(true)
 
