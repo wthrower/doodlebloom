@@ -44,7 +44,7 @@ export function quantizeImage(
 /** Separable 5-tap Gaussian blur followed by selective restore:
  *  pixels that shifted more than THRESHOLD are returned to their original value.
  *  Smooths gradient noise while keeping hard color edges intact. */
-const BLUR_THRESHOLD2 = 2500  // 50² squared-RGB units -- tune if needed
+const BLUR_THRESHOLD2 = 8100  // 90² squared-RGB units -- tune if needed
 
 function edgeAwareBlur(data: Uint8ClampedArray, width: number, height: number): Uint8ClampedArray {
   const K = [1 / 16, 4 / 16, 6 / 16, 4 / 16, 1 / 16]
