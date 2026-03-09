@@ -717,9 +717,14 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .palette-swatch.active {
-  border-color: #fff;
-  transform: scale(1.1);
-  box-shadow: 0 0 0 2px var(--color-accent);
+  border: 3px solid #000;
+  transform: scale(1.15);
+  box-shadow: 0 0 0 2px #fff;
+}
+
+.palette-swatch.active .swatch-number {
+  font-size: 1.8rem;
+  -webkit-text-stroke: 3px black;
 }
 
 .palette-swatch.complete {

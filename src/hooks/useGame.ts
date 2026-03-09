@@ -14,7 +14,6 @@ const CANVAS_SHORT = 1024
 export interface GameActions {
   setPrompt: (p: string) => void
   setColorCount: (n: number) => void
-  setRevealMode: (m: 'flat' | 'photo') => void
   setShowOutline: (v: boolean) => void
   setApiKey: (k: string) => void
   apiKey: string
@@ -51,7 +50,7 @@ export function useGame(): [GameState, GameActions] {
     const saved = restoreState()
     if (!saved) return
     if (!saved.sessionId) {
-      setState(prev => ({ ...prev, prompt: saved.prompt, colorCount: saved.colorCount, revealMode: saved.revealMode, showOutline: saved.showOutline ?? false }))
+      setState(prev => ({ ...prev, prompt: saved.prompt, colorCount: saved.colorCount, showOutline: saved.showOutline ?? false }))
       return
     }
 
@@ -100,7 +99,6 @@ export function useGame(): [GameState, GameActions] {
 
   const setPrompt = useCallback((prompt: string) => update({ prompt }), [update])
   const setColorCount = useCallback((colorCount: number) => update({ colorCount }), [update])
-  const setRevealMode = useCallback((revealMode: 'flat' | 'photo') => update({ revealMode }), [update])
   const setShowOutline = useCallback((showOutline: boolean) => update({ showOutline }), [update])
   const goTo = useCallback((screen: Screen) => update({ screen }), [update])
 
@@ -214,12 +212,12 @@ export function useGame(): [GameState, GameActions] {
   }, [persistState])
 
   const resetPuzzle = useCallback(async () => {
-    const { sessionId, prompt, colorCount, revealMode, showOutline } = state
+    const { sessionId, prompt, colorCount, showOutline } = state
     indexMapRef.current = null
     regionMapRef.current = null
     originalImageDataRef.current = null
     await wipeState(sessionId)
-    const next = { ...DEFAULT_STATE, prompt, colorCount, revealMode, showOutline }
+    const next = { ...DEFAULT_STATE, prompt, colorCount, showOutline }
     persistState(next)
     setState(next)
   }, [state, wipeState, persistState])
@@ -227,7 +225,6 @@ export function useGame(): [GameState, GameActions] {
   const actions: GameActions = {
     setPrompt,
     setColorCount,
-    setRevealMode,
     setShowOutline,
     setApiKey,
     processingStage,

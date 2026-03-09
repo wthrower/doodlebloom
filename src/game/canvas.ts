@@ -4,7 +4,6 @@ import type { Int32ArrayLike } from './types-internal'
 export interface RenderOptions {
   playerColors: Record<number, number>
   activeColorIndex: number | null
-  revealMode: 'flat' | 'photo'
   originalImageData: ImageData | null
   colorDisplayNumbers: Record<number, number>
 }
@@ -34,13 +33,29 @@ export function renderPuzzle(
   palette: PaletteColor[],
   opts: RenderOptions
 ): void {
-  const { playerColors, revealMode, originalImageData, colorDisplayNumbers } = opts
+  const { playerColors, originalImageData, colorDisplayNumbers } = opts
 
   // Build pixel buffer
   const imageData = ctx.createImageData(width, height)
   const buf = imageData.data
 
   const regionById = new Map(regions.map(r => [r.id, r]))
+
+  // Pre-compute which colors are fully completed (all regions filled correctly)
+  const colorComplete = new Set<number>()
+  if (originalImageData) {
+    const colorRegions = new Map<number, Region[]>()
+    for (const r of regions) {
+      let list = colorRegions.get(r.colorIndex)
+      if (!list) { list = []; colorRegions.set(r.colorIndex, list) }
+      list.push(r)
+    }
+    for (const [colorIdx, list] of colorRegions) {
+      if (list.every(r => playerColors[r.id] === colorIdx)) {
+        colorComplete.add(colorIdx)
+      }
+    }
+  }
 
   for (let i = 0; i < width * height; i++) {
     const regionId = regionMap[i]
@@ -57,12 +72,14 @@ export function renderPuzzle(
 
     const filledColorIdx = playerColors[region.id]
     if (filledColorIdx !== undefined) {
-      if (revealMode === 'photo' && originalImageData) {
+      if (colorComplete.has(region.colorIndex) && originalImageData) {
+        // Color fully completed -- reveal original image
         buf[i * 4] = originalImageData.data[i * 4]
         buf[i * 4 + 1] = originalImageData.data[i * 4 + 1]
         buf[i * 4 + 2] = originalImageData.data[i * 4 + 2]
         buf[i * 4 + 3] = 255
       } else {
+        // Still in progress -- flat fill
         const c = palette[filledColorIdx]
         buf[i * 4] = c.r
         buf[i * 4 + 1] = c.g

@@ -3,7 +3,6 @@ import { Maximize2, Minimize2, ScanSearch } from 'lucide-react'
 import type { GameActions, GameState } from '../App'
 import type { RegionSnapshot } from '../game/regions'
 import { PillToggle } from '../components/PillToggle'
-import { REVEAL_MODE_OPTIONS } from '../types'
 import { renderPuzzle, flashRegion, buildOutlineChains } from '../game/canvas'
 import type { OutlineBatch } from '../game/canvas'
 import { colorDist } from '../game/colorDistance'
@@ -51,7 +50,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
   const [outlineMagenta, setOutlineMagenta] = useState(false)
   const [debugStage, setDebugStage] = useState(-1)
   const [debugHover, setDebugHover] = useState<{ rid: number; ci: number; rgb: string } | null>(null)
-  const { palette, regions, playerColors, canvasWidth, canvasHeight, revealMode, showOutline, screen } = state
+  const { palette, regions, playerColors, canvasWidth, canvasHeight, showOutline, screen } = state
   const { indexMapRef, regionMapRef, originalImageDataRef, debugSnapshotsRef, fillRegion } = actions
 
   // --- Refs for event handlers (avoid stale closures, avoid re-adding listeners) ---
@@ -403,7 +402,6 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
     renderPuzzle(ctx, canvasWidth, canvasHeight, indexMapRef.current, regionMapRef.current, regions, palette, {
       playerColors,
       activeColorIndex,
-      revealMode,
       originalImageData: originalImageDataRef.current,
       colorDisplayNumbers,
     })
@@ -424,7 +422,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
       }
       ctx.putImageData(imageData, 0, 0)
     }
-  }, [playerColors, activeColorIndex, regions, palette, revealMode, showOutline, screen, canvasWidth, canvasHeight, indexMapRef, regionMapRef, originalImageDataRef, cheatActive, colorDisplayNumbers])
+  }, [playerColors, activeColorIndex, regions, palette, showOutline, screen, canvasWidth, canvasHeight, indexMapRef, regionMapRef, originalImageDataRef, cheatActive, colorDisplayNumbers])
 
   // --- Debug region map overlay (renders onto main canvas after normal render) ---
   useEffect(() => {
@@ -458,7 +456,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
       }
     }
     ctx.putImageData(imageData, 0, 0)
-  }, [debugStage, canvasWidth, canvasHeight, state.rawPalette, playerColors, activeColorIndex, regions, palette, revealMode, showOutline, screen, cheatActive, colorDisplayNumbers])
+  }, [debugStage, canvasWidth, canvasHeight, state.rawPalette, playerColors, activeColorIndex, regions, palette, showOutline, screen, cheatActive, colorDisplayNumbers])
 
   // --- Coordinate mapping: screen → canvas pixels ---
   // Use wrap rect + canvas.offsetLeft/Top (layout position, no transform) + explicit transform.
@@ -715,11 +713,6 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
         <button className="btn btn-ghost btn-small" onClick={actions.resetPuzzle}>
           New
         </button>
-        <PillToggle
-          options={REVEAL_MODE_OPTIONS}
-          value={revealMode}
-          onChange={actions.setRevealMode}
-        />
         {activeColorIndex !== null && state.screen !== 'complete' && (() => {
           const c = palette[activeColorIndex]
           return (

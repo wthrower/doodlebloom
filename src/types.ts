@@ -1,10 +1,5 @@
 export type Screen = 'setup' | 'generating' | 'preview' | 'playing' | 'complete'
 
-export const REVEAL_MODE_OPTIONS = [
-  { value: 'flat' as const, label: 'Flat' },
-  { value: 'photo' as const, label: 'Image' },
-]
-
 export interface PaletteColor {
   r: number
   g: number
@@ -29,8 +24,6 @@ export interface GameState {
   regions: Region[]
   /** regionId -> palette colorIndex chosen by player */
   playerColors: Record<number, number>
-  /** reveal mode: flat fills region with palette color, photo shows original pixels */
-  revealMode: 'flat' | 'photo'
   /** whether to draw region outlines */
   showOutline: boolean
   /** canvas dimensions used when building regions */
@@ -49,7 +42,6 @@ export const DEFAULT_STATE: GameState = {
   palette: [],
   regions: [],
   playerColors: {},
-  revealMode: 'photo',
   showOutline: false,
   canvasWidth: 512,
   canvasHeight: 512,
