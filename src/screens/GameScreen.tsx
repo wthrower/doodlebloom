@@ -35,6 +35,8 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const outlineSvgRef = useRef<SVGSVGElement>(null)
+  const numbersSvgRef = useRef<SVGSVGElement>(null)
+  const numbersRafRef = useRef(0)
   const outlineChainsRef = useRef<OutlineBatch | null>(null)
   const outlineRafRef = useRef(0)
   const [activeColorIndex, setActiveColorIndex] = useState<number | null>(() => {
@@ -46,7 +48,6 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
     for (const [ci, total] of totals) { if (total > max) { max = total; dominant = ci } }
     return dominant
   })
-  const [cheatActive, setCheatActive] = useState(false)
   const [outlineMagenta, setOutlineMagenta] = useState(false)
   const [debugStage, setDebugStage] = useState(-1)
   const [debugHover, setDebugHover] = useState<{ rid: number; ci: number; rgb: string } | null>(null)
@@ -355,6 +356,42 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
     })
   }, [canvasWidth])
 
+  // --- SVG number overlay: redrawn in screen coordinates on zoom/pan/color changes ---
+  const updateNumbersSvg = useCallback(() => {
+    cancelAnimationFrame(numbersRafRef.current)
+    numbersRafRef.current = requestAnimationFrame(() => {
+      const svg = numbersSvgRef.current
+      const canvas = canvasRef.current
+      if (!svg || !canvas) return
+
+      const { tx, ty, scale } = transformRef.current
+      const displayW = displaySizeRef.current || canvasWidth
+      const pixelScale = (displayW / canvasWidth) * scale
+      const ox = canvas.offsetLeft + tx
+      const oy = canvas.offsetTop + ty
+
+      const currentRegions = regionsRef.current
+      const currentPlayerColors = playerColorsRef.current
+      const currentActive = activeColorRef.current
+      const displayNums = sortedPaletteRef.current.length > 0
+        ? Object.fromEntries(sortedPaletteRef.current.map((ci, pos) => [ci, pos + 1]))
+        : {} as Record<number, number>
+
+      const parts: string[] = []
+      for (const region of currentRegions) {
+        if (currentPlayerColors[region.id] !== undefined) continue
+        const sx = ox + region.centroid.x * pixelScale
+        const sy = oy + region.centroid.y * pixelScale
+        const canvasFontSize = Math.max(9, Math.min(Math.round(region.labelRadius * 0.8), 28))
+        const fontSize = Math.max(6, canvasFontSize * pixelScale)
+        const label = displayNums[region.colorIndex] ?? region.colorIndex + 1
+        const fill = region.colorIndex === currentActive ? '#000' : 'rgba(0,0,0,0.35)'
+        parts.push(`<text x="${sx.toFixed(1)}" y="${sy.toFixed(1)}" font-size="${fontSize.toFixed(1)}" fill="${fill}" text-anchor="middle" dominant-baseline="central" font-family="sans-serif">${label}</text>`)
+      }
+      svg.innerHTML = parts.join('')
+    })
+  }, [canvasWidth])
+
   // Rebuild outline chains when puzzle changes
   useEffect(() => {
     if (!regionMapRef.current || regions.length === 0) { outlineChainsRef.current = null; return }
@@ -372,8 +409,9 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
       canvas.style.transform = `translate(${t.tx}px,${t.ty}px) scale(${t.scale})`
     }
     updateOutlineSvg()
+    updateNumbersSvg()
     forceRender(n => n + 1)
-  }, [updateOutlineSvg])
+  }, [updateOutlineSvg, updateNumbersSvg])
 
   // --- ResizeObserver: fit canvas inside wrap, maintaining aspect ratio ---
   useEffect(() => {
@@ -389,10 +427,16 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
       canvas.style.width = `${w}px`
       canvas.style.height = `${h}px`
       updateOutlineSvg()
+      updateNumbersSvg()
     })
     observer.observe(wrap)
     return () => observer.disconnect()
-  }, [updateOutlineSvg])
+  }, [updateOutlineSvg, updateNumbersSvg])
+
+  // Initialize canvas context with willReadFrequently for faster getImageData
+  useEffect(() => {
+    canvasRef.current?.getContext('2d', { willReadFrequently: true })
+  }, [])
 
   // --- Render puzzle pixels ---
   useEffect(() => {
@@ -403,26 +447,14 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
       playerColors,
       activeColorIndex,
       originalImageData: originalImageDataRef.current,
-      colorDisplayNumbers,
     })
 
-    if (cheatActive && activeColorIndex !== null) {
-      const imageData = ctx.getImageData(0, 0, canvasWidth, canvasHeight)
-      const data = imageData.data
-      const regionColorMap = new Map(regions.map(r => [r.id, r.colorIndex]))
-      for (let i = 0; i < canvasWidth * canvasHeight; i++) {
-        const regionId = regionMapRef.current![i]
-        if (regionId < 0) continue
-        if (regionColorMap.get(regionId) !== activeColorIndex) continue
-        if (playerColors[regionId] !== undefined) continue
-        const pi = i * 4
-        data[pi]     = 255
-        data[pi + 1] = 0
-        data[pi + 2] = 255
-      }
-      ctx.putImageData(imageData, 0, 0)
-    }
-  }, [playerColors, activeColorIndex, regions, palette, showOutline, screen, canvasWidth, canvasHeight, indexMapRef, regionMapRef, originalImageDataRef, cheatActive, colorDisplayNumbers])
+  }, [playerColors, activeColorIndex, regions, palette, showOutline, screen, canvasWidth, canvasHeight, indexMapRef, regionMapRef, originalImageDataRef])
+
+  // Update number labels when fills or active color change
+  useEffect(() => {
+    updateNumbersSvg()
+  }, [playerColors, activeColorIndex, updateNumbersSvg])
 
   // --- Debug region map overlay (renders onto main canvas after normal render) ---
   useEffect(() => {
@@ -456,7 +488,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
       }
     }
     ctx.putImageData(imageData, 0, 0)
-  }, [debugStage, canvasWidth, canvasHeight, state.rawPalette, playerColors, activeColorIndex, regions, palette, showOutline, screen, cheatActive, colorDisplayNumbers])
+  }, [debugStage, canvasWidth, canvasHeight, state.rawPalette, playerColors, activeColorIndex, regions, palette, showOutline, screen, colorDisplayNumbers])
 
   // --- Coordinate mapping: screen → canvas pixels ---
   // Use wrap rect + canvas.offsetLeft/Top (layout position, no transform) + explicit transform.
@@ -497,7 +529,6 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
   // --- Cheat key (w): fill everything and win ---
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.key === 'x' || e.key === 'X') setCheatActive(true)
       if (e.key === 'w' || e.key === 'W') {
         for (const r of regionsRef.current) fillRegionRef.current(r.id, r.colorIndex)
       }
@@ -518,10 +549,8 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
         })
       }
     }
-    const up = (e: KeyboardEvent) => { if (e.key === 'x' || e.key === 'X') setCheatActive(false) }
     window.addEventListener('keydown', down)
-    window.addEventListener('keyup', up)
-    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
+    return () => { window.removeEventListener('keydown', down) }
   }, [])
 
   // --- Wheel + mouse + touch gesture listeners (non-passive) ---
@@ -661,13 +690,18 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
     }
 
     const onTouchEnd = (e: TouchEvent) => {
-      e.preventDefault()
+      if (e.cancelable) e.preventDefault()
       const wasSingle = touches.size === 1
       for (const t of Array.from(e.changedTouches)) touches.delete(t.identifier)
       if (wasSingle && tapStart && Date.now() - tapStart.time < 300) {
         handleTap(tapStart.x, tapStart.y)
       }
       if (touches.size === 0) { pinchStart = null; panStart = null; tapStart = null }
+    }
+
+    const onTouchCancel = () => {
+      touches.clear()
+      pinchStart = null; panStart = null; tapStart = null
     }
 
     canvas.addEventListener('mousedown', onMouseDown)
@@ -677,6 +711,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
     canvas.addEventListener('touchstart', onTouchStart, { passive: false })
     canvas.addEventListener('touchmove', onTouchMove, { passive: false })
     canvas.addEventListener('touchend', onTouchEnd, { passive: false })
+    canvas.addEventListener('touchcancel', onTouchCancel)
     return () => {
       canvas.removeEventListener('mousedown', onMouseDown)
       window.removeEventListener('mousemove', onMouseMove)
@@ -685,6 +720,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
       canvas.removeEventListener('touchstart', onTouchStart)
       canvas.removeEventListener('touchmove', onTouchMove)
       canvas.removeEventListener('touchend', onTouchEnd)
+      canvas.removeEventListener('touchcancel', onTouchCancel)
     }
   }, [canvasWidth, handleTap, setTransform]) // handleTap is stable via useCallback with refs
 
@@ -727,18 +763,6 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
           <div className="progress-fill" style={{ width: `${progress}%` }} />
         </div>
         <span className="progress-text">{progress}%</span>
-        {state.screen !== 'complete' && (
-          <button
-            className={`btn btn-small ${cheatActive ? 'btn-active' : 'btn-ghost'}`}
-            onMouseDown={() => setCheatActive(true)}
-            onMouseUp={() => setCheatActive(false)}
-            onMouseLeave={() => setCheatActive(false)}
-            onTouchStart={e => { e.preventDefault(); setCheatActive(true) }}
-            onTouchEnd={() => setCheatActive(false)}
-          >
-            Hint
-          </button>
-        )}
         {isZoomed && (
           <button
             className="btn btn-ghost btn-icon btn-small"
@@ -776,6 +800,12 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
             {debugHover && <><br/>region {debugHover.rid} ci={debugHover.ci} rgb={debugHover.rgb}</>}
           </div>
         )}
+{/* SVG number labels: not CSS-transformed, redrawn in screen coords on zoom/pan */}
+        <svg
+          ref={numbersSvgRef}
+          className="outline-svg"
+          style={{ visibility: state.screen === 'complete' ? 'hidden' : 'visible' }}
+        />
 {/* SVG outline overlay: not CSS-transformed, redrawn in screen coords on zoom/pan */}
         <svg
           ref={outlineSvgRef}

@@ -5,7 +5,6 @@ export interface RenderOptions {
   playerColors: Record<number, number>
   activeColorIndex: number | null
   originalImageData: ImageData | null
-  colorDisplayNumbers: Record<number, number>
 }
 
 /** A chain of (x, y) boundary grid points in canvas coordinates. */
@@ -33,7 +32,7 @@ export function renderPuzzle(
   palette: PaletteColor[],
   opts: RenderOptions
 ): void {
-  const { playerColors, originalImageData, colorDisplayNumbers } = opts
+  const { playerColors, activeColorIndex, originalImageData } = opts
 
   // Build pixel buffer
   const imageData = ctx.createImageData(width, height)
@@ -86,6 +85,14 @@ export function renderPuzzle(
         buf[i * 4 + 2] = c.b
         buf[i * 4 + 3] = 255
       }
+    } else if (activeColorIndex !== null && region.colorIndex === activeColorIndex) {
+      // Unfilled, active color: pale pink diagonal stripes
+      const px = i % width, py = (i / width) | 0
+      const stripe = ((px + py) >> 2) & 1  // 4px diagonal stripes
+      buf[i * 4]     = stripe ? 253 : 255
+      buf[i * 4 + 1] = stripe ? 205 : 255
+      buf[i * 4 + 2] = stripe ? 229 : 255
+      buf[i * 4 + 3] = 255
     } else {
       // Unfilled: white
       buf[i * 4] = 255
@@ -96,9 +103,6 @@ export function renderPuzzle(
   }
 
   ctx.putImageData(imageData, 0, 0)
-
-  // Draw numbers at centroids for unfilled regions
-  drawNumbers(ctx, regions, playerColors, colorDisplayNumbers)
 }
 
 /**
@@ -291,27 +295,6 @@ export function mergeCollinear(
     i = best
   }
   return out
-}
-
-function drawNumbers(
-  ctx: CanvasRenderingContext2D,
-  regions: Region[],
-  playerColors: Record<number, number>,
-  colorDisplayNumbers: Record<number, number>
-): void {
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-
-  for (const region of regions) {
-    if (playerColors[region.id] !== undefined) continue
-    const { x, y } = region.centroid
-    const label = String(colorDisplayNumbers[region.colorIndex] ?? region.colorIndex + 1)
-
-    const fontSize = Math.max(9, Math.min(Math.round(region.labelRadius * 0.8), 28))
-    ctx.font = `${fontSize}px sans-serif`
-    ctx.fillStyle = 'rgba(0,0,0,0.6)'
-    ctx.fillText(label, x, y + 0.5)
-  }
 }
 
 /** Draw a subtle "shake" flash on a region to indicate wrong color */

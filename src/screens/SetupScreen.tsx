@@ -130,11 +130,11 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, selected
             <textarea
               id="prompt"
               rows={3}
-              placeholder="A fox sitting on a mushroom in an enchanted forest..."
+              placeholder={actions.apiKey ? "Enter a prompt like 'an adorable kitten staring at a ladybug'..." : 'Enter an OpenAI API key to enable AI image generation.'}
               value={state.prompt}
               onChange={e => actions.setPrompt(e.target.value)}
               onFocus={e => setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 300)}
-              disabled={isGenerating}
+              disabled={isGenerating || !actions.apiKey}
             />
           </div>
 
