@@ -4,7 +4,7 @@ import type { GameActions, GameState } from '../App'
 import type { RegionSnapshot } from '../game/regions'
 import { PillToggle } from '../components/PillToggle'
 import { REVEAL_MODE_OPTIONS } from '../types'
-import { renderPuzzle, flashRegion, buildOutlineChains, dpSimplify } from '../game/canvas'
+import { renderPuzzle, flashRegion, buildOutlineChains, dpSimplify, mergeCollinear } from '../game/canvas'
 import type { OutlineBatch } from '../game/canvas'
 import { colorDist } from '../game/colorDistance'
 import { getRegionAt } from '../game/regions'
@@ -227,7 +227,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
         if (bboxes[bi + 2] < visMinX || bboxes[bi] > visMaxX ||
             bboxes[bi + 3] < visMinY || bboxes[bi + 1] > visMaxY) continue
 
-        const pts = dpSimplify(chains[ci], epsilon)
+        const pts = mergeCollinear(dpSimplify(chains[ci], epsilon), epsilon * 1.5)
         if (pts.length < 2) continue
         const n = pts.length
 

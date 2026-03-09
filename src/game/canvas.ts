@@ -204,6 +204,38 @@ export function dpSimplify(pts: [number, number][], epsilon: number): [number, n
   return [...left.slice(0, -1), ...right]
 }
 
+/** Collapse near-collinear runs that DP retains from pixel staircases. */
+export function mergeCollinear(
+  pts: [number, number][],
+  epsilon: number
+): [number, number][] {
+  if (pts.length <= 2) return pts
+  const out: [number, number][] = [pts[0]]
+  let i = 0
+  while (i < pts.length - 1) {
+    // Greedily extend: find the furthest j where all points i+1..j-1
+    // stay within epsilon of the line from pts[i] to pts[j].
+    let best = i + 1
+    outer: for (let j = i + 2; j < pts.length; j++) {
+      const [ax, ay] = pts[i]
+      const [bx, by] = pts[j]
+      const dx = bx - ax, dy = by - ay
+      const lenSq = dx * dx + dy * dy
+      for (let k = i + 1; k < j; k++) {
+        const [px, py] = pts[k]
+        const dist = lenSq === 0
+          ? Math.hypot(px - ax, py - ay)
+          : Math.abs((py - ay) * dx - (px - ax) * dy) / Math.sqrt(lenSq)
+        if (dist > epsilon) break outer
+      }
+      best = j
+    }
+    out.push(pts[best])
+    i = best
+  }
+  return out
+}
+
 function drawNumbers(
   ctx: CanvasRenderingContext2D,
   regions: Region[],
