@@ -259,7 +259,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
         const sharpAt = new Uint8Array(n)
         for (let i = 0; i < n; i++) if (spineSharp(i)) sharpAt[i] = 1
         const nearSharp = (i: number): boolean => {
-          for (let j = Math.max(0, i - 2); j <= Math.min(n - 1, i + 2); j++) {
+          for (let j = Math.max(0, i - 1); j <= Math.min(n - 1, i + 1); j++) {
             if (sharpAt[j]) return true
           }
           return false
@@ -300,22 +300,47 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
           right.push([x - nx * h, y - ny * h])
         }
 
-        // Miter + L near sharp corners, CR elsewhere.
-        const spineLen = (i: number) => Math.hypot(pts[i+1][0]-pts[i][0], pts[i+1][1]-pts[i][1])
-        const useCR = (i: number): boolean => {
-          if (spineLen(i) > 40) return false
-          return !nearSharp(i) && !nearSharp(i + 1)
+        // CR with adaptive chord clamping: tighter at sharp corners, full at
+        // smooth curves. Clamp factor = cosine of turning angle at the vertex,
+        // floored at 0.05. This naturally tightens at sharp turns.
+        const vtxCos = new Float32Array(n) // cosine of turning angle per vertex
+        for (let i = 0; i < n; i++) {
+          if (i === 0 || i === n - 1) { vtxCos[i] = 1; continue }
+          const dx1 = pts[i][0] - pts[i-1][0], dy1 = pts[i][1] - pts[i-1][1]
+          const dx2 = pts[i+1][0] - pts[i][0], dy2 = pts[i+1][1] - pts[i][1]
+          const len = Math.hypot(dx1, dy1) * Math.hypot(dx2, dy2)
+          vtxCos[i] = len > 0 ? (dx1*dx2 + dy1*dy2) / len : 1
         }
+        const crSegAdaptive = (arr: [number, number][], i: number, si: number): string => {
+          const p0 = arr[Math.max(0, i - 1)]
+          const p1 = arr[i]
+          const p2 = arr[i + 1]
+          const p3 = arr[Math.min(arr.length - 1, i + 2)]
+          let cp1x = p1[0] + (p2[0] - p0[0]) * t / 3
+          let cp1y = p1[1] + (p2[1] - p0[1]) * t / 3
+          let cp2x = p2[0] - (p3[0] - p1[0]) * t / 3
+          let cp2y = p2[1] - (p3[1] - p1[1]) * t / 3
+          // Clamp factor: min cosine of the two endpoints, floored at 0.05
+          const clamp = Math.max(0.05, Math.min(vtxCos[si], vtxCos[Math.min(si + 1, n - 1)]))
+          const chord = Math.hypot(p2[0] - p1[0], p2[1] - p1[1])
+          const maxCV = chord * clamp
+          const cv1 = Math.hypot(cp1x - p1[0], cp1y - p1[1])
+          const cv2 = Math.hypot(cp2x - p2[0], cp2y - p2[1])
+          if (cv1 > maxCV && cv1 > 0) { const s = maxCV / cv1; cp1x = p1[0] + (cp1x - p1[0]) * s; cp1y = p1[1] + (cp1y - p1[1]) * s }
+          if (cv2 > maxCV && cv2 > 0) { const s = maxCV / cv2; cp2x = p2[0] + (cp2x - p2[0]) * s; cp2y = p2[1] + (cp2y - p2[1]) * s }
+          return `C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`
+        }
+        const spineLen = (i: number) => Math.hypot(pts[i+1][0]-pts[i][0], pts[i+1][1]-pts[i][1])
         const rightRev = [...right].reverse()
         const f = ([x, y]: [number, number]) => `${x.toFixed(1)},${y.toFixed(1)}`
         const segs = [`M${f(left[0])}`]
         for (let i = 0; i < n - 1; i++) {
-          segs.push(useCR(i) ? crSeg(left, i) : `L${f(left[i + 1])}`)
+          segs.push(spineLen(i) > 40 ? `L${f(left[i + 1])}` : crSegAdaptive(left, i, i))
         }
         segs.push(`L${f(right[n - 1])}`)
         for (let i = 0; i < n - 1; i++) {
           const si = n - 2 - i
-          segs.push(useCR(si) ? crSeg(rightRev, i) : `L${f(rightRev[i + 1])}`)
+          segs.push(spineLen(si) > 40 ? `L${f(rightRev[i + 1])}` : crSegAdaptive(rightRev, i, si))
         }
 
         segs.push('Z')
