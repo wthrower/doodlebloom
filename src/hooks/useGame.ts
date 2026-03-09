@@ -6,7 +6,7 @@ import { colorDist } from '../game/colorDistance'
 import { analyzeColors, assignColors, assignPixels } from '../game/quantize'
 import { buildRegions, fuseSameColorRegions, traceRegions, mergeRegions, finalizeRegions, mergeGradientSeams, snapshotRegions } from '../game/regions'
 import type { RegionSnapshot } from '../game/regions'
-import { loadApiKey, saveApiKey } from '../game/storage'
+import { loadApiKey, saveApiKey, clearCorruptedState } from '../game/storage'
 
 /** Scale image so its shorter side = this many pixels. */
 const CANVAS_SHORT = 1024
@@ -47,10 +47,21 @@ export function useGame(): [GameState, GameActions] {
 
   // Restore state on mount
   useEffect(() => {
-    const saved = restoreState()
+    const resetCorrupted = () => {
+      clearCorruptedState()
+      setState(DEFAULT_STATE)
+    }
+
+    let saved: GameState | null
+    try {
+      saved = restoreState()
+    } catch {
+      resetCorrupted()
+      return
+    }
     if (!saved) return
     if (!saved.sessionId) {
-      setState(prev => ({ ...prev, prompt: saved.prompt, colorCount: saved.colorCount, showOutline: saved.showOutline ?? false }))
+      setState(prev => ({ ...prev, prompt: saved!.prompt, colorCount: saved!.colorCount, showOutline: saved!.showOutline ?? false }))
       return
     }
 
@@ -59,30 +70,30 @@ export function useGame(): [GameState, GameActions] {
         retrieveImage(saved.sessionId),
         retrieveRegionMap(saved.sessionId),
       ]).then(async ([blob, storedRegionMap]) => {
-        if (!blob) { setState(DEFAULT_STATE); return }
+        if (!blob) { resetCorrupted(); return }
 
         const img = await loadBlobAsImage(blob)
         const canvas = document.createElement('canvas')
-        canvas.width = saved.canvasWidth
-        canvas.height = saved.canvasHeight
+        canvas.width = saved!.canvasWidth
+        canvas.height = saved!.canvasHeight
         const ctx = canvas.getContext('2d')!
 
-        ctx.drawImage(img, 0, 0, saved.canvasWidth, saved.canvasHeight)
-        const imageData = ctx.getImageData(0, 0, saved.canvasWidth, saved.canvasHeight)
+        ctx.drawImage(img, 0, 0, saved!.canvasWidth, saved!.canvasHeight)
+        const imageData = ctx.getImageData(0, 0, saved!.canvasWidth, saved!.canvasHeight)
 
-        const indexMap = assignPixels(imageData.data, saved.canvasWidth * saved.canvasHeight, saved.palette)
+        const indexMap = assignPixels(imageData.data, saved!.canvasWidth * saved!.canvasHeight, saved!.palette)
         let regionMap = storedRegionMap
         if (!regionMap) {
-          const built = buildRegions(indexMap, saved.canvasWidth, saved.canvasHeight, saved.rawPalette ?? [])
+          const built = buildRegions(indexMap, saved!.canvasWidth, saved!.canvasHeight, saved!.rawPalette ?? [])
           regionMap = built.regionMap
-          fuseSameColorRegions(saved.regions, regionMap, saved.canvasWidth)
+          fuseSameColorRegions(saved!.regions, regionMap, saved!.canvasWidth)
         }
 
         indexMapRef.current = indexMap
         regionMapRef.current = regionMap
         originalImageDataRef.current = imageData
-        setState(saved)
-      }).catch(() => setState(DEFAULT_STATE))
+        setState(saved!)
+      }).catch(resetCorrupted)
       return
     }
 

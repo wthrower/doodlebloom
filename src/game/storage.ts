@@ -44,6 +44,12 @@ export function clearGameState(): void {
   localStorage.removeItem(LS_KEY_STATE)
 }
 
+/** Remove all persisted data except the API key and IDB images. */
+export function clearCorruptedState(): void {
+  localStorage.removeItem(LS_KEY_STATE)
+  localStorage.removeItem(LS_KEY_STOCK_URL)
+}
+
 // --- IndexedDB image store ---
 
 function openDb(): Promise<IDBDatabase> {
