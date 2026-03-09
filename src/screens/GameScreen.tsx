@@ -451,10 +451,10 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
 
   }, [playerColors, activeColorIndex, regions, palette, showOutline, screen, canvasWidth, canvasHeight, indexMapRef, regionMapRef, originalImageDataRef])
 
-  // Update number labels when fills or active color change
+  // Update number labels when fills, active color, or palette change
   useEffect(() => {
     updateNumbersSvg()
-  }, [playerColors, activeColorIndex, updateNumbersSvg])
+  }, [playerColors, activeColorIndex, palette, updateNumbersSvg])
 
   // --- Debug region map overlay (renders onto main canvas after normal render) ---
   useEffect(() => {
