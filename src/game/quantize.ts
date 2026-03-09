@@ -12,22 +12,19 @@ export interface QuantizeResult {
 export function analyzeColors(
   imageData: ImageData,
   colorCount: number
-): { blurred: Uint8ClampedArray; palette: PaletteColor[] } {
-  const { data } = imageData
+): PaletteColor[] {
   const pixels = imageData.width * imageData.height
-  const allPixels = buildPixelArray(data, pixels)
-  const palette = mmcqPalette(allPixels, colorCount * 2)
-  return { blurred: data, palette }
+  const allPixels = buildPixelArray(imageData.data, pixels)
+  return mmcqPalette(allPixels, colorCount * 2)
 }
 
 /** Stage 2 of 2: assign each pixel to its nearest palette color, then refine palette. */
 export function assignColors(
-  blurred: Uint8ClampedArray,
   palette: PaletteColor[],
   imageData: ImageData
 ): Uint8Array {
   const pixels = imageData.width * imageData.height
-  const indexMap = assignPixels(blurred, pixels, palette)
+  const indexMap = assignPixels(imageData.data, pixels, palette)
   refinePalette(palette, indexMap, imageData)
   return indexMap
 }
@@ -36,60 +33,9 @@ export function quantizeImage(
   imageData: ImageData,
   colorCount: number
 ): QuantizeResult {
-  const { blurred, palette } = analyzeColors(imageData, colorCount)
-  const indexMap = assignColors(blurred, palette, imageData)
+  const palette = analyzeColors(imageData, colorCount)
+  const indexMap = assignColors(palette, imageData)
   return { palette, indexMap }
-}
-
-/** Separable 5-tap Gaussian blur followed by selective restore:
- *  pixels that shifted more than THRESHOLD are returned to their original value.
- *  Smooths gradient noise while keeping hard color edges intact. */
-const BLUR_THRESHOLD2 = 8100  // 90² squared-RGB units -- tune if needed
-
-function edgeAwareBlur(data: Uint8ClampedArray, width: number, height: number): Uint8ClampedArray {
-  const K = [1 / 16, 4 / 16, 6 / 16, 4 / 16, 1 / 16]
-  const temp = new Uint8ClampedArray(data.length)
-  const out  = new Uint8ClampedArray(data.length)
-
-  // Horizontal pass
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      let r = 0, g = 0, b = 0
-      for (let k = -2; k <= 2; k++) {
-        const nx = Math.max(0, Math.min(width - 1, x + k))
-        const i = (y * width + nx) * 4
-        const w = K[k + 2]
-        r += data[i] * w; g += data[i + 1] * w; b += data[i + 2] * w
-      }
-      const j = (y * width + x) * 4
-      temp[j] = r; temp[j + 1] = g; temp[j + 2] = b; temp[j + 3] = data[j + 3]
-    }
-  }
-
-  // Vertical pass
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      let r = 0, g = 0, b = 0
-      for (let k = -2; k <= 2; k++) {
-        const ny = Math.max(0, Math.min(height - 1, y + k))
-        const i = (ny * width + x) * 4
-        const w = K[k + 2]
-        r += temp[i] * w; g += temp[i + 1] * w; b += temp[i + 2] * w
-      }
-      const j = (y * width + x) * 4
-      out[j] = r; out[j + 1] = g; out[j + 2] = b; out[j + 3] = data[j + 3]
-    }
-  }
-
-  // Selective restore: put back pixels that moved too far from the original
-  for (let i = 0; i < data.length; i += 4) {
-    const dr = out[i] - data[i], dg = out[i + 1] - data[i + 1], db = out[i + 2] - data[i + 2]
-    if (dr * dr + dg * dg + db * db > BLUR_THRESHOLD2) {
-      out[i] = data[i]; out[i + 1] = data[i + 1]; out[i + 2] = data[i + 2]
-    }
-  }
-
-  return out
 }
 
 function buildPixelArray(data: Uint8ClampedArray, pixels: number): [number, number, number][] {

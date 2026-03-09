@@ -130,11 +130,11 @@ export function useGame(): [GameState, GameActions] {
 
     setProcessingStage('palette')
     await tick()
-    const { blurred, palette: rawPalette } = analyzeColors(imageData, colorCountRef.current)
+    const rawPalette = analyzeColors(imageData, colorCountRef.current)
 
     setProcessingStage('assign')
     await tick()
-    const indexMap = assignColors(blurred, rawPalette, imageData)
+    const indexMap = assignColors(rawPalette, imageData)
 
     setProcessingStage('trace')
     await tick()
