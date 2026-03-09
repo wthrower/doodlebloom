@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Maximize2, Minimize2, ScanSearch } from 'lucide-react'
 import type { GameActions, GameState } from '../App'
+import type { RegionSnapshot } from '../game/regions'
 import { PillToggle } from '../components/PillToggle'
 import { REVEAL_MODE_OPTIONS } from '../types'
 import { renderPuzzle, flashRegion, buildOutlineChains, dpSimplify } from '../game/canvas'
@@ -48,8 +49,9 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
   })
   const [cheatActive, setCheatActive] = useState(false)
   const [outlineMagenta, setOutlineMagenta] = useState(false)
+  const [debugStage, setDebugStage] = useState(-1)
   const { palette, regions, playerColors, canvasWidth, canvasHeight, revealMode, showOutline, screen } = state
-  const { indexMapRef, regionMapRef, originalImageDataRef, fillRegion } = actions
+  const { indexMapRef, regionMapRef, originalImageDataRef, debugSnapshotsRef, fillRegion } = actions
 
   // --- Refs for event handlers (avoid stale closures, avoid re-adding listeners) ---
   const transformRef = useRef<Transform>({ scale: 1, tx: 0, ty: 0 })
@@ -377,6 +379,40 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
     }
   }, [playerColors, activeColorIndex, regions, palette, revealMode, showOutline, screen, canvasWidth, canvasHeight, indexMapRef, regionMapRef, originalImageDataRef, cheatActive, colorDisplayNumbers])
 
+  // --- Debug region map overlay (renders onto main canvas after normal render) ---
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || debugStage < 0) return
+    const snap = debugSnapshotsRef.current[debugStage]
+    if (!snap) return
+    const ctx = canvas.getContext('2d')!
+    const rawPalette = state.rawPalette ?? []
+    const imageData = ctx.createImageData(canvasWidth, canvasHeight)
+    const buf = imageData.data
+    const pixels = canvasWidth * canvasHeight
+    const regionHue = new Map<number, number>()
+    let hueCounter = 0
+    for (let i = 0; i < pixels; i++) {
+      const rid = snap.regionMap[i]
+      const ci = snap.colorOf.get(rid)
+      const pi = i * 4
+      if (rid < 0) {
+        buf[pi] = 40; buf[pi+1] = 40; buf[pi+2] = 40; buf[pi+3] = 255
+      } else if (ci !== undefined && ci < rawPalette.length) {
+        buf[pi]   = rawPalette[ci].r
+        buf[pi+1] = rawPalette[ci].g
+        buf[pi+2] = rawPalette[ci].b
+        buf[pi+3] = 255
+      } else {
+        if (!regionHue.has(rid)) regionHue.set(rid, (hueCounter++ * 137) % 360)
+        const h = regionHue.get(rid)!
+        const [r, g, b] = hslToRgb(h / 360, 0.7, 0.5)
+        buf[pi] = r; buf[pi+1] = g; buf[pi+2] = b; buf[pi+3] = 255
+      }
+    }
+    ctx.putImageData(imageData, 0, 0)
+  }, [debugStage, canvasWidth, canvasHeight, state.rawPalette, playerColors, activeColorIndex, regions, palette, revealMode, showOutline, screen, cheatActive, colorDisplayNumbers])
+
   // --- Coordinate mapping: screen → canvas pixels ---
   // Use wrap rect + canvas.offsetLeft/Top (layout position, no transform) + explicit transform.
   const screenToCanvas = useCallback((clientX: number, clientY: number) => {
@@ -421,6 +457,13 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
         for (const r of regionsRef.current) fillRegionRef.current(r.id, r.colorIndex)
       }
       if (e.key === '\\') setOutlineMagenta(v => !v)
+      if (e.key === 'd' || e.key === 'D') {
+        setDebugStage(prev => {
+          const count = debugSnapshotsRef.current.length
+          if (count === 0) return -1
+          return prev + 1 >= count ? -1 : prev + 1
+        })
+      }
     }
     const up = (e: KeyboardEvent) => { if (e.key === 'x' || e.key === 'X') setCheatActive(false) }
     window.addEventListener('keydown', down)
@@ -658,6 +701,16 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
           height={canvasHeight}
           className="puzzle-canvas"
         />
+        {debugStage >= 0 && (
+          <div style={{
+            position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,0.7)',
+            color: '#fff', padding: '4px 10px', borderRadius: 4, fontSize: 13,
+            fontFamily: 'monospace', pointerEvents: 'none',
+          }}>
+            {debugSnapshotsRef.current[debugStage]?.label ?? `stage ${debugStage}`}
+            {' '}({debugStage + 1}/{debugSnapshotsRef.current.length}) — press D to cycle
+          </div>
+        )}
 {/* SVG outline overlay: not CSS-transformed, redrawn in screen coords on zoom/pan */}
         <svg
           ref={outlineSvgRef}
@@ -710,4 +763,13 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
       )}
     </div>
   )
+}
+
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  const a = s * Math.min(l, 1 - l)
+  const f = (n: number) => {
+    const k = (n + h * 12) % 12
+    return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))
+  }
+  return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255)]
 }

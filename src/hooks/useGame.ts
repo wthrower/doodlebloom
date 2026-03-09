@@ -4,7 +4,8 @@ import type { GameState, PaletteColor, Region, Screen } from '../types'
 import { useStorage } from './useStorage'
 import { colorDist } from '../game/colorDistance'
 import { analyzeColors, assignColors } from '../game/quantize'
-import { buildRegions, fuseSameColorRegions, traceRegions, mergeRegions, finalizeRegions, mergeGradientSeams } from '../game/regions'
+import { buildRegions, fuseSameColorRegions, traceRegions, mergeRegions, finalizeRegions, mergeGradientSeams, snapshotRegions } from '../game/regions'
+import type { RegionSnapshot } from '../game/regions'
 import { loadApiKey, saveApiKey } from '../game/storage'
 
 /** Scale image so its shorter side = this many pixels. */
@@ -25,6 +26,7 @@ export interface GameActions {
   indexMapRef: React.MutableRefObject<Uint8Array | null>
   regionMapRef: React.MutableRefObject<Int32Array | null>
   originalImageDataRef: React.MutableRefObject<ImageData | null>
+  debugSnapshotsRef: React.MutableRefObject<RegionSnapshot[]>
   processingStage: string | null
 }
 
@@ -40,6 +42,7 @@ export function useGame(): [GameState, GameActions] {
   const indexMapRef = useRef<Uint8Array | null>(null)
   const regionMapRef = useRef<Int32Array | null>(null)
   const originalImageDataRef = useRef<ImageData | null>(null)
+  const debugSnapshotsRef = useRef<RegionSnapshot[]>([])
 
   // Restore state on mount
   useEffect(() => {
@@ -136,18 +139,29 @@ export function useGame(): [GameState, GameActions] {
     setProcessingStage('trace')
     await tick()
     const regionState = traceRegions(indexMap, cw, ch)
+    const snapshots: RegionSnapshot[] = []
+    snapshots.push(snapshotRegions('after trace', regionState))
 
     setProcessingStage('merge')
     await tick()
     mergeRegions(regionState, rawPalette)
+    snapshots.push(snapshotRegions('after merge', regionState))
 
     setProcessingStage('measure')
     await tick()
     const { regions: rawRegions, regionMap } = finalizeRegions(regionState, rawPalette)
+    snapshots.push(snapshotRegions('after finalize', regionState))
 
     setProcessingStage('seams')
     await tick()
-    const { regions: seamedRegions } = { regions: mergeGradientSeams(rawRegions, regionMap, imageData, cw) }
+    const { regions: seamedRegions } = { regions: mergeGradientSeams(rawRegions, regionMap, imageData, cw, 0.01, rawPalette) }
+
+    const snapFromRegions = (label: string, rs: Region[], rm: Int32Array): RegionSnapshot => {
+      const colorOf = new Map<number, number>()
+      for (const r of rs) colorOf.set(r.id, r.colorIndex)
+      return { label, regionMap: rm.slice(), colorOf }
+    }
+    snapshots.push(snapFromRegions('after seams', seamedRegions, regionMap))
 
     setProcessingStage('finish')
     await tick()
@@ -162,6 +176,8 @@ export function useGame(): [GameState, GameActions] {
       mergeToTarget(palette, regions, colorCountRef.current)
     }
     regions = fuseSameColorRegions(regions, regionMap, cw)
+
+    debugSnapshotsRef.current = snapshots
 
     await storeRegionMap(sessionId, regionMap)
 
@@ -221,6 +237,7 @@ export function useGame(): [GameState, GameActions] {
     indexMapRef,
     regionMapRef,
     originalImageDataRef,
+    debugSnapshotsRef,
   }
 
   return [state, actions]
