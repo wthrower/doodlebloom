@@ -23,3 +23,12 @@ export function colorDist(r1: number, g1: number, b1: number, r2: number, g2: nu
   const dL = L1 - L2, da = a1 - a2, db = b1_ - b2_
   return Math.sqrt(dL * dL + da * da + db * db)
 }
+
+/** Chroma distance: a*b* plane only, ignoring lightness.
+ *  Low values mean similar hue/saturation (e.g. gradient bands). */
+export function chromaDist(r1: number, g1: number, b1: number, r2: number, g2: number, b2: number): number {
+  const [, a1, b1_] = rgbToLab(r1, g1, b1)
+  const [, a2, b2_] = rgbToLab(r2, g2, b2)
+  const da = a1 - a2, db = b1_ - b2_
+  return Math.sqrt(da * da + db * db)
+}

@@ -1,4 +1,4 @@
-import { colorDist } from './colorDistance'
+import { colorDist, chromaDist } from './colorDistance'
 import type { PaletteColor, Region } from '../types'
 
 /** A region whose "inscribed circle" radius is smaller than this won't have
@@ -533,8 +533,11 @@ export function mergeGradientSeams(
     }
   }
 
-  // Union-find: merge pairs below threshold, guarded by palette color distance
-  const MAX_SEAM_CD = 40
+  // Union-find: merge pairs below threshold, guarded by chroma distance.
+  // Chroma distance (a*b* plane, ignoring lightness) distinguishes gradient
+  // bands (same hue, different brightness → low chroma dist) from real edges
+  // between different-colored regions (high chroma dist).
+  const MAX_SEAM_CHROMA = 40
   const regionById = new Map(regions.map(r => [r.id, r]))
   const parent = new Map<number, number>()
   const find = (x: number): number => {
@@ -543,19 +546,25 @@ export function mergeGradientSeams(
   }
 
   for (const [, { sum, count, ridA, ridB }] of pairs) {
-    if (sum / count >= threshold) continue
+    const contrast = sum / count
     const ca = find(ridA), cb = find(ridB)
     if (ca === cb) continue
     const ra = regionById.get(ca), rb = regionById.get(cb)
     if (!ra || !rb) continue
-    // Guard: don't merge regions with very different palette colors
+    // Adaptive threshold: if regions have similar hue/chroma (gradient bands),
+    // allow higher luminance contrast. Otherwise use the strict threshold.
+    let effectiveThreshold = threshold
     if (palette.length > 0) {
-      const cd = colorDist(
+      const cd = chromaDist(
         palette[ra.colorIndex].r, palette[ra.colorIndex].g, palette[ra.colorIndex].b,
         palette[rb.colorIndex].r, palette[rb.colorIndex].g, palette[rb.colorIndex].b
       )
-      if (cd > MAX_SEAM_CD) continue
+      if (cd > MAX_SEAM_CHROMA) continue
+      // Low chroma distance → same hue → likely gradient → relax threshold
+      if (cd < 15) effectiveThreshold = threshold * 3
+      else if (cd < 30) effectiveThreshold = threshold * 2
     }
+    if (contrast >= effectiveThreshold) continue
     const [keep, drop] = ra.pixelCount >= rb.pixelCount ? [ca, cb] : [cb, ca]
     parent.set(drop, keep)
   }
