@@ -86,12 +86,12 @@ export function renderPuzzle(
         buf[i * 4 + 3] = 255
       }
     } else if (activeColorIndex !== null && region.colorIndex === activeColorIndex) {
-      // Unfilled, active color: pale pink diagonal stripes
+      // Unfilled, active color: pale pink/green diagonal stripes
       const px = i % width, py = (i / width) | 0
       const stripe = ((px + py) >> 2) & 1  // 4px diagonal stripes
-      buf[i * 4]     = stripe ? 253 : 255
-      buf[i * 4 + 1] = stripe ? 205 : 255
-      buf[i * 4 + 2] = stripe ? 229 : 255
+      buf[i * 4]     = stripe ? 253 : 230
+      buf[i * 4 + 1] = stripe ? 205 : 210
+      buf[i * 4 + 2] = stripe ? 229 : 250
       buf[i * 4 + 3] = 255
     } else {
       // Unfilled: white
