@@ -179,7 +179,19 @@ export function buildOutlineChains(
   }
 
   const epsilon = 1.5
-  const chains = rawChains.map(c => mergeCollinear(dpSimplify(c, epsilon), epsilon))
+  const chains = rawChains.map(c => {
+    const dp = dpSimplify(c, epsilon)
+    if (dp.length < 4) return dp
+    // Only apply collinearity merge to mostly-straight chains.
+    // Curved chains (low chord/path ratio) get distorted by greedy corridor merging.
+    let pathLen = 0
+    for (let i = 1; i < dp.length; i++) {
+      pathLen += Math.hypot(dp[i][0] - dp[i - 1][0], dp[i][1] - dp[i - 1][1])
+    }
+    const chordLen = Math.hypot(dp[dp.length - 1][0] - dp[0][0], dp[dp.length - 1][1] - dp[0][1])
+    if (pathLen > 0 && chordLen / pathLen < 0.9) return dp
+    return mergeCollinear(dp, epsilon)
+  })
 
   // Recompute bboxes from simplified chains
   const simplifiedBboxes = new Float32Array(chains.length * 4)
