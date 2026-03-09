@@ -196,11 +196,7 @@ export function mergeRegions(state: RegionIntermediate, palette: PaletteColor[])
               palette[adj.colorIndex].r, palette[adj.colorIndex].g, palette[adj.colorIndex].b
             )
           : 1
-      // Quadratic color penalty / size reward: strongly prefer color-close neighbors
-      // and break ties in favor of larger ones. Prevents small dark regions from
-      // cascading into large dissimilar neighbors when same-color options exist.
-      const sc = (cd * cd) / Math.sqrt(adj.pixelCount)
-      if (sc < bestScore) { bestScore = sc; best = adj }
+      if (cd < bestScore) { bestScore = cd; best = adj }
     }
     if (!best) continue
 
