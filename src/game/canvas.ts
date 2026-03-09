@@ -179,7 +179,7 @@ export function buildOutlineChains(
   }
 
   const epsilon = 1.5
-  const chains = rawChains.map(c => mergeCollinear(dpSimplify(c, epsilon), epsilon * 1.5))
+  const chains = rawChains.map(c => mergeCollinear(dpSimplify(c, epsilon), epsilon))
 
   // Recompute bboxes from simplified chains
   const simplifiedBboxes = new Float32Array(chains.length * 4)
@@ -222,29 +222,39 @@ export function dpSimplify(pts: [number, number][], epsilon: number): [number, n
   return [...left.slice(0, -1), ...right]
 }
 
-/** Collapse near-collinear runs that DP retains from pixel staircases. */
+/** Collapse near-collinear runs that DP retains from pixel staircases.
+ *  Tolerance scales with corridor length: longer straight runs absorb
+ *  larger deviations that are visually insignificant at that scale. */
 export function mergeCollinear(
   pts: [number, number][],
-  epsilon: number
+  epsilon: number,
+  ratio = 0.035
 ): [number, number][] {
   if (pts.length <= 2) return pts
+  // Protect the first and last few points from length-scaled merging
+  // so that approach angles at chain junctions stay accurate.
+  const guard = Math.min(3, Math.floor(pts.length / 3))
   const out: [number, number][] = [pts[0]]
   let i = 0
   while (i < pts.length - 1) {
     // Greedily extend: find the furthest j where all points i+1..j-1
     // stay within epsilon of the line from pts[i] to pts[j].
+    // Use length-scaled epsilon only for interior points, base epsilon near ends.
     let best = i + 1
     outer: for (let j = i + 2; j < pts.length; j++) {
       const [ax, ay] = pts[i]
       const [bx, by] = pts[j]
       const dx = bx - ax, dy = by - ay
       const lenSq = dx * dx + dy * dy
+      const inInterior = i >= guard && j <= pts.length - 1 - guard
+      const corridorLen = Math.sqrt(lenSq)
+      const thresh = inInterior && corridorLen > 30 ? epsilon + corridorLen * ratio : epsilon
       for (let k = i + 1; k < j; k++) {
         const [px, py] = pts[k]
         const dist = lenSq === 0
           ? Math.hypot(px - ax, py - ay)
           : Math.abs((py - ay) * dx - (px - ax) * dy) / Math.sqrt(lenSq)
-        if (dist > epsilon) break outer
+        if (dist > thresh) break outer
       }
       best = j
     }
