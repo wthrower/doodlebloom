@@ -3,7 +3,7 @@ import { DEFAULT_STATE } from '../types'
 import type { GameState, PaletteColor, Region, Screen } from '../types'
 import { useStorage } from './useStorage'
 import { colorDist } from '../game/colorDistance'
-import { analyzeColors, assignColors } from '../game/quantize'
+import { analyzeColors, assignColors, assignPixels } from '../game/quantize'
 import { buildRegions, fuseSameColorRegions, traceRegions, mergeRegions, finalizeRegions, mergeGradientSeams, snapshotRegions } from '../game/regions'
 import type { RegionSnapshot } from '../game/regions'
 import { loadApiKey, saveApiKey } from '../game/storage'
@@ -69,7 +69,7 @@ export function useGame(): [GameState, GameActions] {
         ctx.drawImage(img, 0, 0, saved.canvasWidth, saved.canvasHeight)
         const imageData = ctx.getImageData(0, 0, saved.canvasWidth, saved.canvasHeight)
 
-        const indexMap = rebuildIndexMap(imageData, saved.palette)
+        const indexMap = assignPixels(imageData.data, saved.canvasWidth * saved.canvasHeight, saved.palette)
         let regionMap = storedRegionMap
         if (!regionMap) {
           const built = buildRegions(indexMap, saved.canvasWidth, saved.canvasHeight, saved.rawPalette ?? [])
@@ -283,24 +283,3 @@ function mergeToTarget(palette: PaletteColor[], regions: Region[], targetCount: 
   }
 }
 
-function rebuildIndexMap(imageData: ImageData, palette: PaletteColor[]): Uint8Array {
-  const { data, width, height } = imageData
-  const pixels = width * height
-  const indexMap = new Uint8Array(pixels)
-  for (let i = 0; i < pixels; i++) {
-    const r = data[i * 4]
-    const g = data[i * 4 + 1]
-    const b = data[i * 4 + 2]
-    let best = 0
-    let bestDist = Infinity
-    for (let j = 0; j < palette.length; j++) {
-      const dr = r - palette[j].r
-      const dg = g - palette[j].g
-      const db = b - palette[j].b
-      const d = dr * dr + dg * dg + db * db
-      if (d < bestDist) { bestDist = d; best = j }
-    }
-    indexMap[i] = best
-  }
-  return indexMap
-}

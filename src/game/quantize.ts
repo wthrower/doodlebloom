@@ -107,7 +107,7 @@ function mmcqPalette(pixelArray: [number, number, number][], colorCount: number)
   return raw.map(([r, g, b]) => ({ r, g, b }))
 }
 
-function assignPixels(data: Uint8ClampedArray, pixels: number, palette: PaletteColor[]): Uint8Array {
+export function assignPixels(data: Uint8ClampedArray, pixels: number, palette: PaletteColor[]): Uint8Array {
   const paletteLab = palette.map(p => rgbToLab(p.r, p.g, p.b))
   const indexMap = new Uint8Array(pixels)
   for (let i = 0; i < pixels; i++) {
