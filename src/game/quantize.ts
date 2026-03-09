@@ -8,17 +8,16 @@ export interface QuantizeResult {
   indexMap: Uint8Array
 }
 
-/** Stage 1 of 2: blur + MMCQ palette. Returns blurred pixel data and raw palette. */
+/** Stage 1 of 2: MMCQ palette from raw pixel data. */
 export function analyzeColors(
   imageData: ImageData,
   colorCount: number
 ): { blurred: Uint8ClampedArray; palette: PaletteColor[] } {
-  const { data, width, height } = imageData
-  const pixels = width * height
-  const blurred = edgeAwareBlur(data, width, height)
-  const allPixels = buildPixelArray(blurred, pixels)
+  const { data } = imageData
+  const pixels = imageData.width * imageData.height
+  const allPixels = buildPixelArray(data, pixels)
   const palette = mmcqPalette(allPixels, colorCount * 2)
-  return { blurred, palette }
+  return { blurred: data, palette }
 }
 
 /** Stage 2 of 2: assign each pixel to its nearest palette color, then refine palette. */
