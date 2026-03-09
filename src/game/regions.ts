@@ -158,64 +158,11 @@ export function traceRegions(
   return { regionMap, regionMeta, width, height }
 }
 
-/** Color distance threshold: if no adjacent neighbor is closer than this,
- *  search outward by boundary distance for a better color match. */
-const MAX_ADJACENT_CD = 20
-
 /** Phase 2: Absorb regions below MIN_REGION_PIXELS into best adjacent neighbor.
- *  If no adjacent neighbor is close in color, BFS outward to find the nearest
- *  region that is.  Mutates regionMap and regionMeta in place. */
+ *  Mutates regionMap and regionMeta in place. */
 export function mergeRegions(state: RegionIntermediate, palette: PaletteColor[]): void {
   const { regionMap, regionMeta, width, height } = state
   const pixels = width * height
-
-  const cdBetween = (a: RegionMeta, b: RegionMeta): number =>
-    a.colorIndex === b.colorIndex
-      ? 0
-      : palette.length > 0
-        ? colorDist(
-            palette[a.colorIndex].r, palette[a.colorIndex].g, palette[a.colorIndex].b,
-            palette[b.colorIndex].r, palette[b.colorIndex].g, palette[b.colorIndex].b
-          )
-        : 1
-
-  /** Region-level BFS: expand through adjacency graph to find the nearest
-   *  region (by hop count) whose color distance to `src` is below `maxCd`.
-   *  Searches up to `maxHops` adjacency hops. Returns canonical id or -1. */
-  const MAX_HOPS = 5
-  const findNearbyMatch = (src: RegionMeta, maxCd: number, find: (x: number) => number): number => {
-    const visited = new Set<number>([src.id])
-    let frontier = new Set<number>()
-    for (const adjId of src.adjIds) {
-      const canon = find(adjId)
-      if (canon !== src.id) frontier.add(canon)
-    }
-
-    for (let hop = 0; hop < MAX_HOPS && frontier.size > 0; hop++) {
-      let bestId = -1, bestCd = maxCd
-      for (const rid of frontier) {
-        const rmeta = regionMeta.get(rid)
-        if (!rmeta) continue
-        const cd = cdBetween(src, rmeta)
-        if (cd < bestCd) { bestCd = cd; bestId = rid }
-      }
-      if (bestId >= 0) return bestId
-
-      // Expand frontier
-      const next = new Set<number>()
-      for (const rid of frontier) {
-        visited.add(rid)
-        const rmeta = regionMeta.get(rid)
-        if (!rmeta) continue
-        for (const adjId of rmeta.adjIds) {
-          const canon = find(adjId)
-          if (!visited.has(canon) && !frontier.has(canon)) next.add(canon)
-        }
-      }
-      frontier = next
-    }
-    return -1
-  }
 
   const parent = new Map<number, number>()
   const find = (x: number): number => {
@@ -241,20 +188,16 @@ export function mergeRegions(state: RegionIntermediate, palette: PaletteColor[])
       const canon = find(adjId)
       const adj = regionMeta.get(canon)
       if (!adj || adj.id === s.id) continue
-      const cd = cdBetween(s, adj)
+      const cd = adj.colorIndex === s.colorIndex
+        ? 0
+        : palette.length > 0
+          ? colorDist(
+              palette[s.colorIndex].r, palette[s.colorIndex].g, palette[s.colorIndex].b,
+              palette[adj.colorIndex].r, palette[adj.colorIndex].g, palette[adj.colorIndex].b
+            )
+          : 1
       if (cd < bestScore) { bestScore = cd; best = adj }
     }
-
-    // If best adjacent neighbor is too far in color and the region is large
-    // enough to be visually noticeable, search outward for a closer match
-    if (best && bestScore > MAX_ADJACENT_CD && s.pixelCount >= 40) {
-      const nearbyId = findNearbyMatch(s, MAX_ADJACENT_CD, find)
-      if (nearbyId >= 0) {
-        const nearby = regionMeta.get(nearbyId)
-        if (nearby) best = nearby
-      }
-    }
-
     if (!best) continue
 
     parent.set(s.id, best.id)
