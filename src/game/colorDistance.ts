@@ -5,7 +5,7 @@ function linearize(c: number): number {
   return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
 }
 
-function rgbToLab(r: number, g: number, b: number): [number, number, number] {
+export function rgbToLab(r: number, g: number, b: number): [number, number, number] {
   const rl = linearize(r), gl = linearize(g), bl = linearize(b)
   // Linear RGB → XYZ (D65)
   const x = (rl * 0.4124 + gl * 0.3576 + bl * 0.1805) / 0.95047

@@ -1,4 +1,5 @@
 import quantize from 'quantize'
+import { rgbToLab } from './colorDistance'
 import type { PaletteColor } from '../types'
 
 export interface QuantizeResult {
@@ -107,9 +108,11 @@ function mmcqPalette(pixelArray: [number, number, number][], colorCount: number)
 }
 
 function assignPixels(data: Uint8ClampedArray, pixels: number, palette: PaletteColor[]): Uint8Array {
+  const paletteLab = palette.map(p => rgbToLab(p.r, p.g, p.b))
   const indexMap = new Uint8Array(pixels)
   for (let i = 0; i < pixels; i++) {
-    indexMap[i] = nearestPaletteIndex(data[i * 4], data[i * 4 + 1], data[i * 4 + 2], palette)
+    const [L, a, b] = rgbToLab(data[i * 4], data[i * 4 + 1], data[i * 4 + 2])
+    indexMap[i] = nearestPaletteIndex(L, a, b, paletteLab)
   }
   return indexMap
 }
@@ -145,14 +148,12 @@ function mode(values: number[]): number {
   return best * MODE_BIN + MODE_BIN / 2
 }
 
-function nearestPaletteIndex(r: number, g: number, b: number, palette: PaletteColor[]): number {
+function nearestPaletteIndex(L: number, a: number, b: number, paletteLab: [number, number, number][]): number {
   let best = 0
   let bestDist = Infinity
-  for (let i = 0; i < palette.length; i++) {
-    const dr = r - palette[i].r
-    const dg = g - palette[i].g
-    const db = b - palette[i].b
-    const dist = dr * dr + dg * dg + db * db
+  for (let i = 0; i < paletteLab.length; i++) {
+    const dL = L - paletteLab[i][0], da = a - paletteLab[i][1], db = b - paletteLab[i][2]
+    const dist = dL * dL + da * da + db * db
     if (dist < bestDist) { bestDist = dist; best = i }
   }
   return best
