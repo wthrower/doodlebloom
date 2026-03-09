@@ -146,10 +146,9 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
       const wrapW = wrap.clientWidth
       const wrapH = wrap.clientHeight
 
-      // Epsilon in canvas units: target ~2 screen pixels of tolerance so noisy
-      // pixel-level detail collapses into smooth region boundaries.
-      // Scales up at low zoom (fewer points needed when image is small on screen).
-      const epsilon = Math.max(2, 2 / pixelScale)
+      // Epsilon in canvas units: 1.5 preserves gentle curves better than 2
+      // while still collapsing pixel-level noise.
+      const epsilon = Math.max(1.5, 1.5 / pixelScale)
 
       // Convert canvas coords to screen coords
       const sx = (cx: number) => (ox + cx * pixelScale).toFixed(1)
@@ -247,28 +246,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
           return Math.max(0.75, v * taper)
         })
 
-        // Per-vertex normals: perpendicular to the chord through neighbours
-        const normals: [number, number][] = pts.map((_, i) => {
-          const [ax, ay] = sp[Math.max(0, i - 1)]
-          const [bx, by] = sp[Math.min(n - 1, i + 1)]
-          const dx = bx - ax, dy = by - ay
-          const len = Math.hypot(dx, dy) || 1
-          return [-dy / len, dx / len]
-        })
-
-        // Build offset left/right sides
-        const left:  [number, number][] = []
-        const right: [number, number][] = []
-        for (let i = 0; i < n; i++) {
-          const [x, y] = sp[i]
-          const [nx, ny] = normals[i]
-          const h = hw[i]
-          left.push( [x + nx * h, y + ny * h])
-          right.push([x - nx * h, y - ny * h])
-        }
-
-        // Closed filled polygon: clamped CR for smooth curves, L at sharp spine
-        // corners (≥90°) to keep rectangle corners crisp and avoid offset-array loops.
+        // Spine sharpness: detect corners for segment-type decisions
         const spineSharp = (i: number): boolean => {
           if (i <= 0 || i >= n - 1) return false
           const dx1 = pts[i][0] - pts[i-1][0], dy1 = pts[i][1] - pts[i-1][1]
@@ -276,15 +254,55 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
           const len = Math.hypot(dx1, dy1) * Math.hypot(dx2, dy2)
           return len > 0 && (dx1*dx2 + dy1*dy2) / len <= 0.7
         }
-        // Short segments (<8px): always CR -- too small to bow noticeably.
-        // Long segments (>15px): always L -- CR would bow a long straight run.
-        // Medium segments: L at sharp turns, CR otherwise.
+        const sharpAt = new Uint8Array(n)
+        for (let i = 0; i < n; i++) if (spineSharp(i)) sharpAt[i] = 1
+        const nearSharp = (i: number): boolean => {
+          for (let j = Math.max(0, i - 2); j <= Math.min(n - 1, i + 2); j++) {
+            if (sharpAt[j]) return true
+          }
+          return false
+        }
+
+        // Build offset left/right sides with miter correction at corners.
+        const left:  [number, number][] = []
+        const right: [number, number][] = []
+        for (let i = 0; i < n; i++) {
+          const [x, y] = sp[i]
+          const h = hw[i]
+          let nx: number, ny: number
+          if (i === 0 || i === n - 1) {
+            const [ax, ay] = sp[Math.max(0, i - 1)]
+            const [bx, by] = sp[Math.min(n - 1, i + 1)]
+            const dx = bx - ax, dy = by - ay
+            const len = Math.hypot(dx, dy) || 1
+            nx = -dy / len; ny = dx / len
+          } else {
+            const dx1 = sp[i][0] - sp[i-1][0], dy1 = sp[i][1] - sp[i-1][1]
+            const dx2 = sp[i+1][0] - sp[i][0], dy2 = sp[i+1][1] - sp[i][1]
+            const len1 = Math.hypot(dx1, dy1) || 1
+            const len2 = Math.hypot(dx2, dy2) || 1
+            const n1x = -dy1 / len1, n1y = dx1 / len1
+            const n2x = -dy2 / len2, n2y = dx2 / len2
+            const bx = n1x + n2x, by = n1y + n2y
+            const blen = Math.hypot(bx, by)
+            if (blen < 1e-6) {
+              nx = n1x; ny = n1y
+            } else {
+              nx = bx / blen; ny = by / blen
+              const dot = nx * n1x + ny * n1y
+              const miter = Math.min(3, 1 / Math.max(dot, 0.01))
+              nx *= miter; ny *= miter
+            }
+          }
+          left.push( [x + nx * h, y + ny * h])
+          right.push([x - nx * h, y - ny * h])
+        }
+
+        // Miter + L near sharp corners, CR elsewhere.
         const spineLen = (i: number) => Math.hypot(pts[i+1][0]-pts[i][0], pts[i+1][1]-pts[i][1])
         const useCR = (i: number): boolean => {
-          const sl = spineLen(i)
-          if (sl < 8) return true
-          if (sl > 40) return false
-          return !spineSharp(i) && !spineSharp(i + 1)
+          if (spineLen(i) > 40) return false
+          return !nearSharp(i) && !nearSharp(i + 1)
         }
         const rightRev = [...right].reverse()
         const f = ([x, y]: [number, number]) => `${x.toFixed(1)},${y.toFixed(1)}`
@@ -297,6 +315,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
           const si = n - 2 - i
           segs.push(useCR(si) ? crSeg(rightRev, i) : `L${f(rightRev[i + 1])}`)
         }
+
         segs.push('Z')
         polygons.push(segs.join(' '))
       }
