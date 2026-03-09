@@ -7,7 +7,7 @@ import { analyzeColors, assignColors, assignPixels } from '../game/quantize'
 import { buildRegions, fuseSameColorRegions, traceRegions, mergeRegions, finalizeRegions, mergeGradientSeams, snapshotRegions } from '../game/regions'
 import type { RegionSnapshot } from '../game/regions'
 import { loadApiKey, saveApiKey, clearCorruptedState } from '../game/storage'
-import { recomputePalette } from '../game/paletteColor'
+import { recomputePalette, spreadPalette } from '../game/paletteColor'
 
 /** Scale image so its shorter side = this many pixels. */
 const CANVAS_SHORT = 1024
@@ -22,6 +22,7 @@ export interface GameActions {
   /** Call after DALL-E image blob is available. Processes image → puzzle state. */
   processImage: (blob: Blob) => Promise<void>
   fillRegion: (regionId: number, colorIndex: number) => void
+  toggleSpreadPalette: () => void
   resetPuzzle: () => Promise<void>
   indexMapRef: React.MutableRefObject<Uint8Array | null>
   regionMapRef: React.MutableRefObject<Int32Array | null>
@@ -39,6 +40,8 @@ export function useGame(): [GameState, GameActions] {
     loadApiKey() || (import.meta.env.VITE_OPENAI_API_KEY as string) || ''
   )
   const [processingStage, setProcessingStage] = useState<string | null>(null)
+  const [paletteSpread, setPaletteSpread] = useState(false)
+  const basePaletteRef = useRef<PaletteColor[] | null>(null)
   const { persistState, restoreState, wipeState, storeImage, retrieveImage, storeRegionMap, retrieveRegionMap } = useStorage()
 
   const indexMapRef = useRef<Uint8Array | null>(null)
@@ -93,6 +96,7 @@ export function useGame(): [GameState, GameActions] {
         indexMapRef.current = indexMap
         regionMapRef.current = regionMap
         originalImageDataRef.current = imageData
+        basePaletteRef.current = saved!.palette
         setState(saved!)
       }).catch(resetCorrupted)
       return
@@ -189,8 +193,10 @@ export function useGame(): [GameState, GameActions] {
     }
     regions = fuseSameColorRegions(regions, regionMap, cw)
 
-    // Recompute palette: most saturated pixel near the average for each color
+    // Recompute palette: most saturated pixel near the average, then spread apart
     palette = recomputePalette('saturated', regions, regionMap, imageData, palette.length)
+    basePaletteRef.current = palette
+    palette = spreadPalette(palette)
 
     debugSnapshotsRef.current = snapshots
 
@@ -226,6 +232,21 @@ export function useGame(): [GameState, GameActions] {
     })
   }, [persistState])
 
+  const toggleSpreadPalette = useCallback(() => {
+    const base = basePaletteRef.current
+    if (!base) return
+    setPaletteSpread(prev => {
+      const next = !prev
+      const palette = next ? spreadPalette(base) : base
+      setState(s => {
+        const updated = { ...s, palette }
+        persistState(updated)
+        return updated
+      })
+      return next
+    })
+  }, [persistState])
+
   const resetPuzzle = useCallback(async () => {
     const { sessionId, prompt, colorCount, showOutline } = state
     indexMapRef.current = null
@@ -247,6 +268,7 @@ export function useGame(): [GameState, GameActions] {
     goTo,
     processImage,
     fillRegion,
+    toggleSpreadPalette,
     resetPuzzle,
     indexMapRef,
     regionMapRef,

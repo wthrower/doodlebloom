@@ -540,6 +540,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
         const colorIdx = sortedPaletteRef.current[numKey - 1]
         setActiveColorIndex(colorIdx)
       }
+      if (e.key === '/') { e.preventDefault(); actions.toggleSpreadPalette() }
       if (e.key === '\\') setOutlineMagenta(v => !v)
       if (e.key === 'd' || e.key === 'D') {
         setDebugStage(prev => {
