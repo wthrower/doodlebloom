@@ -336,14 +336,21 @@ export function finalizeRegions(
       const tmeta = regionMeta.get(tid)
       if (!tmeta) continue
       const adj = thinAdj.get(tid)!
-      let bestId = -1, bestCd = Infinity
+      let bestId = -1, bestCd = Infinity, bestThin = true
       for (const adjId of adj) {
         const ameta = regionMeta.get(adjId)
         if (!ameta) continue
         const cd = cdBetween(tmeta, ameta)
-        if (cd < bestCd) { bestCd = cd; bestId = adjId }
+        const thin = thinIds.has(adjId)
+        // Prefer non-thin neighbors at equal color distance to avoid creating
+        // stillThin groups that fall through to the fallback.
+        if (cd < bestCd || (cd === bestCd && bestThin && !thin)) {
+          bestCd = cd; bestId = adjId; bestThin = thin
+        }
       }
-      if (bestId >= 0) candidates.push({ thinId: tid, targetId: bestId, cd: bestCd })
+      if (bestId >= 0) {
+        candidates.push({ thinId: tid, targetId: bestId, cd: bestCd })
+      }
     }
     // Merge closest-color pairs first
     candidates.sort((a, b) => a.cd - b.cd)
@@ -361,10 +368,12 @@ export function finalizeRegions(
       if (rt === ra) continue
       const tmeta = regionMeta.get(rt)!, ameta = regionMeta.get(ra)!
       const [keep, absorb] = thinIds.has(ra) && !thinIds.has(rt)
-        ? [tmeta, ameta]
-        : ameta.pixelCount >= tmeta.pixelCount
-          ? [ameta, tmeta]
-          : [tmeta, ameta]
+        ? [tmeta, ameta]   // target thin, source not → keep source (non-thin)
+        : !thinIds.has(ra) && thinIds.has(rt)
+          ? [ameta, tmeta] // source thin, target not → keep target (non-thin)
+          : ameta.pixelCount >= tmeta.pixelCount
+            ? [ameta, tmeta]
+            : [tmeta, ameta]
       thinParent.set(absorb.id, keep.id)
       keep.pixelCount += absorb.pixelCount
       for (const adj of absorb.adjIds) {
@@ -393,39 +402,54 @@ export function finalizeRegions(
     }
 
     if (stillThin.size > 0) {
-      const thinQueue: number[] = []
+      // Build pixel-level adjacency for stillThin regions (including thin-to-thin
+      // so that when one resolves, its thin neighbors discover the new non-thin target).
+      const stNeighbors = new Map<number, Set<number>>()
+      for (const st of stillThin) stNeighbors.set(st, new Set())
       for (let i = 0; i < pixels; i++) {
-        if (stillThin.has(regionMap[i])) continue
-        if (regionMap[i] < 0) continue
-        const x = i % width, y = Math.floor(i / width)
-        const ns = [x > 0 ? i - 1 : -1, x < width - 1 ? i + 1 : -1, y > 0 ? i - width : -1, y < height - 1 ? i + width : -1]
-        for (const n of ns) {
-          if (n >= 0 && stillThin.has(regionMap[n])) thinQueue.push(n)
+        const rid = regionMap[i]
+        if (!stillThin.has(rid)) continue
+        const x = i % width
+        for (const n of [x > 0 ? i - 1 : -1, x < width - 1 ? i + 1 : -1, i >= width ? i - width : -1, i + width < pixels ? i + width : -1]) {
+          if (n >= 0 && regionMap[n] !== rid && regionMap[n] >= 0) stNeighbors.get(rid)!.add(regionMap[n])
         }
       }
-
-      let tHead = 0
-      while (tHead < thinQueue.length) {
-        const i = thinQueue[tHead++]
-        if (!stillThin.has(regionMap[i])) continue
-        const x = i % width, y = Math.floor(i / width)
-        const ns = [x > 0 ? i - 1 : -1, x < width - 1 ? i + 1 : -1, y > 0 ? i - width : -1, y < height - 1 ? i + width : -1]
-        const smeta = regionMeta.get(regionMap[i])
-        let bestId = -1, bestScore = Infinity
-        for (const n of ns) {
-          if (n < 0 || stillThin.has(regionMap[n])) continue
-          const nrid = regionMap[n]
-          if (nrid < 0) continue
-          const nmeta = regionMeta.get(nrid)
-          if (!nmeta || !smeta) continue
-          const sc = cdBetween(smeta, nmeta)
-          if (sc < bestScore) { bestScore = sc; bestId = nrid }
-        }
-        if (bestId >= 0) {
-          regionMap[i] = bestId
-          for (const n of ns) {
-            if (n >= 0 && stillThin.has(regionMap[n])) thinQueue.push(n)
+      // Region-level assignment: for each stillThin region, find best-color
+      // non-thin neighbor and assign ALL its pixels there. Repeat until stable
+      // (resolves chains where one stillThin is surrounded by another).
+      let resolved = true
+      while (resolved) {
+        resolved = false
+        for (const st of stillThin) {
+          const smeta = regionMeta.get(st)
+          if (!smeta) continue
+          const nbs = stNeighbors.get(st)
+          if (!nbs || nbs.size === 0) continue
+          // Find non-thin neighbors from pixel adjacency
+          const nonThinNbs = new Set<number>()
+          for (const nb of nbs) {
+            if (!stillThin.has(nb)) nonThinNbs.add(nb)
           }
+          if (nonThinNbs.size === 0) continue
+          let bestId = -1, bestCd = Infinity
+          for (const nb of nonThinNbs) {
+            const nmeta = regionMeta.get(nb)
+            if (!nmeta) continue
+            const cd = cdBetween(smeta, nmeta)
+            if (cd < bestCd) { bestCd = cd; bestId = nb }
+          }
+          if (bestId < 0) continue
+          // Reassign all pixels
+          for (let i = 0; i < pixels; i++) {
+            if (regionMap[i] === st) regionMap[i] = bestId
+          }
+          stillThin.delete(st)
+          // Update neighbors: regions adjacent to st are now adjacent to bestId
+          for (const other of stillThin) {
+            const onbs = stNeighbors.get(other)
+            if (onbs?.has(st)) { onbs.delete(st); onbs.add(bestId) }
+          }
+          resolved = true
         }
       }
     }

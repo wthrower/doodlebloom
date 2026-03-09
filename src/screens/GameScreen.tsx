@@ -50,17 +50,22 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
   const [cheatActive, setCheatActive] = useState(false)
   const [outlineMagenta, setOutlineMagenta] = useState(false)
   const [debugStage, setDebugStage] = useState(-1)
+  const [debugHover, setDebugHover] = useState<{ rid: number; ci: number; rgb: string } | null>(null)
   const { palette, regions, playerColors, canvasWidth, canvasHeight, revealMode, showOutline, screen } = state
   const { indexMapRef, regionMapRef, originalImageDataRef, debugSnapshotsRef, fillRegion } = actions
 
   // --- Refs for event handlers (avoid stale closures, avoid re-adding listeners) ---
   const transformRef = useRef<Transform>({ scale: 1, tx: 0, ty: 0 })
+  const debugStageRef = useRef(debugStage)
+  debugStageRef.current = debugStage
   const displaySizeRef = useRef(0)
   const activeColorRef = useRef<number | null>(null)
   const regionsRef = useRef(regions)
   const playerColorsRef = useRef(playerColors)
   const fillRegionRef = useRef(fillRegion)
 
+  const rawPaletteRef = useRef(state.rawPalette)
+  useEffect(() => { rawPaletteRef.current = state.rawPalette }, [state.rawPalette])
   useEffect(() => { activeColorRef.current = activeColorIndex }, [activeColorIndex])
   useEffect(() => { regionsRef.current = regions }, [regions])
   useEffect(() => { playerColorsRef.current = playerColors }, [playerColors])
@@ -549,6 +554,21 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
     }
     const onMouseMove = (e: MouseEvent) => {
       updateCursor(e.clientX, e.clientY)
+      // Debug hover: show region ID under cursor
+      const debugSnap = debugSnapshotsRef.current[debugStageRef.current]
+      if (debugSnap && debugStageRef.current >= 0) {
+        const pos = screenToCanvas(e.clientX, e.clientY)
+        if (pos) {
+          const px = Math.floor(pos.x), py = Math.floor(pos.y)
+          if (px >= 0 && px < canvasWidth && py >= 0 && py < canvasHeight) {
+            const rid = debugSnap.regionMap[py * canvasWidth + px]
+            const ci = debugSnap.colorOf.get(rid)
+            const rawPalette = rawPaletteRef.current ?? []
+            const p = ci !== undefined && ci < rawPalette.length ? rawPalette[ci] : null
+            setDebugHover({ rid, ci: ci ?? -1, rgb: p ? `${p.r},${p.g},${p.b}` : '?' })
+          }
+        }
+      }
       if (!mouseDown) return
       const dx = e.clientX - mouseDown.x
       const dy = e.clientY - mouseDown.y
@@ -753,6 +773,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
           }}>
             {debugSnapshotsRef.current[debugStage]?.label ?? `stage ${debugStage}`}
             {' '}({debugStage + 1}/{debugSnapshotsRef.current.length}) — press D to cycle
+            {debugHover && <><br/>region {debugHover.rid} ci={debugHover.ci} rgb={debugHover.rgb}</>}
           </div>
         )}
 {/* SVG outline overlay: not CSS-transformed, redrawn in screen coords on zoom/pan */}
