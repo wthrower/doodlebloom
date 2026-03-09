@@ -188,6 +188,31 @@ export function useGame(): [GameState, GameActions] {
     }
     regions = fuseSameColorRegions(regions, regionMap, cw)
 
+    // Recompute palette colors by averaging original pixels per color index
+    const regionColorMap = new Map(regions.map(r => [r.id, r.colorIndex]))
+    const sums = palette.map(() => ({ r: 0, g: 0, b: 0, count: 0 }))
+    const origData = imageData.data
+    for (let i = 0; i < cw * ch; i++) {
+      const rid = regionMap[i]
+      if (rid < 0) continue
+      const ci = regionColorMap.get(rid)
+      if (ci === undefined) continue
+      const pi = i * 4
+      sums[ci].r += origData[pi]
+      sums[ci].g += origData[pi + 1]
+      sums[ci].b += origData[pi + 2]
+      sums[ci].count++
+    }
+    for (let i = 0; i < palette.length; i++) {
+      if (sums[i].count > 0) {
+        palette[i] = {
+          r: Math.round(sums[i].r / sums[i].count),
+          g: Math.round(sums[i].g / sums[i].count),
+          b: Math.round(sums[i].b / sums[i].count),
+        }
+      }
+    }
+
     debugSnapshotsRef.current = snapshots
 
     await storeRegionMap(sessionId, regionMap)
