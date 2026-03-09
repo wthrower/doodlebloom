@@ -326,7 +326,54 @@ export function finalizeRegions(
       }
     }
 
-    // Build merge candidates: each thin region → best-color adjacent region
+    // Build merge candidates: each thin region → best-color adjacent region.
+    // If no adjacent neighbor is close in color, pixel-BFS outward to find
+    // a nearby region that is (thin regions are small so this is affordable).
+    const MAX_THIN_CD = 20
+    const MAX_SEARCH_DIST = 60
+
+    /** Pixel BFS from thin region's border to find nearest region with cd < maxCd. */
+    const findNearbyByPixel = (tid: number, tmeta: RegionMeta): number => {
+      // Collect border pixels of this thin region
+      const border: number[] = []
+      for (let i = 0; i < pixels; i++) {
+        if (regionMap[i] !== tid) continue
+        const x = i % width
+        const ns = [
+          x > 0 ? i - 1 : -1, x < width - 1 ? i + 1 : -1,
+          i >= width ? i - width : -1, i + width < pixels ? i + width : -1,
+        ]
+        for (const n of ns) {
+          if (n >= 0 && regionMap[n] !== tid) { border.push(i); break }
+        }
+      }
+      // BFS outward with distance cap
+      const dist = new Map<number, number>()
+      for (const b of border) dist.set(b, 0)
+      const queue = [...border]
+      let head = 0
+      while (head < queue.length) {
+        const i = queue[head++]
+        const d = dist.get(i)!
+        if (d >= MAX_SEARCH_DIST) continue
+        const x = i % width
+        for (const n of [
+          x > 0 ? i - 1 : -1, x < width - 1 ? i + 1 : -1,
+          i >= width ? i - width : -1, i + width < pixels ? i + width : -1,
+        ]) {
+          if (n < 0 || dist.has(n)) continue
+          dist.set(n, d + 1)
+          const nrid = regionMap[n]
+          if (nrid >= 0 && nrid !== tid && !thinIds.has(nrid)) {
+            const nmeta = regionMeta.get(nrid)
+            if (nmeta && cdBetween(tmeta, nmeta) < MAX_THIN_CD) return nrid
+          }
+          queue.push(n)
+        }
+      }
+      return -1
+    }
+
     const candidates: { thinId: number; targetId: number; cd: number }[] = []
     for (const tid of thinIds) {
       const tmeta = regionMeta.get(tid)
@@ -338,10 +385,16 @@ export function finalizeRegions(
         if (!ameta) continue
         const cd = cdBetween(tmeta, ameta)
         const thin = thinIds.has(adjId)
-        // Prefer non-thin neighbors at equal color distance to avoid creating
-        // stillThin groups that fall through to the fallback.
         if (cd < bestCd || (cd === bestCd && bestThin && !thin)) {
           bestCd = cd; bestId = adjId; bestThin = thin
+        }
+      }
+      // If no adjacent neighbor is close in color, search outward
+      if (bestCd > MAX_THIN_CD) {
+        const nearbyId = findNearbyByPixel(tid, tmeta)
+        if (nearbyId >= 0) {
+          const nmeta = regionMeta.get(nearbyId)!
+          bestId = nearbyId; bestCd = cdBetween(tmeta, nmeta)
         }
       }
       if (bestId >= 0) {
