@@ -65,6 +65,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
   const fillRegionRef = useRef(fillRegion)
 
   const rawPaletteRef = useRef(state.rawPalette)
+  const sortedPaletteRef = useRef<number[]>([])
   useEffect(() => { rawPaletteRef.current = state.rawPalette }, [state.rawPalette])
   useEffect(() => { activeColorRef.current = activeColorIndex }, [activeColorIndex])
   useEffect(() => { regionsRef.current = regions }, [regions])
@@ -106,6 +107,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
 
     const displayNums: Record<number, number> = {}
     bestChain.forEach((colorIdx, pos) => { displayNums[colorIdx] = pos + 1 })
+    sortedPaletteRef.current = bestChain
     return { sortedPaletteIndices: bestChain, colorDisplayNumbers: displayNums }
   }, [palette])
 
@@ -501,6 +503,14 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
       if (e.key === 'w' || e.key === 'W') {
         for (const r of regionsRef.current) fillRegionRef.current(r.id, r.colorIndex)
       }
+      // Number keys 1-9, 0 select colors 1-10 in display order
+      const numKey = e.key >= '0' && e.key <= '9'
+        ? (e.key === '0' ? 10 : Number(e.key))  // '0' maps to 10th color
+        : 0
+      if (numKey > 0 && numKey <= sortedPaletteRef.current.length) {
+        const colorIdx = sortedPaletteRef.current[numKey - 1]
+        setActiveColorIndex(colorIdx)
+      }
       if (e.key === '\\') setOutlineMagenta(v => !v)
       if (e.key === 'd' || e.key === 'D') {
         setDebugStage(prev => {
@@ -714,8 +724,9 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
           const c = palette[activeColorIndex]
           return (
             <div className="toolbar-active-color" aria-label={`Selected color ${colorDisplayNumbers[activeColorIndex]}`}>
-              <div className="toolbar-active-swatch" style={{ background: `rgb(${c.r},${c.g},${c.b})` }} />
-              <span className="toolbar-active-num">{colorDisplayNumbers[activeColorIndex]}</span>
+              <div className="toolbar-active-swatch" style={{ background: `rgb(${c.r},${c.g},${c.b})` }}>
+                <span className="swatch-number">{colorDisplayNumbers[activeColorIndex]}</span>
+              </div>
             </div>
           )
         })()}
@@ -815,8 +826,9 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
               aria-label={`Color ${idx + 1}`}
               aria-pressed={isActive}
             >
-              <span className="swatch-number">{colorDisplayNumbers[idx]}</span>
-              {isComplete && <span className="swatch-check" style={{ color: checkColor }}>✓</span>}
+              {isComplete
+                ? <span className="swatch-check" style={{ color: checkColor }}>✓</span>
+                : <span className="swatch-number">{colorDisplayNumbers[idx]}</span>}
             </button>
           )
         })}
