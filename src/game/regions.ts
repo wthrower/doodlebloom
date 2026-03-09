@@ -1,4 +1,4 @@
-import { colorDist, chromaDist } from './colorDistance'
+import { colorDist, chromaDist, chroma } from './colorDistance'
 import type { PaletteColor, Region } from '../types'
 
 /** A region whose "inscribed circle" radius is smaller than this won't have
@@ -560,9 +560,14 @@ export function mergeGradientSeams(
         palette[rb.colorIndex].r, palette[rb.colorIndex].g, palette[rb.colorIndex].b
       )
       if (cd > MAX_SEAM_CHROMA) continue
-      // Low chroma distance → same hue → likely gradient → relax threshold
-      if (cd < 15) effectiveThreshold = threshold * 3
-      else if (cd < 30) effectiveThreshold = threshold * 2
+      // Relax threshold for gradient bands: scale by how saturated both colors
+      // are (low chroma = gray, hue is meaningless → no relaxation) and how
+      // close they are in hue (low chroma dist → more relaxation).
+      const pa = palette[ra.colorIndex], pb = palette[rb.colorIndex]
+      const minC = Math.min(chroma(pa.r, pa.g, pa.b), chroma(pb.r, pb.g, pb.b))
+      const satFactor = Math.min(1, minC / 40)  // 0→0 at gray, 1 at chroma≥40
+      const hueFactor = Math.max(0, 1 - cd / MAX_SEAM_CHROMA)  // 1 at cd=0, 0 at cap
+      effectiveThreshold = threshold * (1 + 4 * satFactor * hueFactor)
     }
     if (contrast >= effectiveThreshold) continue
     const [keep, drop] = ra.pixelCount >= rb.pixelCount ? [ca, cb] : [cb, ca]
