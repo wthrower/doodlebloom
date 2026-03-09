@@ -32,3 +32,9 @@ export function chromaDist(r1: number, g1: number, b1: number, r2: number, g2: n
   const da = a1 - a2, db = b1_ - b2_
   return Math.sqrt(da * da + db * db)
 }
+
+/** Minimum chroma (saturation) of a color in Lab space. */
+export function chroma(r: number, g: number, b: number): number {
+  const [, a, b_] = rgbToLab(r, g, b)
+  return Math.sqrt(a * a + b_ * b_)
+}
