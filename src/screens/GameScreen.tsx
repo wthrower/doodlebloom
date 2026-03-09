@@ -195,6 +195,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
       // Half-width range in screen pixels (thin for bright, thick for dark)
       const minHW = 0.5
       const maxHW = Math.min(3, Math.max(0.75, scale * 0.75))
+      const shortSeg = 15 // spine segments shorter than this get full smoothing (staircase artifacts)
       const t = 0.5 // Catmull-Rom tension
 
       // Catmull-Rom → cubic Bezier, clamping control vectors to chord length.
@@ -241,8 +242,11 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
         for (let i = 1; i < n - 1; i++) {
           const dx1 = pts[i][0] - pts[i-1][0], dy1 = pts[i][1] - pts[i-1][1]
           const dx2 = pts[i+1][0] - pts[i][0],  dy2 = pts[i+1][1] - pts[i][1]
-          const len = Math.hypot(dx1, dy1) * Math.hypot(dx2, dy2)
-          if (len > 0 && (dx1*dx2 + dy1*dy2) / len < 0) hwSmooth[i] = 0
+          const len1 = Math.hypot(dx1, dy1), len2 = Math.hypot(dx2, dy2)
+          const len = len1 * len2
+          // Zero half-width at sharp reversals, but only on long segments
+          // (short segments are staircase artifacts that should stay smooth)
+          if (len > 0 && (dx1*dx2 + dy1*dy2) / len < 0 && Math.min(len1, len2) > shortSeg) hwSmooth[i] = 0
         }
         const taperK = 2
         const taperFloor = 0.2
@@ -311,8 +315,12 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
           if (i === 0 || i === n - 1) { vtxCos[i] = 1; continue }
           const dx1 = pts[i][0] - pts[i-1][0], dy1 = pts[i][1] - pts[i-1][1]
           const dx2 = pts[i+1][0] - pts[i][0], dy2 = pts[i+1][1] - pts[i][1]
-          const len = Math.hypot(dx1, dy1) * Math.hypot(dx2, dy2)
-          vtxCos[i] = len > 0 ? (dx1*dx2 + dy1*dy2) / len : 1
+          const len1 = Math.hypot(dx1, dy1), len2 = Math.hypot(dx2, dy2)
+          const len = len1 * len2
+          const cos = len > 0 ? (dx1*dx2 + dy1*dy2) / len : 1
+          // Relax clamping when both segments are short (staircase artifact)
+          const blend = Math.min(1, Math.min(len1, len2) / shortSeg)
+          vtxCos[i] = cos * blend + 1 * (1 - blend)
         }
         const crSegAdaptive = (arr: [number, number][], i: number, si: number): string => {
           const p0 = arr[Math.max(0, i - 1)]
