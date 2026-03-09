@@ -4,7 +4,7 @@ import type { GameActions, GameState } from '../App'
 import type { RegionSnapshot } from '../game/regions'
 import { PillToggle } from '../components/PillToggle'
 import { REVEAL_MODE_OPTIONS } from '../types'
-import { renderPuzzle, flashRegion, buildOutlineChains, dpSimplify, mergeCollinear } from '../game/canvas'
+import { renderPuzzle, flashRegion, buildOutlineChains } from '../game/canvas'
 import type { OutlineBatch } from '../game/canvas'
 import { colorDist } from '../game/colorDistance'
 import { getRegionAt } from '../game/regions'
@@ -134,8 +134,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
 
   // --- SVG outline overlay: redraws in screen coordinates on every zoom/pan/resize ---
   // The SVG is not CSS-transformed, so its paths are rendered at screen resolution.
-  // Throttled to one update per animation frame; adaptive DP epsilon reduces point
-  // count at low zoom (fewer points = faster SVG render + fewer string ops).
+  // Throttled to one update per animation frame.
   const updateOutlineSvg = useCallback(() => {
     cancelAnimationFrame(outlineRafRef.current)
     outlineRafRef.current = requestAnimationFrame(() => {
@@ -153,16 +152,13 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
       const wrapW = wrap.clientWidth
       const wrapH = wrap.clientHeight
 
-      // Epsilon in canvas units: 1.5 preserves gentle curves better than 2
-      // while still collapsing pixel-level noise.
-      const epsilon = Math.max(1.5, 1.5 / pixelScale)
 
       // Convert canvas coords to screen coords
       const sx = (cx: number) => (ox + cx * pixelScale).toFixed(1)
       const sy = (cy: number) => (oy + cy * pixelScale).toFixed(1)
 
       // Visible canvas bounds (with small margin for curves that extend slightly outside bbox)
-      const margin = epsilon * 2
+      const margin = 3
       const visMinX = (-ox / pixelScale) - margin
       const visMinY = (-oy / pixelScale) - margin
       const visMaxX = visMinX + (wrapW / pixelScale) + margin * 2
@@ -227,7 +223,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
         if (bboxes[bi + 2] < visMinX || bboxes[bi] > visMaxX ||
             bboxes[bi + 3] < visMinY || bboxes[bi + 1] > visMaxY) continue
 
-        const pts = mergeCollinear(dpSimplify(chains[ci], epsilon), epsilon * 1.5)
+        const pts = chains[ci]
         if (pts.length < 2) continue
         const n = pts.length
 

@@ -178,7 +178,25 @@ export function buildOutlineChains(
     bboxes[i * 4 + 3] = maxY
   }
 
-  return { chains: rawChains, bboxes }
+  const epsilon = 1.5
+  const chains = rawChains.map(c => mergeCollinear(dpSimplify(c, epsilon), epsilon * 1.5))
+
+  // Recompute bboxes from simplified chains
+  const simplifiedBboxes = new Float32Array(chains.length * 4)
+  for (let i = 0; i < chains.length; i++) {
+    const c = chains[i]
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (const [x, y] of c) {
+      if (x < minX) minX = x; if (x > maxX) maxX = x
+      if (y < minY) minY = y; if (y > maxY) maxY = y
+    }
+    simplifiedBboxes[i * 4]     = minX
+    simplifiedBboxes[i * 4 + 1] = minY
+    simplifiedBboxes[i * 4 + 2] = maxX
+    simplifiedBboxes[i * 4 + 3] = maxY
+  }
+
+  return { chains, bboxes: simplifiedBboxes }
 }
 
 /** Douglas-Peucker polyline simplification (exported for zoom-adaptive use in callers). */
