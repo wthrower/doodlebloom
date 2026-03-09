@@ -1,4 +1,4 @@
-import { colorDist } from './colorDistance'
+import { colorDist, chromaDist } from './colorDistance'
 import type { PaletteColor, Region } from '../types'
 
 /** A region whose "inscribed circle" radius is smaller than this won't have
@@ -81,6 +81,20 @@ class MinHeap<T> {
     this.index.set(this.items[j], i)
     ;[this.items[i], this.items[j]] = [this.items[j], this.items[i]]
   }
+}
+
+/** Debug snapshot of the region map at a pipeline stage. */
+export interface RegionSnapshot {
+  label: string
+  regionMap: Int32Array
+  colorOf: Map<number, number>  // regionId → colorIndex
+}
+
+/** Capture a snapshot of current region state for debug visualization. */
+export function snapshotRegions(label: string, state: RegionIntermediate): RegionSnapshot {
+  const colorOf = new Map<number, number>()
+  for (const [id, meta] of state.regionMeta) colorOf.set(id, meta.colorIndex)
+  return { label, regionMap: state.regionMap.slice(), colorOf }
 }
 
 /** Opaque intermediate state passed between pipeline phases. */
@@ -283,47 +297,135 @@ export function finalizeRegions(
     })
   }
 
-  // Absorb thin regions via BFS from kept-region borders inward
+  // Absorb thin regions: first merge each thin region into its closest-color
+  // adjacent region (thin or non-thin) at the region level, then rewrite pixels.
   if (thinIds.size > 0) {
-    const thinQueue: number[] = []
+    const cdBetween = (a: RegionMeta, b: RegionMeta): number =>
+      a.colorIndex === b.colorIndex
+        ? 0
+        : palette.length > 0
+          ? colorDist(
+              palette[a.colorIndex].r, palette[a.colorIndex].g, palette[a.colorIndex].b,
+              palette[b.colorIndex].r, palette[b.colorIndex].g, palette[b.colorIndex].b
+            )
+          : 1
+
+    // Rebuild adjacency for thin regions from the pixel map (regionMeta.adjIds
+    // may be stale after mergeRegions mutations).
+    const thinAdj = new Map<number, Set<number>>()
+    for (const tid of thinIds) thinAdj.set(tid, new Set())
     for (let i = 0; i < pixels; i++) {
-      if (thinIds.has(regionMap[i])) continue
-      const x = i % width, y = Math.floor(i / width)
-      const ns = [x > 0 ? i - 1 : -1, x < width - 1 ? i + 1 : -1, y > 0 ? i - width : -1, y < height - 1 ? i + width : -1]
-      for (const n of ns) {
-        if (n >= 0 && thinIds.has(regionMap[n])) thinQueue.push(n)
+      const rid = regionMap[i]
+      if (!thinIds.has(rid)) continue
+      const x = i % width
+      const neighbors = [
+        x > 0 ? i - 1 : -1,
+        x < width - 1 ? i + 1 : -1,
+        i >= width ? i - width : -1,
+        i + width < pixels ? i + width : -1,
+      ]
+      const adj = thinAdj.get(rid)!
+      for (const n of neighbors) {
+        if (n >= 0 && regionMap[n] !== rid && regionMap[n] >= 0) adj.add(regionMap[n])
       }
     }
 
-    let tHead = 0
-    while (tHead < thinQueue.length) {
-      const i = thinQueue[tHead++]
-      if (!thinIds.has(regionMap[i])) continue
-
-      const x = i % width, y = Math.floor(i / width)
-      const ns = [x > 0 ? i - 1 : -1, x < width - 1 ? i + 1 : -1, y > 0 ? i - width : -1, y < height - 1 ? i + width : -1]
-      const smeta = regionMeta.get(regionMap[i])
-      let bestId = -1, bestScore = Infinity
-      for (const n of ns) {
-        if (n < 0 || thinIds.has(regionMap[n])) continue
-        const nrid = regionMap[n]
-        if (nrid < 0) continue
-        const nmeta = regionMeta.get(nrid)
-        if (!nmeta || !smeta) continue
-        const sc = nmeta.colorIndex === smeta.colorIndex
-          ? 0
-          : palette.length > 0
-            ? colorDist(
-                palette[smeta.colorIndex].r, palette[smeta.colorIndex].g, palette[smeta.colorIndex].b,
-                palette[nmeta.colorIndex].r, palette[nmeta.colorIndex].g, palette[nmeta.colorIndex].b
-              )
-            : 1
-        if (sc < bestScore) { bestScore = sc; bestId = nrid }
+    // Build merge candidates: each thin region → best-color adjacent region
+    const candidates: { thinId: number; targetId: number; cd: number }[] = []
+    for (const tid of thinIds) {
+      const tmeta = regionMeta.get(tid)
+      if (!tmeta) continue
+      const adj = thinAdj.get(tid)!
+      let bestId = -1, bestCd = Infinity
+      for (const adjId of adj) {
+        const ameta = regionMeta.get(adjId)
+        if (!ameta) continue
+        const cd = cdBetween(tmeta, ameta)
+        if (cd < bestCd) { bestCd = cd; bestId = adjId }
       }
-      if (bestId >= 0) {
-        regionMap[i] = bestId
+      if (bestId >= 0) candidates.push({ thinId: tid, targetId: bestId, cd: bestCd })
+    }
+    // Merge closest-color pairs first
+    candidates.sort((a, b) => a.cd - b.cd)
+
+    const thinParent = new Map<number, number>()
+    const thinFind = (x: number): number => {
+      let root = x
+      while (thinParent.has(root)) root = thinParent.get(root)!
+      while (thinParent.has(x)) { const next = thinParent.get(x)!; thinParent.set(x, root); x = next }
+      return root
+    }
+
+    for (const { thinId, targetId } of candidates) {
+      const rt = thinFind(thinId), ra = thinFind(targetId)
+      if (rt === ra) continue
+      const tmeta = regionMeta.get(rt)!, ameta = regionMeta.get(ra)!
+      const [keep, absorb] = thinIds.has(ra) && !thinIds.has(rt)
+        ? [tmeta, ameta]
+        : ameta.pixelCount >= tmeta.pixelCount
+          ? [ameta, tmeta]
+          : [tmeta, ameta]
+      thinParent.set(absorb.id, keep.id)
+      keep.pixelCount += absorb.pixelCount
+      for (const adj of absorb.adjIds) {
+        const canon = thinFind(adj)
+        if (canon === keep.id) continue
+        const adjMeta = regionMeta.get(canon)
+        if (!adjMeta) continue
+        adjMeta.adjIds.delete(absorb.id)
+        adjMeta.adjIds.add(keep.id)
+        keep.adjIds.add(canon)
+      }
+      keep.adjIds.delete(absorb.id)
+    }
+
+    // Rewrite pixels for merged thin regions
+    for (let i = 0; i < pixels; i++) {
+      if (thinIds.has(regionMap[i])) regionMap[i] = thinFind(regionMap[i])
+    }
+
+    // Pixel-level BFS fallback for any remaining thin regions
+    const stillThin = new Set<number>()
+    for (const tid of thinIds) {
+      const canon = thinFind(tid)
+      if (!thinIds.has(canon)) continue
+      stillThin.add(canon)
+    }
+
+    if (stillThin.size > 0) {
+      const thinQueue: number[] = []
+      for (let i = 0; i < pixels; i++) {
+        if (stillThin.has(regionMap[i])) continue
+        if (regionMap[i] < 0) continue
+        const x = i % width, y = Math.floor(i / width)
+        const ns = [x > 0 ? i - 1 : -1, x < width - 1 ? i + 1 : -1, y > 0 ? i - width : -1, y < height - 1 ? i + width : -1]
         for (const n of ns) {
-          if (n >= 0 && thinIds.has(regionMap[n])) thinQueue.push(n)
+          if (n >= 0 && stillThin.has(regionMap[n])) thinQueue.push(n)
+        }
+      }
+
+      let tHead = 0
+      while (tHead < thinQueue.length) {
+        const i = thinQueue[tHead++]
+        if (!stillThin.has(regionMap[i])) continue
+        const x = i % width, y = Math.floor(i / width)
+        const ns = [x > 0 ? i - 1 : -1, x < width - 1 ? i + 1 : -1, y > 0 ? i - width : -1, y < height - 1 ? i + width : -1]
+        const smeta = regionMeta.get(regionMap[i])
+        let bestId = -1, bestScore = Infinity
+        for (const n of ns) {
+          if (n < 0 || stillThin.has(regionMap[n])) continue
+          const nrid = regionMap[n]
+          if (nrid < 0) continue
+          const nmeta = regionMeta.get(nrid)
+          if (!nmeta || !smeta) continue
+          const sc = cdBetween(smeta, nmeta)
+          if (sc < bestScore) { bestScore = sc; bestId = nrid }
+        }
+        if (bestId >= 0) {
+          regionMap[i] = bestId
+          for (const n of ns) {
+            if (n >= 0 && stillThin.has(regionMap[n])) thinQueue.push(n)
+          }
         }
       }
     }
@@ -406,7 +508,8 @@ export function mergeGradientSeams(
   regionMap: Int32Array,
   imageData: ImageData,
   width: number,
-  threshold = 0.01
+  threshold = 0.01,
+  palette: PaletteColor[] = []
 ): Region[] {
   const pixels = regionMap.length
   const data = imageData.data
@@ -430,7 +533,11 @@ export function mergeGradientSeams(
     }
   }
 
-  // Union-find: merge pairs below threshold
+  // Union-find: merge pairs below threshold, guarded by chroma distance.
+  // Chroma distance (a*b* plane, ignoring lightness) distinguishes gradient
+  // bands (same hue, different brightness → low chroma dist) from real edges
+  // between different-colored regions (high chroma dist).
+  const MAX_SEAM_CHROMA = 40
   const regionById = new Map(regions.map(r => [r.id, r]))
   const parent = new Map<number, number>()
   const find = (x: number): number => {
@@ -439,11 +546,25 @@ export function mergeGradientSeams(
   }
 
   for (const [, { sum, count, ridA, ridB }] of pairs) {
-    if (sum / count >= threshold) continue
+    const contrast = sum / count
     const ca = find(ridA), cb = find(ridB)
     if (ca === cb) continue
     const ra = regionById.get(ca), rb = regionById.get(cb)
     if (!ra || !rb) continue
+    // Adaptive threshold: if regions have similar hue/chroma (gradient bands),
+    // allow higher luminance contrast. Otherwise use the strict threshold.
+    let effectiveThreshold = threshold
+    if (palette.length > 0) {
+      const cd = chromaDist(
+        palette[ra.colorIndex].r, palette[ra.colorIndex].g, palette[ra.colorIndex].b,
+        palette[rb.colorIndex].r, palette[rb.colorIndex].g, palette[rb.colorIndex].b
+      )
+      if (cd > MAX_SEAM_CHROMA) continue
+      // Low chroma distance → same hue → likely gradient → relax threshold
+      if (cd < 15) effectiveThreshold = threshold * 3
+      else if (cd < 30) effectiveThreshold = threshold * 2
+    }
+    if (contrast >= effectiveThreshold) continue
     const [keep, drop] = ra.pixelCount >= rb.pixelCount ? [ca, cb] : [cb, ca]
     parent.set(drop, keep)
   }
