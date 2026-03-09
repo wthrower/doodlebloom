@@ -89,9 +89,9 @@ export function renderPuzzle(
       // Unfilled, active color: pale pink/green diagonal stripes
       const px = i % width, py = (i / width) | 0
       const stripe = ((px + py) >> 2) & 1  // 4px diagonal stripes
-      buf[i * 4]     = stripe ? 253 : 230
-      buf[i * 4 + 1] = stripe ? 205 : 210
-      buf[i * 4 + 2] = stripe ? 229 : 250
+      buf[i * 4]     = stripe ? 253 : 210
+      buf[i * 4 + 1] = stripe ? 205 : 185
+      buf[i * 4 + 2] = stripe ? 229 : 240
       buf[i * 4 + 3] = 255
     } else {
       // Unfilled: white
