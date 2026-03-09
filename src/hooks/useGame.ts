@@ -35,7 +35,9 @@ const tick = () => new Promise<void>(r => setTimeout(r, 0))
 
 export function useGame(): [GameState, GameActions] {
   const [state, setState] = useState<GameState>(() => DEFAULT_STATE)
-  const [apiKey, setApiKeyState] = useState<string>(() => loadApiKey())
+  const [apiKey, setApiKeyState] = useState<string>(() =>
+    loadApiKey() || (import.meta.env.VITE_OPENAI_API_KEY as string) || ''
+  )
   const [processingStage, setProcessingStage] = useState<string | null>(null)
   const { persistState, restoreState, wipeState, storeImage, retrieveImage, storeRegionMap, retrieveRegionMap } = useStorage()
 

@@ -613,8 +613,8 @@ input[type="range"]::-webkit-slider-thumb {
 .toolbar-active-color {
   position: relative;
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
 }
 
 .toolbar-active-swatch {
@@ -628,7 +628,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .toolbar-active-swatch .swatch-number {
-  font-size: 0.7rem;
+  font-size: 1.2rem;
 }
 
 .progress-bar {
