@@ -266,20 +266,21 @@ export function finalizeRegions(
     }
   }
 
-  // Pole finding + thin region filter
-  const regionBest = new Map<number, { maxDist: number; bestPixel: number }>()
+  // Thin region filter: find max distance per region to identify regions
+  // too narrow for a label. Label positions are computed later, after all merges.
+  const regionMaxDist = new Map<number, number>()
   for (let i = 0; i < pixels; i++) {
     const rid = regionMap[i]
     if (rid < 0) continue
     const d = dist[i]
-    const cur = regionBest.get(rid)
-    if (!cur || d > cur.maxDist) regionBest.set(rid, { maxDist: d, bestPixel: i })
+    const cur = regionMaxDist.get(rid) ?? 0
+    if (d > cur) regionMaxDist.set(rid, d)
   }
 
   const thinIds = new Set<number>()
   const regions: Region[] = []
-  for (const [rid, best] of regionBest) {
-    if (best.maxDist < MIN_LABEL_RADIUS) {
+  for (const [rid, maxDist] of regionMaxDist) {
+    if (maxDist < MIN_LABEL_RADIUS) {
       thinIds.add(rid)
       continue
     }
@@ -287,9 +288,9 @@ export function finalizeRegions(
     regions.push({
       id: rid,
       colorIndex: meta.colorIndex,
-      centroid: { x: best.bestPixel % width, y: Math.floor(best.bestPixel / width) },
+      centroid: { x: 0, y: 0 },
       pixelCount: meta.pixelCount,
-      labelRadius: best.maxDist,
+      labelRadius: 0,
     })
   }
 
@@ -664,6 +665,74 @@ export function mergeGradientSeams(
     }
   }
   return [...merged.values()]
+}
+
+/** Find the best label position for a region: the pixel furthest from any
+ *  boundary, with ties broken by how centered it is in the region's extents. */
+function bestLabelPoint(
+  rid: number, regionMap: Int32Array, width: number, height: number,
+): { x: number; y: number; radius: number } {
+  const pixels = width * height
+  const dist = new Int32Array(pixels).fill(-1)
+  const queue: number[] = []
+  const rowMin = new Int32Array(height).fill(width)
+  const rowMax = new Int32Array(height).fill(-1)
+  const colMin = new Int32Array(width).fill(height)
+  const colMax = new Int32Array(width).fill(-1)
+
+  for (let i = 0; i < pixels; i++) {
+    if (regionMap[i] !== rid) continue
+    const x = i % width, y = (i - x) / width
+    if (x < rowMin[y]) rowMin[y] = x
+    if (x > rowMax[y]) rowMax[y] = x
+    if (y < colMin[x]) colMin[x] = y
+    if (y > colMax[x]) colMax[x] = y
+    const onBoundary =
+      x === 0 || x === width - 1 || y === 0 || y === height - 1 ||
+      regionMap[i - 1] !== rid || regionMap[i + 1] !== rid ||
+      regionMap[i - width] !== rid || regionMap[i + width] !== rid
+    if (onBoundary) { dist[i] = 0; queue.push(i) }
+  }
+
+  let head = 0
+  while (head < queue.length) {
+    const i = queue[head++]
+    const x = i % width, y = (i - x) / width
+    const d = dist[i] + 1
+    for (const n of [
+      x > 0 ? i - 1 : -1,
+      x < width - 1 ? i + 1 : -1,
+      y > 0 ? i - width : -1,
+      y < height - 1 ? i + width : -1,
+    ]) {
+      if (n >= 0 && regionMap[n] === rid && dist[n] < 0) {
+        dist[n] = d; queue.push(n)
+      }
+    }
+  }
+
+  let maxDist = 0
+  for (const i of queue) { if (dist[i] > maxDist) maxDist = dist[i] }
+
+  let bestIdx = queue[0] ?? 0, bestScore = -1
+  for (const i of queue) {
+    if (dist[i] !== maxDist) continue
+    const x = i % width, y = (i - x) / width
+    const score = Math.min(x - rowMin[y], rowMax[y] - x, y - colMin[x], colMax[x] - y)
+    if (score > bestScore) { bestScore = score; bestIdx = i }
+  }
+
+  return { x: bestIdx % width, y: Math.floor(bestIdx / width), radius: maxDist }
+}
+
+/** Recompute label positions for all regions from scratch on the final regionMap. */
+export function relabelRegions(regions: Region[], regionMap: Int32Array, width: number): void {
+  const height = regionMap.length / width
+  for (const r of regions) {
+    const lp = bestLabelPoint(r.id, regionMap, width, height)
+    r.centroid = { x: lp.x, y: lp.y }
+    r.labelRadius = lp.radius
+  }
 }
 
 export function getRegionAt(

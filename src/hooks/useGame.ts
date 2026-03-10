@@ -4,7 +4,7 @@ import type { GameState, PaletteColor, Region, Screen } from '../types'
 import { useStorage } from './useStorage'
 import { colorDist } from '../game/colorDistance'
 import { analyzeColors, assignColors, assignPixels } from '../game/quantize'
-import { buildRegions, fuseSameColorRegions, traceRegions, mergeRegions, finalizeRegions, mergeGradientSeams, snapshotRegions } from '../game/regions'
+import { buildRegions, fuseSameColorRegions, traceRegions, mergeRegions, finalizeRegions, mergeGradientSeams, snapshotRegions, relabelRegions } from '../game/regions'
 import type { RegionSnapshot } from '../game/regions'
 import { loadApiKey, saveApiKey, clearCorruptedState } from '../game/storage'
 import { recomputePalette, spreadPalette } from '../game/paletteColor'
@@ -223,6 +223,7 @@ export function useGame(): [GameState, GameActions] {
       mergeToTarget(palette, regions, colorCountRef.current)
     }
     regions = fuseSameColorRegions(regions, regionMap, cw)
+    relabelRegions(regions, regionMap, cw)
 
     // Recompute palette: most saturated pixel near the average, then spread apart
     palette = recomputePalette('saturated', regions, regionMap, imageData, palette.length)
