@@ -34,6 +34,7 @@ function clampTransform(t: Transform): Transform {
 export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggleFullscreen }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
+  const paletteRef = useRef<HTMLDivElement>(null)
   const outlineSvgRef = useRef<SVGSVGElement>(null)
   const numbersSvgRef = useRef<SVGSVGElement>(null)
   const numbersRafRef = useRef(0)
@@ -749,6 +750,21 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
     }, 'image/png')
   }, [])
 
+  // Palette scroll indicators: toggle classes for CSS triangles
+  useEffect(() => {
+    const el = paletteRef.current
+    if (!el) return
+    const update = () => {
+      el.classList.toggle('can-scroll-left', el.scrollLeft > 1)
+      el.classList.toggle('can-scroll-right', el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
+    }
+    update()
+    el.addEventListener('scroll', update, { passive: true })
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => { el.removeEventListener('scroll', update); ro.disconnect() }
+  }, [palette, sortedPaletteIndices])
+
   const filledCount = regions.filter(r => playerColors[r.id] !== undefined).length
   const totalCount = regions.length
   const progress = totalCount > 0 ? Math.round((filledCount / totalCount) * 100) : 0
@@ -850,7 +866,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
           </div>
         </div>
       ) : (
-      <div className="palette">
+      <div className="palette" ref={paletteRef}>
         {sortedPaletteIndices.map(idx => {
           const color = palette[idx]
           const { r, g, b } = color
