@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { GameActions, GameState } from '../App'
 
 const BASE = import.meta.env.BASE_URL
@@ -46,6 +46,21 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, selected
   }
 
   const onStripMouseUp = () => { dragRef.current = null }
+
+  // Scroll indicator chevrons
+  useEffect(() => {
+    const el = stripRef.current
+    if (!el) return
+    const update = () => {
+      el.classList.toggle('can-scroll-left', el.scrollLeft > 1)
+      el.classList.toggle('can-scroll-right', el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
+    }
+    update()
+    el.addEventListener('scroll', update, { passive: true })
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => { el.removeEventListener('scroll', update); ro.disconnect() }
+  }, [])
 
   const onStripClick = (e: React.MouseEvent, cb: () => void) => {
     if (dragRef.current?.dragging) { e.preventDefault(); return }

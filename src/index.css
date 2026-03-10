@@ -529,11 +529,49 @@ input[type="range"]::-webkit-slider-thumb {
   padding-bottom: 0.25rem;
   cursor: grab;
   user-select: none;
+  scrollbar-width: none;
+}
+
+.stock-strip::-webkit-scrollbar {
+  display: none;
 }
 
 .stock-strip:active {
   cursor: grabbing;
 }
+
+/* Scroll indicator triangles for stock strip */
+.stock-strip::before,
+.stock-strip::after {
+  content: '';
+  position: sticky;
+  z-index: 2;
+  flex-shrink: 0;
+  width: 12px;
+  align-self: center;
+  height: 28px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  filter: drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 1.5px #fff);
+}
+
+.stock-strip::before {
+  left: 0;
+  margin-right: -12px;
+  background: var(--color-text);
+  clip-path: polygon(100% 10%, 15% 50%, 100% 90%);
+}
+
+.stock-strip::after {
+  right: 0;
+  margin-left: -12px;
+  background: var(--color-text);
+  clip-path: polygon(0 10%, 85% 50%, 0 90%);
+}
+
+.stock-strip.can-scroll-left::before { opacity: 1; }
+.stock-strip.can-scroll-right::after { opacity: 1; }
 
 .stock-thumb-btn {
   flex: 0 0 auto;
