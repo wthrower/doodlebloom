@@ -777,10 +777,11 @@ input[type="range"]::-webkit-slider-thumb {
 
 .game-header-mini {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 0.4rem;
   flex: 1;
   min-width: 0;
+  align-self: stretch;
 }
 
 .mini-progress {
