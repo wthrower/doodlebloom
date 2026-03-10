@@ -763,6 +763,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
         <button className="btn btn-ghost btn-icon btn-small" onClick={actions.resetProgress} aria-label="Reset progress">
           <RotateCcw size={15} />
         </button>
+        <div className="game-header-spacer" />
         <div className="progress-bar">
           <div className="progress-fill" style={{ width: `${progress}%` }} />
         </div>

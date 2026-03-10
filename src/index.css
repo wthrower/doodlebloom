@@ -715,6 +715,11 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 
+.game-header-spacer {
+  flex: 1;
+  min-width: 0;
+}
+
 .progress-bar {
   flex: 1;
   height: 6px;
@@ -786,6 +791,8 @@ input[type="range"]::-webkit-slider-thumb {
   position: relative;
   width: 44px;
   height: 44px;
+  aspect-ratio: 1;
+  flex-shrink: 0;
   border-radius: var(--radius-sm);
   border: 2px solid transparent;
   cursor: pointer;
@@ -1021,10 +1028,17 @@ input[type="range"]::-webkit-slider-thumb {
   line-height: 1;
 }
 
-/* ── Narrow phones: hide progress bar ── */
+/* ── Narrow phones: hide progress bar, spacer pushes right buttons ── */
 @media (max-width: 420px) {
   .progress-bar,
   .progress-text {
+    display: none;
+  }
+}
+
+/* On wider screens the progress bar fills the gap; hide the spacer */
+@media (min-width: 421px) {
+  .game-header-spacer {
     display: none;
   }
 }
