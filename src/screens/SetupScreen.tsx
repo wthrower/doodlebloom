@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import type { GameActions, GameState } from '../App'
 import { DoodlebloomLogo } from '../components/DoodlebloomLogo'
+import { ScrollChevrons } from '../components/ScrollChevrons'
 
 const BASE = import.meta.env.BASE_URL
 
@@ -48,22 +49,7 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, selected
 
   const onStripMouseUp = () => { dragRef.current = null }
 
-  // Scroll indicator chevrons
-  useEffect(() => {
-    const el = stripRef.current
-    if (!el) return
-    const update = () => {
-      el.classList.toggle('can-scroll-left', el.scrollLeft > 1)
-      el.classList.toggle('can-scroll-right', el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
-    }
-    update()
-    el.addEventListener('scroll', update, { passive: true })
-    const ro = new ResizeObserver(update)
-    ro.observe(el)
-    return () => { el.removeEventListener('scroll', update); ro.disconnect() }
-  }, [])
-
-  const onStripClick = (e: React.MouseEvent, cb: () => void) => {
+const onStripClick = (e: React.MouseEvent, cb: () => void) => {
     if (dragRef.current?.dragging) { e.preventDefault(); return }
     cb()
   }
@@ -81,34 +67,37 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, selected
         <div className="setup-left">
           <div className="stock-section">
             <label className="stock-label">Pick an image</label>
-            <div
-              className="stock-strip"
-              ref={stripRef}
-              onMouseDown={onStripMouseDown}
-              onMouseMove={onStripMouseMove}
-              onMouseUp={onStripMouseUp}
-              onMouseLeave={onStripMouseUp}
-            >
-              {STOCK_IMAGES.map(({ file, label, thumbUrl }) => {
-                const url = `${BASE}images/${file}.png`
-                const isSelected = selectedStockUrl === url
-                return (
-                  <button
-                    key={file}
-                    className={`stock-thumb-btn${isSelected ? ' selected' : ''}`}
-                    onClick={e => onStripClick(e, () => onSelectStock(url))}
-                    aria-label={label}
-                    disabled={isGenerating}
-                  >
-                    <img
-                      src={thumbUrl}
-                      alt={label}
-                      className="stock-thumb-img"
-                    />
-                    <span className="stock-thumb-label">{label}</span>
-                  </button>
-                )
-              })}
+            <div className="scroll-chevron-wrap">
+              <ScrollChevrons scrollRef={stripRef} />
+              <div
+                className="stock-strip"
+                ref={stripRef}
+                onMouseDown={onStripMouseDown}
+                onMouseMove={onStripMouseMove}
+                onMouseUp={onStripMouseUp}
+                onMouseLeave={onStripMouseUp}
+              >
+                {STOCK_IMAGES.map(({ file, label, thumbUrl }) => {
+                  const url = `${BASE}images/${file}.png`
+                  const isSelected = selectedStockUrl === url
+                  return (
+                    <button
+                      key={file}
+                      className={`stock-thumb-btn${isSelected ? ' selected' : ''}`}
+                      onClick={e => onStripClick(e, () => onSelectStock(url))}
+                      aria-label={label}
+                      disabled={isGenerating}
+                    >
+                      <img
+                        src={thumbUrl}
+                        alt={label}
+                        className="stock-thumb-img"
+                      />
+                      <span className="stock-thumb-label">{label}</span>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           </div>
 

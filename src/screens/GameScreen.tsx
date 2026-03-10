@@ -4,6 +4,7 @@ import type { GameActions, GameState } from '../App'
 import type { RegionSnapshot } from '../game/regions'
 import { DoodlebloomLogo, DoodlebloomMini } from '../components/DoodlebloomLogo'
 import { PillToggle } from '../components/PillToggle'
+import { ScrollChevrons } from '../components/ScrollChevrons'
 import { renderPuzzle, flashRegion, buildOutlineChains } from '../game/canvas'
 import type { OutlineBatch } from '../game/canvas'
 import { colorDist } from '../game/colorDistance'
@@ -751,20 +752,6 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
     }, 'image/png')
   }, [])
 
-  // Palette scroll indicators: toggle classes for CSS triangles
-  useEffect(() => {
-    const el = paletteRef.current
-    if (!el) return
-    const update = () => {
-      el.classList.toggle('can-scroll-left', el.scrollLeft > 1)
-      el.classList.toggle('can-scroll-right', el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
-    }
-    update()
-    el.addEventListener('scroll', update, { passive: true })
-    const ro = new ResizeObserver(update)
-    ro.observe(el)
-    return () => { el.removeEventListener('scroll', update); ro.disconnect() }
-  }, [palette, sortedPaletteIndices])
 
   const filledCount = regions.filter(r => playerColors[r.id] !== undefined).length
   const totalCount = regions.length
@@ -878,31 +865,34 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
           </div>
         </div>
       ) : (
-      <div className="palette" ref={paletteRef}>
-        {sortedPaletteIndices.map(idx => {
-          const color = palette[idx]
-          const { r, g, b } = color
-          const regionsOfColor = regions.filter(region => region.colorIndex === idx)
-          if (regionsOfColor.length === 0) return null
-          const isActive = activeColorIndex === idx
-          const isComplete = regionsOfColor.every(region => playerColors[region.id] === idx)
-          const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-          const checkColor = luminance < 0.5 ? '#fff' : '#000'
-          return (
-            <button
-              key={idx}
-              className={`palette-swatch ${isActive ? 'active' : ''} ${isComplete ? 'complete' : ''}`}
-              style={{ backgroundColor: `rgb(${r},${g},${b})` }}
-              onClick={() => { if (!isComplete) setActiveColorIndex(idx) }}
-              aria-label={`Color ${idx + 1}`}
-              aria-pressed={isActive}
-            >
-              {isComplete
-                ? <span className="swatch-check" style={{ color: checkColor }}>✓</span>
-                : <span className="swatch-number">{colorDisplayNumbers[idx]}</span>}
-            </button>
-          )
-        })}
+      <div className="scroll-chevron-wrap palette-wrap">
+        <ScrollChevrons scrollRef={paletteRef} />
+        <div className="palette" ref={paletteRef}>
+          {sortedPaletteIndices.map(idx => {
+            const color = palette[idx]
+            const { r, g, b } = color
+            const regionsOfColor = regions.filter(region => region.colorIndex === idx)
+            if (regionsOfColor.length === 0) return null
+            const isActive = activeColorIndex === idx
+            const isComplete = regionsOfColor.every(region => playerColors[region.id] === idx)
+            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+            const checkColor = luminance < 0.5 ? '#fff' : '#000'
+            return (
+              <button
+                key={idx}
+                className={`palette-swatch ${isActive ? 'active' : ''} ${isComplete ? 'complete' : ''}`}
+                style={{ backgroundColor: `rgb(${r},${g},${b})` }}
+                onClick={() => { if (!isComplete) setActiveColorIndex(idx) }}
+                aria-label={`Color ${idx + 1}`}
+                aria-pressed={isActive}
+              >
+                {isComplete
+                  ? <span className="swatch-check" style={{ color: checkColor }}>✓</span>
+                  : <span className="swatch-number">{colorDisplayNumbers[idx]}</span>}
+              </button>
+            )
+          })}
+        </div>
       </div>
       )}
     </div>
