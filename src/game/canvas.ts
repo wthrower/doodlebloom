@@ -5,6 +5,7 @@ export interface RenderOptions {
   playerColors: Record<number, number>
   activeColorIndex: number | null
   originalImageData: ImageData | null
+  showHint?: boolean
 }
 
 /** A chain of (x, y) boundary grid points in canvas coordinates. */
@@ -85,8 +86,8 @@ export function renderPuzzle(
         buf[i * 4 + 2] = c.b
         buf[i * 4 + 3] = 255
       }
-    } else if (activeColorIndex !== null && region.colorIndex === activeColorIndex) {
-      // Unfilled, active color: pale pink/green diagonal stripes
+    } else if (opts.showHint && activeColorIndex !== null && region.colorIndex === activeColorIndex) {
+      // Unfilled, active color: pale pink/green diagonal stripes (hint mode)
       const px = i % width, py = (i / width) | 0
       const stripe = ((px + py) >> 2) & 1  // 4px diagonal stripes
       buf[i * 4]     = stripe ? 253 : 210

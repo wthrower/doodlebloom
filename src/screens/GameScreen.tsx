@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Maximize2, Minimize2, ScanSearch } from 'lucide-react'
+import { Lightbulb, Maximize2, Minimize2, ScanSearch } from 'lucide-react'
 import type { GameActions, GameState } from '../App'
 import type { RegionSnapshot } from '../game/regions'
 import { PillToggle } from '../components/PillToggle'
@@ -48,6 +48,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
     for (const [ci, total] of totals) { if (total > max) { max = total; dominant = ci } }
     return dominant
   })
+  const [showHint, setShowHint] = useState(false)
   const [outlineMagenta, setOutlineMagenta] = useState(false)
   const [debugStage, setDebugStage] = useState(-1)
   const [debugHover, setDebugHover] = useState<{ rid: number; ci: number; rgb: string } | null>(null)
@@ -393,7 +394,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
         const canvasFontSize = Math.max(9, Math.min(Math.round(region.labelRadius * 0.8), 28))
         const fontSize = Math.max(6, canvasFontSize * pixelScale)
         const label = displayNums[region.colorIndex] ?? region.colorIndex + 1
-        const fill = region.colorIndex === currentActive ? '#000' : 'rgba(0,0,0,0.35)'
+        const fill = region.colorIndex === currentActive ? '#2e7d32' : 'rgba(0,0,0,0.35)'
         parts.push(`<text x="${sx.toFixed(1)}" y="${sy.toFixed(1)}" font-size="${fontSize.toFixed(1)}" fill="${fill}" text-anchor="middle" dominant-baseline="central" font-family="sans-serif">${label}</text>`)
       }
       svg.innerHTML = parts.join('')
@@ -455,9 +456,10 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
       playerColors,
       activeColorIndex,
       originalImageData: originalImageDataRef.current,
+      showHint,
     })
 
-  }, [playerColors, activeColorIndex, regions, palette, showOutline, screen, canvasWidth, canvasHeight, indexMapRef, regionMapRef, originalImageDataRef])
+  }, [playerColors, activeColorIndex, regions, palette, showOutline, screen, canvasWidth, canvasHeight, indexMapRef, regionMapRef, originalImageDataRef, showHint])
 
   // Update number labels when fills, active color, or palette change
   useEffect(() => {
@@ -568,8 +570,8 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
     const wrap = wrapRef.current
     if (!canvas || !wrap) return
 
-    // Set initial cursor
-    canvas.style.cursor = CURSOR_CANT_FILL
+    // Set initial cursor on wrap (interaction surface is the whole work area)
+    wrap.style.cursor = CURSOR_CANT_FILL
 
     // Mouse pan
     let mouseDown: { x: number; y: number; tx: number; ty: number; scale: number } | null = null
@@ -583,9 +585,9 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
         const canFill = region
           && playerColorsRef.current[regionId] === undefined
           && activeColorRef.current === region.colorIndex
-        canvas.style.cursor = canFill ? CURSOR_CAN_FILL : CURSOR_CANT_FILL
+        wrap.style.cursor = canFill ? CURSOR_CAN_FILL : CURSOR_CANT_FILL
       } else {
-        canvas.style.cursor = CURSOR_CANT_FILL
+        wrap.style.cursor = CURSOR_CANT_FILL
       }
     }
 
@@ -713,23 +715,23 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
       pinchStart = null; panStart = null; tapStart = null
     }
 
-    canvas.addEventListener('mousedown', onMouseDown)
+    wrap.addEventListener('mousedown', onMouseDown)
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onMouseUp)
-    canvas.addEventListener('wheel', onWheel, { passive: false })
-    canvas.addEventListener('touchstart', onTouchStart, { passive: false })
-    canvas.addEventListener('touchmove', onTouchMove, { passive: false })
-    canvas.addEventListener('touchend', onTouchEnd, { passive: false })
-    canvas.addEventListener('touchcancel', onTouchCancel)
+    wrap.addEventListener('wheel', onWheel, { passive: false })
+    wrap.addEventListener('touchstart', onTouchStart, { passive: false })
+    wrap.addEventListener('touchmove', onTouchMove, { passive: false })
+    wrap.addEventListener('touchend', onTouchEnd, { passive: false })
+    wrap.addEventListener('touchcancel', onTouchCancel)
     return () => {
-      canvas.removeEventListener('mousedown', onMouseDown)
+      wrap.removeEventListener('mousedown', onMouseDown)
       window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('mouseup', onMouseUp)
-      canvas.removeEventListener('wheel', onWheel)
-      canvas.removeEventListener('touchstart', onTouchStart)
-      canvas.removeEventListener('touchmove', onTouchMove)
-      canvas.removeEventListener('touchend', onTouchEnd)
-      canvas.removeEventListener('touchcancel', onTouchCancel)
+      wrap.removeEventListener('wheel', onWheel)
+      wrap.removeEventListener('touchstart', onTouchStart)
+      wrap.removeEventListener('touchmove', onTouchMove)
+      wrap.removeEventListener('touchend', onTouchEnd)
+      wrap.removeEventListener('touchcancel', onTouchCancel)
     }
   }, [canvasWidth, handleTap, setTransform]) // handleTap is stable via useCallback with refs
 
@@ -772,6 +774,21 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
           <div className="progress-fill" style={{ width: `${progress}%` }} />
         </div>
         <span className="progress-text">{progress}%</span>
+        {state.screen !== 'complete' && (
+          <button
+            className="btn btn-ghost btn-icon btn-small"
+            onMouseDown={() => setShowHint(true)}
+            onMouseUp={() => setShowHint(false)}
+            onMouseLeave={() => setShowHint(false)}
+            onTouchStart={(e) => { e.preventDefault(); setShowHint(true) }}
+            onTouchEnd={(e) => { e.preventDefault(); setShowHint(false) }}
+            onTouchCancel={() => setShowHint(false)}
+            onContextMenu={(e) => e.preventDefault()}
+            aria-label="Hold to highlight regions"
+          >
+            <Lightbulb size={15} />
+          </button>
+        )}
         {isZoomed && (
           <button
             className="btn btn-ghost btn-icon btn-small"
