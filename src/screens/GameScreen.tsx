@@ -392,7 +392,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
         if (currentPlayerColors[region.id] !== undefined) continue
         const sx = ox + region.centroid.x * pixelScale
         const sy = oy + region.centroid.y * pixelScale
-        const canvasFontSize = Math.max(9, Math.min(Math.round(region.labelRadius * 0.8), 28))
+        const canvasFontSize = Math.max(9, Math.min(Math.round(region.labelRadius * 0.8), 72))
         const fontSize = Math.max(6, canvasFontSize * pixelScale)
         const label = displayNums[region.colorIndex] ?? region.colorIndex + 1
         const fill = region.colorIndex === currentActive ? '#2e7d32' : 'rgba(0,0,0,0.35)'

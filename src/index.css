@@ -796,25 +796,27 @@ input[type="range"]::-webkit-slider-thumb {
   position: sticky;
   z-index: 2;
   flex-shrink: 0;
-  width: 10px;
+  width: 12px;
   align-self: center;
   height: 28px;
-  background: rgba(0,0,0,0.3);
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.15s;
+  filter: drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 1.5px #fff);
 }
 
 .palette::before {
   left: 0;
-  margin-right: -10px;
-  clip-path: polygon(100% 0, 0 50%, 100% 100%);
+  margin-right: -12px;
+  background: var(--color-text);
+  clip-path: polygon(100% 10%, 15% 50%, 100% 90%);
 }
 
 .palette::after {
   right: 0;
-  margin-left: -10px;
-  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  margin-left: -12px;
+  background: var(--color-text);
+  clip-path: polygon(0 10%, 85% 50%, 0 90%);
 }
 
 .palette.can-scroll-left::before { opacity: 1; }

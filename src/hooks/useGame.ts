@@ -49,6 +49,7 @@ export function useGame(): [GameState, GameActions] {
   const regionMapRef = useRef<Int32Array | null>(null)
   const originalImageDataRef = useRef<ImageData | null>(null)
   const debugSnapshotsRef = useRef<RegionSnapshot[]>([])
+  const prevSessionRef = useRef<{ state: GameState; blobSize: number } | null>(null)
 
   // Restore state on mount
   useEffect(() => {
@@ -129,6 +130,35 @@ export function useGame(): [GameState, GameActions] {
   useEffect(() => { colorCountRef.current = state.colorCount }, [state.colorCount])
 
   const processImage = useCallback(async (blob: Blob) => {
+    // If same image as previous session, restore progress instead of reprocessing
+    const prev = prevSessionRef.current
+    prevSessionRef.current = null
+    if (prev && prev.state.sessionId && blob.size === prev.blobSize) {
+      const storedBlob = await retrieveImage(prev.state.sessionId)
+      if (storedBlob && storedBlob.size === blob.size) {
+        const storedRegionMap = await retrieveRegionMap(prev.state.sessionId)
+        if (storedRegionMap) {
+          const img = await loadBlobAsImage(storedBlob)
+          const { canvasWidth: cw, canvasHeight: ch } = prev.state
+          const canvas = document.createElement('canvas')
+          canvas.width = cw; canvas.height = ch
+          const ctx = canvas.getContext('2d')!
+          ctx.drawImage(img, 0, 0, cw, ch)
+          const imageData = ctx.getImageData(0, 0, cw, ch)
+          const idxMap = assignPixels(imageData.data, cw * ch, prev.state.palette)
+          indexMapRef.current = idxMap
+          regionMapRef.current = storedRegionMap
+          originalImageDataRef.current = imageData
+          basePaletteRef.current = prev.state.palette
+          fuseSameColorRegions(prev.state.regions, storedRegionMap, cw)
+          update(prev.state)
+          return
+        }
+      }
+    }
+    // Clean up stale previous session from IDB
+    if (prev?.state.sessionId) wipeState(prev.state.sessionId)
+
     const sessionId = crypto.randomUUID()
     await storeImage(sessionId, blob)
 
@@ -218,7 +248,7 @@ export function useGame(): [GameState, GameActions] {
       canvasHeight: ch,
       rawPalette,
     })
-  }, [storeImage, update])
+  }, [storeImage, retrieveImage, retrieveRegionMap, wipeState, update])
 
   const fillRegion = useCallback((regionId: number, colorIndex: number) => {
     setState(prev => {
@@ -250,14 +280,21 @@ export function useGame(): [GameState, GameActions] {
 
   const resetPuzzle = useCallback(async () => {
     const { sessionId, prompt, colorCount, showOutline } = state
+    // Stash session for potential restore if the user picks the same image
+    if (sessionId) {
+      const blob = await retrieveImage(sessionId)
+      prevSessionRef.current = blob ? { state: { ...state }, blobSize: blob.size } : null
+    } else {
+      prevSessionRef.current = null
+    }
     indexMapRef.current = null
     regionMapRef.current = null
     originalImageDataRef.current = null
-    await wipeState(sessionId)
+    // Don't wipe IDB — processImage will restore or clean up
     const next = { ...DEFAULT_STATE, prompt, colorCount, showOutline }
     persistState(next)
     setState(next)
-  }, [state, wipeState, persistState])
+  }, [state, retrieveImage, persistState])
 
   const resetProgress = useCallback(() => {
     setState(prev => {
