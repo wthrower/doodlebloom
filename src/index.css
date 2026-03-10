@@ -667,11 +667,11 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .pipeline-checklist li.done {
-  opacity: 0.35;
+  opacity: 0.55;
 }
 
 .pipeline-checklist li.pending {
-  opacity: 0.6;
+  opacity: 0.75;
 }
 
 .pipeline-check {

@@ -774,10 +774,10 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
   return (
     <div className="screen game-screen">
       <div className="game-header">
-        <button className="btn btn-ghost btn-icon btn-small" onClick={actions.resetPuzzle} aria-label="New puzzle">
+        <button className="btn btn-ghost btn-icon btn-small" onClick={actions.resetPuzzle} title="New puzzle" aria-label="New puzzle">
           <ArrowLeft size={18} />
         </button>
-        <button className="btn btn-ghost btn-icon btn-small" onClick={actions.resetProgress} aria-label="Reset progress">
+        <button className="btn btn-ghost btn-icon btn-small" onClick={actions.resetProgress} title="Reset progress" aria-label="Reset progress">
           <RotateCcw size={18} />
         </button>
         <div className="game-header-logo"><DoodlebloomLogo /></div>
@@ -803,6 +803,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
             onTouchEnd={(e) => { e.preventDefault(); setShowHint(false) }}
             onTouchCancel={() => setShowHint(false)}
             onContextMenu={(e) => e.preventDefault()}
+            title="Hold to highlight regions"
             aria-label="Hold to highlight regions"
           >
             <Lightbulb size={18} />
@@ -812,6 +813,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
           <button
             className="btn btn-ghost btn-icon btn-small"
             onClick={() => setTransform({ scale: 1, tx: 0, ty: 0 })}
+            title="Reset zoom"
             aria-label="Reset zoom"
           >
             <ScanSearch size={18} />
@@ -820,6 +822,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
         <button
           className="btn btn-ghost btn-icon btn-small"
           onClick={onToggleFullscreen}
+          title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
           aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
         >
           {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
