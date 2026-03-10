@@ -392,13 +392,16 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
       const parts: string[] = []
       for (const region of currentRegions) {
         if (currentPlayerColors[region.id] !== undefined) continue
-        const sx = ox + region.centroid.x * pixelScale
-        const sy = oy + region.centroid.y * pixelScale
-        const canvasFontSize = Math.max(9, Math.min(Math.round(region.labelRadius * 0.8), 72))
-        const fontSize = Math.max(6, canvasFontSize * pixelScale)
         const label = displayNums[region.colorIndex] ?? region.colorIndex + 1
         const fill = region.colorIndex === currentActive ? '#2e7d32' : 'rgba(0,0,0,0.35)'
-        parts.push(`<text x="${sx.toFixed(1)}" y="${sy.toFixed(1)}" font-size="${fontSize.toFixed(1)}" fill="${fill}" text-anchor="middle" dominant-baseline="central" font-family="sans-serif">${label}</text>`)
+        const labelPoints = region.labels?.length ? region.labels : [{ x: region.centroid.x, y: region.centroid.y, radius: region.labelRadius }]
+        for (const lp of labelPoints) {
+          const sx = ox + lp.x * pixelScale
+          const sy = oy + lp.y * pixelScale
+          const canvasFontSize = Math.max(9, Math.min(Math.round(lp.radius * 0.8), 72))
+          const fontSize = Math.max(6, canvasFontSize * pixelScale)
+          parts.push(`<text x="${sx.toFixed(1)}" y="${sy.toFixed(1)}" font-size="${fontSize.toFixed(1)}" fill="${fill}" text-anchor="middle" dominant-baseline="central" font-family="sans-serif">${label}</text>`)
+        }
       }
       svg.innerHTML = parts.join('')
     })

@@ -6,6 +6,13 @@ export interface PaletteColor {
   b: number
 }
 
+export interface LabelPoint {
+  x: number
+  y: number
+  /** BFS L1 distance to nearest region boundary -- used to size the number badge */
+  radius: number
+}
+
 export interface Region {
   id: number
   colorIndex: number
@@ -13,6 +20,8 @@ export interface Region {
   pixelCount: number
   /** BFS L1 distance from centroid to nearest region boundary -- used to size the number badge */
   labelRadius: number
+  /** All label points for this region (primary + one per lobe with enough space). */
+  labels: LabelPoint[]
 }
 
 export interface GameState {

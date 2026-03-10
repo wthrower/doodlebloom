@@ -1,5 +1,5 @@
 import { colorDist, chromaDist, chroma } from './colorDistance'
-import type { PaletteColor, Region } from '../types'
+import type { LabelPoint, PaletteColor, Region } from '../types'
 
 /** A region whose "inscribed circle" radius is smaller than this won't have
  *  enough room to display a legible number label -- absorb it into a neighbor. */
@@ -291,6 +291,7 @@ export function finalizeRegions(
       centroid: { x: 0, y: 0 },
       pixelCount: meta.pixelCount,
       labelRadius: 0,
+      labels: [],
     })
   }
 
@@ -667,31 +668,30 @@ export function mergeGradientSeams(
   return [...merged.values()]
 }
 
-/** Find the best label position for a region: the pixel furthest from any
- *  boundary, with ties broken by how centered it is in the region's extents. */
-function bestLabelPoint(
+/** Minimum inscribed-circle radius for a lobe to get its own label. */
+const MIN_LOBE_LABEL_RADIUS = 20
+
+/** Find label positions for a region by detecting lobes.
+ *  Computes a distance transform, thresholds it to find wide areas,
+ *  finds connected components (lobes), and places a centered label
+ *  in each lobe that has enough space. */
+function findRegionLabels(
   rid: number, regionMap: Int32Array, width: number, height: number,
-): { x: number; y: number; radius: number } {
+): LabelPoint[] {
   const pixels = width * height
   const dist = new Int32Array(pixels).fill(-1)
   const queue: number[] = []
-  const rowMin = new Int32Array(height).fill(width)
-  const rowMax = new Int32Array(height).fill(-1)
-  const colMin = new Int32Array(width).fill(height)
-  const colMax = new Int32Array(width).fill(-1)
 
+  // BFS distance-from-boundary
   for (let i = 0; i < pixels; i++) {
     if (regionMap[i] !== rid) continue
     const x = i % width, y = (i - x) / width
-    if (x < rowMin[y]) rowMin[y] = x
-    if (x > rowMax[y]) rowMax[y] = x
-    if (y < colMin[x]) colMin[x] = y
-    if (y > colMax[x]) colMax[x] = y
     const onBoundary =
       x === 0 || x === width - 1 || y === 0 || y === height - 1 ||
       regionMap[i - 1] !== rid || regionMap[i + 1] !== rid ||
       regionMap[i - width] !== rid || regionMap[i + width] !== rid
     if (onBoundary) { dist[i] = 0; queue.push(i) }
+    else dist[i] = -2  // mark as region pixel, not yet visited
   }
 
   let head = 0
@@ -705,17 +705,105 @@ function bestLabelPoint(
       y > 0 ? i - width : -1,
       y < height - 1 ? i + width : -1,
     ]) {
-      if (n >= 0 && regionMap[n] === rid && dist[n] < 0) {
+      if (n >= 0 && dist[n] === -2) {
         dist[n] = d; queue.push(n)
       }
     }
   }
 
+  // Find global max distance
   let maxDist = 0
   for (const i of queue) { if (dist[i] > maxDist) maxDist = dist[i] }
 
-  let bestIdx = queue[0] ?? 0, bestScore = -1
+  // Threshold: pixels with dist >= threshold are "wide" areas
+  const threshold = Math.max(MIN_LOBE_LABEL_RADIUS, Math.round(maxDist * 0.3))
+
+  // Find connected components among above-threshold pixels
+  const lobeId = new Int32Array(pixels).fill(-1)
+  let lobeCount = 0
   for (const i of queue) {
+    if (dist[i] < threshold || lobeId[i] >= 0) continue
+    // Flood-fill this lobe
+    const id = lobeCount++
+    const lobeQueue = [i]
+    lobeId[i] = id
+    let lh = 0
+    while (lh < lobeQueue.length) {
+      const pi = lobeQueue[lh++]
+      const px = pi % width, py = (pi - px) / width
+      for (const n of [
+        px > 0 ? pi - 1 : -1,
+        px < width - 1 ? pi + 1 : -1,
+        py > 0 ? pi - width : -1,
+        py < height - 1 ? pi + width : -1,
+      ]) {
+        if (n >= 0 && dist[n] >= threshold && lobeId[n] < 0) {
+          lobeId[n] = id; lobeQueue.push(n)
+        }
+      }
+    }
+  }
+
+  if (lobeCount === 0) {
+    // Region too small for any lobe -- single label at global max, centered
+    return [bestLabel(queue, dist, maxDist, width, height)]
+  }
+
+  // For each lobe, find the best label point
+  const lobePixels: number[][] = Array.from({ length: lobeCount }, () => [])
+  for (const i of queue) {
+    if (lobeId[i] >= 0) lobePixels[lobeId[i]].push(i)
+  }
+
+  const candidates: LabelPoint[] = []
+  for (let l = 0; l < lobeCount; l++) {
+    let lobMax = 0
+    for (const i of lobePixels[l]) { if (dist[i] > lobMax) lobMax = dist[i] }
+    if (lobMax < MIN_LOBE_LABEL_RADIUS) continue
+    candidates.push(bestLabel(lobePixels[l], dist, lobMax, width, height))
+  }
+
+  if (candidates.length === 0) {
+    return [bestLabel(queue, dist, maxDist, width, height)]
+  }
+
+  // Primary first (largest radius), then cull nearby secondaries
+  candidates.sort((a, b) => b.radius - a.radius)
+  const labels: LabelPoint[] = [candidates[0]]
+  const minSecondary = candidates[0].radius * 0.4
+  for (let i = 1; i < candidates.length; i++) {
+    const c = candidates[i]
+    if (c.radius < minSecondary || c.radius < MIN_LOBE_LABEL_RADIUS) continue
+    let tooClose = false
+    for (const k of labels) {
+      const dx = c.x - k.x, dy = c.y - k.y
+      const minSep = 8 * Math.min(c.radius, k.radius)
+      if (dx * dx + dy * dy < minSep * minSep) { tooClose = true; break }
+    }
+    if (!tooClose) labels.push(c)
+  }
+  return labels
+}
+
+/** Among pixels tied at maxDist, pick the most centered one. */
+function bestLabel(
+  pixels: number[], dist: Int32Array, maxDist: number, width: number, height: number,
+): LabelPoint {
+  // Build row/col extents for centering
+  const rowMin = new Int32Array(height).fill(width)
+  const rowMax = new Int32Array(height).fill(-1)
+  const colMin = new Int32Array(width).fill(height)
+  const colMax = new Int32Array(width).fill(-1)
+  for (const i of pixels) {
+    const x = i % width, y = (i - x) / width
+    if (x < rowMin[y]) rowMin[y] = x
+    if (x > rowMax[y]) rowMax[y] = x
+    if (y < colMin[x]) colMin[x] = y
+    if (y > colMax[x]) colMax[x] = y
+  }
+
+  let bestIdx = pixels[0] ?? 0, bestScore = -1
+  for (const i of pixels) {
     if (dist[i] !== maxDist) continue
     const x = i % width, y = (i - x) / width
     const score = Math.min(x - rowMin[y], rowMax[y] - x, y - colMin[x], colMax[x] - y)
@@ -729,9 +817,9 @@ function bestLabelPoint(
 export function relabelRegions(regions: Region[], regionMap: Int32Array, width: number): void {
   const height = regionMap.length / width
   for (const r of regions) {
-    const lp = bestLabelPoint(r.id, regionMap, width, height)
-    r.centroid = { x: lp.x, y: lp.y }
-    r.labelRadius = lp.radius
+    r.labels = findRegionLabels(r.id, regionMap, width, height)
+    r.centroid = { x: r.labels[0].x, y: r.labels[0].y }
+    r.labelRadius = r.labels[0].radius
   }
 }
 
