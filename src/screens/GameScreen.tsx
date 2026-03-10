@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Lightbulb, Maximize2, Minimize2, ScanSearch } from 'lucide-react'
+import { ArrowLeft, Lightbulb, Maximize2, Minimize2, RotateCcw, ScanSearch } from 'lucide-react'
 import type { GameActions, GameState } from '../App'
 import type { RegionSnapshot } from '../game/regions'
 import { PillToggle } from '../components/PillToggle'
@@ -757,19 +757,12 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
   return (
     <div className="screen game-screen">
       <div className="game-header">
-        <button className="btn btn-ghost btn-small" onClick={actions.resetPuzzle}>
-          New
+        <button className="btn btn-ghost btn-icon btn-small" onClick={actions.resetPuzzle} aria-label="New puzzle">
+          <ArrowLeft size={15} />
         </button>
-        {activeColorIndex !== null && state.screen !== 'complete' && (() => {
-          const c = palette[activeColorIndex]
-          return (
-            <div className="toolbar-active-color" aria-label={`Selected color ${colorDisplayNumbers[activeColorIndex]}`}>
-              <div className="toolbar-active-swatch" style={{ background: `rgb(${c.r},${c.g},${c.b})` }}>
-                <span className="swatch-number">{colorDisplayNumbers[activeColorIndex]}</span>
-              </div>
-            </div>
-          )
-        })()}
+        <button className="btn btn-ghost btn-icon btn-small" onClick={actions.resetProgress} aria-label="Reset progress">
+          <RotateCcw size={15} />
+        </button>
         <div className="progress-bar">
           <div className="progress-fill" style={{ width: `${progress}%` }} />
         </div>

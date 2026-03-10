@@ -140,7 +140,7 @@ export function SetupScreen({ state, actions, isGenerating, previewUrl, selected
 
           <div className="form-group">
             <button
-              className="btn btn-ghost btn-small api-key-toggle"
+              className="btn btn-ghost btn-small btn-spacebar api-key-toggle"
               type="button"
               onClick={() => setShowKeyInput(v => !v)}
               disabled={isGenerating}

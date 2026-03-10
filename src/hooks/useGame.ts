@@ -24,6 +24,7 @@ export interface GameActions {
   fillRegion: (regionId: number, colorIndex: number) => void
   toggleSpreadPalette: () => void
   resetPuzzle: () => Promise<void>
+  resetProgress: () => void
   indexMapRef: React.MutableRefObject<Uint8Array | null>
   regionMapRef: React.MutableRefObject<Int32Array | null>
   originalImageDataRef: React.MutableRefObject<ImageData | null>
@@ -258,6 +259,14 @@ export function useGame(): [GameState, GameActions] {
     setState(next)
   }, [state, wipeState, persistState])
 
+  const resetProgress = useCallback(() => {
+    setState(prev => {
+      const next = { ...prev, playerColors: {}, screen: 'playing' as const }
+      persistState(next)
+      return next
+    })
+  }, [persistState])
+
   const actions: GameActions = {
     setPrompt,
     setColorCount,
@@ -270,6 +279,7 @@ export function useGame(): [GameState, GameActions] {
     fillRegion,
     toggleSpreadPalette,
     resetPuzzle,
+    resetProgress,
     indexMapRef,
     regionMapRef,
     originalImageDataRef,
