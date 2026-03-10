@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Lightbulb, Maximize2, Minimize2, RotateCcw, ScanSearch } from 'lucide-react'
 import type { GameActions, GameState } from '../App'
 import type { RegionSnapshot } from '../game/regions'
+import { DoodlebloomLogo, DoodlebloomMini } from '../components/DoodlebloomLogo'
 import { PillToggle } from '../components/PillToggle'
 import { renderPuzzle, flashRegion, buildOutlineChains } from '../game/canvas'
 import type { OutlineBatch } from '../game/canvas'
@@ -774,11 +775,19 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
     <div className="screen game-screen">
       <div className="game-header">
         <button className="btn btn-ghost btn-icon btn-small" onClick={actions.resetPuzzle} aria-label="New puzzle">
-          <ArrowLeft size={15} />
+          <ArrowLeft size={18} />
         </button>
         <button className="btn btn-ghost btn-icon btn-small" onClick={actions.resetProgress} aria-label="Reset progress">
-          <RotateCcw size={15} />
+          <RotateCcw size={18} />
         </button>
+        <div className="game-header-logo"><DoodlebloomLogo /></div>
+        <div className="game-header-mini">
+          <DoodlebloomMini />
+          <div className="mini-progress">
+            <div className="mini-progress-fill" style={{ width: `${progress}%` }} />
+            <span className="mini-progress-text">{progress}%</span>
+          </div>
+        </div>
         <div className="game-header-spacer" />
         <div className="progress-bar">
           <div className="progress-fill" style={{ width: `${progress}%` }} />
@@ -796,7 +805,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
             onContextMenu={(e) => e.preventDefault()}
             aria-label="Hold to highlight regions"
           >
-            <Lightbulb size={15} />
+            <Lightbulb size={18} />
           </button>
         )}
         {isZoomed && (
@@ -805,7 +814,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
             onClick={() => setTransform({ scale: 1, tx: 0, ty: 0 })}
             aria-label="Reset zoom"
           >
-            <ScanSearch size={15} />
+            <ScanSearch size={18} />
           </button>
         )}
         <button
@@ -813,7 +822,7 @@ export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggle
           onClick={onToggleFullscreen}
           aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
         >
-          {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+          {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
         </button>
       </div>
 

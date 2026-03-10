@@ -37,6 +37,36 @@ function Daisy({ cx, cy, r }: { cx: number; cy: number; r: number }) {
   )
 }
 
+export function DoodlebloomMini() {
+  const n = 12
+  const cx = 12, cy = 12, r = 10
+  return (
+    <svg className="app-title-mini" overflow="visible" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+      <defs>
+        <filter id="flower-outline-mini" x="-20%" y="-20%" width="140%" height="140%">
+          <feMorphology operator="dilate" radius="0.4" in="SourceAlpha" result="dilated" />
+          <feFlood floodColor="#1a0f00" result="color" />
+          <feComposite in="color" in2="dilated" operator="in" result="outline" />
+          <feMerge>
+            <feMergeNode in="outline" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+      <g filter="url(#flower-outline-mini)">
+        {Array.from({ length: n }, (_, i) => (
+          <ellipse key={i}
+            cx={cx} cy={cy - r * 0.55} rx={r * 0.22} ry={r * 0.5}
+            fill="white" stroke="#e8b4b8" strokeWidth="0.4"
+            transform={`rotate(${i * 360 / n}, ${cx}, ${cy})`}
+          />
+        ))}
+        <circle cx={cx} cy={cy} r={r * 0.28} fill="#fcd357" stroke="rgba(0,0,0,0.3)" strokeWidth="0.5" />
+      </g>
+    </svg>
+  )
+}
+
 export function DoodlebloomLogo() {
   const textProps = {
     fontFamily: 'Acme, sans-serif',
