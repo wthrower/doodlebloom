@@ -1,4 +1,4 @@
-export type Screen = 'setup' | 'generating' | 'preview' | 'playing' | 'complete'
+export type Screen = 'start' | 'generating' | 'preview' | 'playing' | 'complete'
 
 export interface PaletteColor {
   r: number
@@ -44,7 +44,7 @@ export interface GameState {
 }
 
 export const DEFAULT_STATE: GameState = {
-  screen: 'setup',
+  screen: 'start',
   prompt: '',
   colorCount: 16,
   sessionId: null,

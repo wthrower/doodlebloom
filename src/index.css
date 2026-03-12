@@ -416,14 +416,14 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 /* ── Setup inline generate row ── */
-.setup-generate-row {
+.start-generate-row {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   margin-bottom: 1rem;
 }
 
-.setup-generate-row .btn-large {
+.start-generate-row .btn-large {
   margin-bottom: 0;
 }
 
@@ -472,19 +472,19 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 /* ── Setup columns ── */
-.setup-columns {
+.start-columns {
   display: flex;
   flex-direction: column;
   flex: 1;
   gap: 0;
 }
 
-.setup-left {
+.start-left {
   display: flex;
   flex-direction: column;
 }
 
-.setup-right {
+.start-right {
   display: flex;
   flex-direction: column;
 }
@@ -494,11 +494,11 @@ input[type="range"]::-webkit-slider-thumb {
   margin-top: 1rem;
 }
 
-.setup-shared-settings {
+.start-shared-settings {
   margin-top: 1rem;
 }
 
-.setup-divider {
+.start-divider {
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -507,8 +507,8 @@ input[type="range"]::-webkit-slider-thumb {
   margin: 1rem 0 0.5rem;
 }
 
-.setup-divider::before,
-.setup-divider::after {
+.start-divider::before,
+.start-divider::after {
   content: '';
   flex: 1;
   height: 1px;
@@ -853,7 +853,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .puzzle-canvas {
-  /* Cursor is set dynamically in GameScreen.tsx via CURSOR_CAN_FILL / CURSOR_CANT_FILL */
+  /* Cursor is set dynamically in PaintScreen.tsx via CURSOR_CAN_FILL / CURSOR_CANT_FILL */
   display: block;
 }
 
@@ -1157,28 +1157,28 @@ input[type="range"]::-webkit-slider-thumb {
 /* ── 768px+: desktop-friendly layout ── */
 @media (min-width: 768px) {
   /* Setup: two-column layout */
-  .setup-screen {
+  .start-screen {
     padding: 2rem 2.5rem;
     max-width: 900px;
   }
 
-  .setup-columns {
+  .start-columns {
     flex-direction: row;
     align-items: flex-start;
     gap: 2.5rem;
   }
 
-  .setup-left {
+  .start-left {
     flex: 1;
     min-width: 0;
   }
 
-  .setup-right {
+  .start-right {
     width: 280px;
     flex-shrink: 0;
   }
 
-  .setup-shared-settings {
+  .start-shared-settings {
     margin-top: 0;
   }
 
@@ -1186,7 +1186,7 @@ input[type="range"]::-webkit-slider-thumb {
     margin-top: 0;
   }
 
-  .setup-generate-row .btn-large {
+  .start-generate-row .btn-large {
     width: auto;
   }
 

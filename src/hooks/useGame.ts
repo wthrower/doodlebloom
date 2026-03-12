@@ -104,7 +104,7 @@ export function useGame(): [GameState, GameActions] {
       return
     }
 
-    setState({ ...saved, screen: 'setup' })
+    setState({ ...saved, screen: 'start' })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const update = useCallback((patch: Partial<GameState>) => {

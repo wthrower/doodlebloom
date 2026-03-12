@@ -27,7 +27,7 @@ interface Props {
   onSelectStock: (imageUrl: string) => void
 }
 
-export function SetupScreen({ state, actions, isGenerating, previewUrl, selectedStockUrl, onGenerate, onCancel, onPaint, onSelectStock }: Props) {
+export function StartScreen({ state, actions, isGenerating, previewUrl, selectedStockUrl, onGenerate, onCancel, onPaint, onSelectStock }: Props) {
   const [showKey, setShowKey] = useState(false)
   const [showKeyInput, setShowKeyInput] = useState(false)
   const stripRef = useRef<HTMLDivElement>(null)
@@ -57,14 +57,14 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
   const canGenerate = !isGenerating && state.prompt.trim().length > 0 && actions.apiKey.trim().length > 0
 
   return (
-    <div className="screen setup-screen">
+    <div className="screen start-screen">
       <h1 className="app-title-wrap" aria-label="Doodlebloom">
         <DoodlebloomLogo />
       </h1>
 
-      <div className="setup-columns">
+      <div className="start-columns">
         {/* Left: stock images + preview */}
-        <div className="setup-left">
+        <div className="start-left">
           <div className="stock-section">
             <label className="stock-label">Pick an image</label>
             <div className="scroll-chevron-wrap">
@@ -109,8 +109,8 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
         </div>
 
         {/* Right: settings + generate */}
-        <div className="setup-right">
-          <div className="setup-divider">or generate your own</div>
+        <div className="start-right">
+          <div className="start-divider">or generate your own</div>
 
           <div className="form-group">
             <label htmlFor="prompt">Prompt</label>
@@ -172,7 +172,7 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
             </div>
           )}
 
-          <div className="setup-generate-row">
+          <div className="start-generate-row">
             {isGenerating ? (
               <>
                 <div className="spinner spinner-sm" />

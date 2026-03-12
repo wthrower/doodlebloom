@@ -15,8 +15,8 @@ function useFullscreen() {
 }
 import { useGame } from './hooks/useGame'
 import { useOpenAI } from './hooks/useOpenAI'
-import { SetupScreen } from './screens/SetupScreen'
-import { GameScreen } from './screens/GameScreen'
+import { StartScreen } from './screens/StartScreen'
+import { PaintScreen } from './screens/PaintScreen'
 import { ProcessingScreen } from './screens/ProcessingScreen'
 import { saveImage, loadImage, deleteImage, loadSelectedStockUrl, saveSelectedStockUrl } from './game/storage'
 
@@ -60,7 +60,7 @@ export default function App() {
     actions.goTo('generating')
     const blob = await generate(state.prompt, actions.apiKey, getImageSize())
     if (!blob) {
-      actions.goTo('setup')
+      actions.goTo('start')
       return
     }
     previewBlobRef.current = blob
@@ -73,7 +73,7 @@ export default function App() {
 
   const handleCancel = useCallback(() => {
     cancelGenerate()
-    actions.goTo('setup')
+    actions.goTo('start')
   }, [cancelGenerate, actions])
 
   const handlePaint = useCallback(async () => {
@@ -91,7 +91,7 @@ export default function App() {
     setSelectedStockUrl(imageUrl)
     saveSelectedStockUrl(imageUrl)
     saveImage(PREVIEW_KEY, blob).catch(() => undefined)
-    actions.goTo('setup')
+    actions.goTo('start')
   }, [previewUrl, actions])
 
   const handleNewPuzzle = useCallback(async () => {
@@ -104,7 +104,7 @@ export default function App() {
     await actions.resetPuzzle()
   }, [actions, previewUrl])
 
-  const isSetupPhase = state.screen === 'setup' || state.screen === 'generating' || state.screen === 'preview'
+  const isStartPhase = state.screen === 'start' || state.screen === 'generating' || state.screen === 'preview'
 
   return (
     <div className="app">
@@ -118,8 +118,8 @@ export default function App() {
       {actions.processingStage !== null && (
         <ProcessingScreen stage={actions.processingStage} />
       )}
-      {isSetupPhase && actions.processingStage === null && (
-        <SetupScreen
+      {isStartPhase && actions.processingStage === null && (
+        <StartScreen
           state={state}
           actions={actions}
           isGenerating={state.screen === 'generating'}
@@ -132,7 +132,7 @@ export default function App() {
         />
       )}
       {(state.screen === 'playing' || state.screen === 'complete') && (
-        <GameScreen
+        <PaintScreen
           state={state}
           actions={actions}
           onNewPuzzle={handleNewPuzzle}

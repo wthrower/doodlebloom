@@ -33,7 +33,7 @@ function clampTransform(t: Transform): Transform {
   return t
 }
 
-export function GameScreen({ state, actions, onNewPuzzle, isFullscreen, onToggleFullscreen }: Props) {
+export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggleFullscreen }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const paletteRef = useRef<HTMLDivElement>(null)
