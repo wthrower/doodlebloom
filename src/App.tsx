@@ -150,7 +150,7 @@ export default function App() {
       {state.screen === 'jigswap' && previewUrl && (
         <JigswapScreen
           imageUrl={previewUrl}
-          onBack={handleNewPuzzle}
+          onBack={() => actions.goTo('start')}
           isFullscreen={isFullscreen}
           onToggleFullscreen={toggleFullscreen}
         />
