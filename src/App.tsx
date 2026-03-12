@@ -19,7 +19,7 @@ import { StartScreen } from './screens/StartScreen'
 import { PaintScreen } from './screens/PaintScreen'
 import { JigswapScreen } from './screens/JigswapScreen'
 import { ProcessingScreen } from './screens/ProcessingScreen'
-import { saveImage, loadImage, deleteImage, loadSelectedStockUrl, saveSelectedStockUrl } from './game/storage'
+import { saveImage, loadImage, loadSelectedStockUrl, saveSelectedStockUrl } from './game/storage'
 
 const PREVIEW_KEY = '__preview__'
 
@@ -100,16 +100,6 @@ export default function App() {
     actions.goTo('start')
   }, [previewUrl, actions])
 
-  const handleNewPuzzle = useCallback(async () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl)
-    setPreviewUrl(null)
-    setSelectedStockUrl(null)
-    saveSelectedStockUrl(null)
-    previewBlobRef.current = null
-    deleteImage(PREVIEW_KEY).catch(() => undefined)
-    await actions.resetPuzzle()
-  }, [actions, previewUrl])
-
   const isStartPhase = state.screen === 'start' || state.screen === 'generating' || state.screen === 'preview'
 
   return (
@@ -142,7 +132,7 @@ export default function App() {
         <PaintScreen
           state={state}
           actions={actions}
-          onNewPuzzle={handleNewPuzzle}
+          onNewPuzzle={() => actions.resetPuzzle()}
           isFullscreen={isFullscreen}
           onToggleFullscreen={toggleFullscreen}
         />

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, Maximize2, Minimize2 } from 'lucide-react'
-import { DoodlebloomMini } from '../components/DoodlebloomLogo'
+import { ArrowLeft, Download, Maximize2, Minimize2 } from 'lucide-react'
+import { DoodlebloomLogo, DoodlebloomMini } from '../components/DoodlebloomLogo'
 import { useConfetti } from '../hooks/useConfetti'
 import {
   SIZE_PRESETS,
@@ -16,6 +16,30 @@ import {
   type JigswapConfig,
 } from '../game/jigswap'
 
+const LS_KEY = 'doodlebloom_jigswap'
+
+interface JigswapState {
+  board: number[]
+  config: JigswapConfig
+  moves: number
+  won: boolean
+  imageUrl: string
+}
+
+function loadJigswapState(imageUrl: string): JigswapState | null {
+  try {
+    const raw = localStorage.getItem(LS_KEY)
+    if (!raw) return null
+    const saved = JSON.parse(raw) as JigswapState
+    if (saved.imageUrl !== imageUrl) return null
+    return saved
+  } catch { return null }
+}
+
+function saveJigswapState(state: JigswapState): void {
+  localStorage.setItem(LS_KEY, JSON.stringify(state))
+}
+
 interface Props {
   imageUrl: string
   onBack: () => void
@@ -24,10 +48,11 @@ interface Props {
 }
 
 export function JigswapScreen({ imageUrl, onBack, isFullscreen, onToggleFullscreen }: Props) {
-  const [config, setConfig] = useState<JigswapConfig>(SIZE_PRESETS[1]) // 4x6 default
-  const [board, setBoard] = useState<number[]>(() => createBoard(SIZE_PRESETS[1].cols, SIZE_PRESETS[1].rows))
-  const [won, setWon] = useState(false)
-  const [moves, setMoves] = useState(0)
+  const saved = useRef(loadJigswapState(imageUrl)).current
+  const [config, setConfig] = useState<JigswapConfig>(saved?.config ?? SIZE_PRESETS[1])
+  const [board, setBoard] = useState<number[]>(() => saved?.board ?? createBoard(SIZE_PRESETS[1].cols, SIZE_PRESETS[1].rows))
+  const [won, setWon] = useState(saved?.won ?? false)
+  const [moves, setMoves] = useState(saved?.moves ?? 0)
   const [image, setImage] = useState<HTMLImageElement | null>(null)
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
@@ -39,6 +64,26 @@ export function JigswapScreen({ imageUrl, onBack, isFullscreen, onToggleFullscre
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 })
   const [dropTargetCells, setDropTargetCells] = useState<number[] | null>(null)
+
+  // Persist state
+  useEffect(() => {
+    saveJigswapState({ board, config, moves, won, imageUrl })
+  }, [board, config, moves, won, imageUrl])
+
+  // Download handler
+  const handleDownload = useCallback(() => {
+    if (!image) return
+    const canvas = document.createElement('canvas')
+    canvas.width = image.naturalWidth
+    canvas.height = image.naturalHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.drawImage(image, 0, 0)
+    const link = document.createElement('a')
+    link.download = 'doodlebloom-jigswap.png'
+    link.href = canvas.toDataURL('image/png')
+    link.click()
+  }, [image])
 
   // Load image
   useEffect(() => {
@@ -84,6 +129,21 @@ export function JigswapScreen({ imageUrl, onBack, isFullscreen, onToggleFullscre
   // Derived: groups and hidden borders
   const groups = useMemo(() => buildGroups(board, config.cols, config.rows), [board, config])
   const hiddenBorders = useMemo(() => getHiddenBorders(board, config.cols, config.rows), [board, config])
+
+  // Cheat key (w): solve instantly
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === 'w' || e.key === 'W') {
+        const n = config.cols * config.rows
+        const solved = Array.from({ length: n }, (_, i) => i)
+        setBoard(solved)
+        setWon(true)
+        setTimeout(confetti.fire, 100)
+      }
+    }
+    window.addEventListener('keydown', down)
+    return () => window.removeEventListener('keydown', down)
+  }, [config, confetti.fire])
 
   const startNewPuzzle = useCallback((preset: JigswapConfig) => {
     setConfig(preset)
@@ -179,12 +239,15 @@ export function JigswapScreen({ imageUrl, onBack, isFullscreen, onToggleFullscre
   const pieceSrcH = imgH / config.rows
 
   return (
-    <div className="jigswap-screen">
-      <div className="jigswap-header">
-        <button className="btn-back" onClick={onBack} title="Back">
-          <ArrowLeft size={15} />
+    <div className="screen jigswap-screen">
+      <div className="game-header">
+        <button className="btn btn-ghost btn-icon btn-small" onClick={onBack} title="Back" aria-label="Back">
+          <ArrowLeft size={18} />
         </button>
-        <DoodlebloomMini />
+        <div className="game-header-logo"><DoodlebloomLogo /></div>
+        <div className="game-header-mini">
+          <DoodlebloomMini />
+        </div>
         <div className="jigswap-size-picker">
           {SIZE_PRESETS.map(p => (
             <button
@@ -197,8 +260,8 @@ export function JigswapScreen({ imageUrl, onBack, isFullscreen, onToggleFullscre
           ))}
         </div>
         <span className="jigswap-moves">{moves} moves</span>
-        <button className="btn-back" onClick={onToggleFullscreen} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
-          {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+        <button className="btn btn-ghost btn-icon btn-small" onClick={onToggleFullscreen} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
+          {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
         </button>
       </div>
 
@@ -296,14 +359,19 @@ export function JigswapScreen({ imageUrl, onBack, isFullscreen, onToggleFullscre
           })}
         </div>}
 
-        {won && (
-          <div className="jigswap-win-overlay">
-            <h2>Solved!</h2>
-            <p>{moves} moves</p>
-            <button className="btn-play" onClick={onBack}>New Puzzle</button>
-          </div>
-        )}
       </div>
+
+      {won && (
+        <div className="win-footer">
+          <div className="win-footer-title">Solved in {moves} moves!</div>
+          <div className="win-footer-actions">
+            <button className="btn btn-secondary" onClick={onBack}>New puzzle</button>
+            <button className="btn btn-primary" onClick={handleDownload}>
+              <Download size={16} /> Download
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="confetti-container" ref={confetti.ref} />
     </div>

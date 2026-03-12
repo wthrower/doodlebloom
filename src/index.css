@@ -1255,6 +1255,17 @@ input[type="range"]::-webkit-slider-thumb {
   .win-footer-actions .pill-toggle {
     width: 100%;
   }
+
+  /* JigSwap: same grid as game-screen */
+  .jigswap-screen {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    grid-template-columns: 1fr auto;
+  }
+
+  .jigswap-screen > .game-header {
+    grid-column: 1 / -1;
+  }
 }
 
 /* ── Mode buttons (Paint / JigSwap) ── */
@@ -1270,19 +1281,9 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* ── JigSwap screen ── */
 .jigswap-screen {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: 100dvh;
-  padding: 0.5rem;
-  gap: 0.5rem;
-}
-
-.jigswap-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-shrink: 0;
+  max-width: none;
+  padding: 0;
+  gap: 0;
 }
 
 .jigswap-size-picker {
