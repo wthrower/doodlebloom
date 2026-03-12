@@ -5,6 +5,7 @@ import type { RegionSnapshot } from '../game/regions'
 import { DoodlebloomLogo, DoodlebloomMini } from '../components/DoodlebloomLogo'
 import { PillToggle } from '../components/PillToggle'
 import { ScrollChevrons } from '../components/ScrollChevrons'
+import { useConfetti } from '../hooks/useConfetti'
 import { renderPuzzle, flashRegion, buildOutlineChains } from '../game/canvas'
 import type { OutlineBatch } from '../game/canvas'
 import { colorDist } from '../game/colorDistance'
@@ -36,6 +37,7 @@ function clampTransform(t: Transform): Transform {
 export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggleFullscreen }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
+  const confetti = useConfetti()
   const paletteRef = useRef<HTMLDivElement>(null)
   const outlineSvgRef = useRef<SVGSVGElement>(null)
   const numbersSvgRef = useRef<SVGSVGElement>(null)
@@ -57,6 +59,11 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
   const [debugHover, setDebugHover] = useState<{ rid: number; ci: number; rgb: string } | null>(null)
   const { palette, regions, playerColors, canvasWidth, canvasHeight, showOutline, screen } = state
   const { indexMapRef, regionMapRef, originalImageDataRef, debugSnapshotsRef, fillRegion } = actions
+  const prevScreenRef = useRef(screen)
+  useEffect(() => {
+    if (screen === 'complete' && prevScreenRef.current !== 'complete') confetti.fire()
+    prevScreenRef.current = screen
+  }, [screen, confetti.fire])
 
   // --- Refs for event handlers (avoid stale closures, avoid re-adding listeners) ---
   const transformRef = useRef<Transform>({ scale: 1, tx: 0, ty: 0 })
@@ -898,6 +905,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
         </div>
       </div>
       )}
+      <div className="confetti-container" ref={confetti.ref} />
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Maximize2, Minimize2 } from 'lucide-react'
 import { DoodlebloomMini } from '../components/DoodlebloomLogo'
+import { useConfetti } from '../hooks/useConfetti'
 import {
   SIZE_PRESETS,
   createBoard,
@@ -30,7 +31,7 @@ export function JigswapScreen({ imageUrl, onBack, isFullscreen, onToggleFullscre
   const [image, setImage] = useState<HTMLImageElement | null>(null)
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
-  const confettiRef = useRef<HTMLDivElement>(null)
+  const confetti = useConfetti()
 
   // Drag state
   const [dragGroup, setDragGroup] = useState<Set<number> | null>(null)
@@ -94,31 +95,6 @@ export function JigswapScreen({ imageUrl, onBack, isFullscreen, onToggleFullscre
     setDropTargetCells(null)
   }, [])
 
-  // Confetti!
-  const fireConfetti = useCallback(() => {
-    const el = confettiRef.current
-    if (!el) return
-    const colors = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff6bb5', '#c084fc']
-    const pieces: HTMLDivElement[] = []
-    for (let i = 0; i < 80; i++) {
-      const piece = document.createElement('div')
-      piece.style.cssText = `
-        position: absolute;
-        width: ${6 + Math.random() * 8}px;
-        height: ${6 + Math.random() * 8}px;
-        background: ${colors[Math.floor(Math.random() * colors.length)]};
-        left: ${Math.random() * 100}%;
-        top: -10px;
-        border-radius: ${Math.random() > 0.5 ? '50%' : '2px'};
-        animation: confettiFall ${1.5 + Math.random() * 2}s linear forwards;
-        animation-delay: ${Math.random() * 0.5}s;
-        opacity: 0.9;
-      `
-      el.appendChild(piece)
-      pieces.push(piece)
-    }
-    setTimeout(() => pieces.forEach(p => p.remove()), 4000)
-  }, [])
 
   // Pointer handlers for drag
   const handlePointerDown = useCallback((e: React.PointerEvent, cellIndex: number) => {
@@ -187,13 +163,13 @@ export function JigswapScreen({ imageUrl, onBack, isFullscreen, onToggleFullscre
       setMoves(m => m + 1)
       if (isSolved(newBoard)) {
         setWon(true)
-        setTimeout(fireConfetti, 100)
+        setTimeout(confetti.fire, 100)
       }
     }
     setDragGroup(null)
     setDragCell(null)
     setDropTargetCells(null)
-  }, [dragGroup, dragCell, dropTargetCells, board, fireConfetti])
+  }, [dragGroup, dragCell, dropTargetCells, board, confetti.fire])
 
   const ready = !!image && !!gridLayout
   const { gridW, gridH, cellSize } = gridLayout ?? { gridW: 0, gridH: 0, cellSize: 0 }
@@ -329,7 +305,7 @@ export function JigswapScreen({ imageUrl, onBack, isFullscreen, onToggleFullscre
         )}
       </div>
 
-      <div className="confetti-container" ref={confettiRef} />
+      <div className="confetti-container" ref={confetti.ref} />
     </div>
   )
 }
