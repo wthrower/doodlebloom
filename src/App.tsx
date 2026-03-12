@@ -18,6 +18,7 @@ import { useOpenAI } from './hooks/useOpenAI'
 import { StartScreen } from './screens/StartScreen'
 import { PaintScreen } from './screens/PaintScreen'
 import { JigswapScreen } from './screens/JigswapScreen'
+import { SlideScreen } from './screens/SlideScreen'
 import { ProcessingScreen } from './screens/ProcessingScreen'
 import { saveImage, loadImage, loadSelectedStockUrl, saveSelectedStockUrl } from './game/storage'
 
@@ -87,6 +88,11 @@ export default function App() {
     actions.goTo('jigswap')
   }, [previewUrl, actions])
 
+  const handleSlide = useCallback(() => {
+    if (!previewUrl) return
+    actions.goTo('slide')
+  }, [previewUrl, actions])
+
   const handleSelectStock = useCallback(async (imageUrl: string) => {
     const response = await fetch(imageUrl)
     const blob = await response.blob()
@@ -125,6 +131,7 @@ export default function App() {
           onCancel={handleCancel}
           onPaint={handlePaint}
           onJigswap={handleJigswap}
+          onSlide={handleSlide}
           onSelectStock={handleSelectStock}
         />
       )}
@@ -139,6 +146,14 @@ export default function App() {
       )}
       {state.screen === 'jigswap' && previewUrl && (
         <JigswapScreen
+          imageUrl={previewUrl}
+          onBack={() => actions.goTo('start')}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={toggleFullscreen}
+        />
+      )}
+      {state.screen === 'slide' && previewUrl && (
+        <SlideScreen
           imageUrl={previewUrl}
           onBack={() => actions.goTo('start')}
           isFullscreen={isFullscreen}

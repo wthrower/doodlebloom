@@ -239,7 +239,7 @@ export function JigswapScreen({ imageUrl, onBack, isFullscreen, onToggleFullscre
   const pieceSrcH = imgH / config.rows
 
   return (
-    <div className="screen jigswap-screen">
+    <div className="screen game-screen jigswap-screen">
       <div className="game-header">
         <button className="btn btn-ghost btn-icon btn-small" onClick={onBack} title="Back" aria-label="Back">
           <ArrowLeft size={18} />
@@ -266,7 +266,7 @@ export function JigswapScreen({ imageUrl, onBack, isFullscreen, onToggleFullscre
       </div>
 
       <div
-        className="jigswap-container"
+        className="puzzle-container"
         ref={containerRef}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}

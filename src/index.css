@@ -1256,14 +1256,16 @@ input[type="range"]::-webkit-slider-thumb {
     width: 100%;
   }
 
-  /* JigSwap: same grid as game-screen */
-  .jigswap-screen {
+  /* Puzzle screens (JigSwap, Slide): same grid as game-screen */
+  .jigswap-screen,
+  .puzzle-screen {
     display: grid;
     grid-template-rows: auto 1fr;
     grid-template-columns: 1fr auto;
   }
 
-  .jigswap-screen > .game-header {
+  .jigswap-screen > .game-header,
+  .puzzle-screen > .game-header {
     grid-column: 1 / -1;
   }
 }
@@ -1279,11 +1281,15 @@ input[type="range"]::-webkit-slider-thumb {
   flex: 1;
 }
 
-/* ── JigSwap screen ── */
-.jigswap-screen {
-  max-width: none;
-  padding: 0;
-  gap: 0;
+/* ── Puzzle screens (shared: JigSwap, Slide) ── */
+.puzzle-container {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  touch-action: none;
 }
 
 .jigswap-size-picker {
@@ -1319,15 +1325,6 @@ input[type="range"]::-webkit-slider-thumb {
   white-space: nowrap;
 }
 
-.jigswap-container {
-  position: relative;
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 0;
-  touch-action: none;
-}
 
 .jigswap-grid {
   position: relative;
@@ -1433,6 +1430,69 @@ input[type="range"]::-webkit-slider-thumb {
 @keyframes jigswapFadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+/* ── Slide puzzle ── */
+.slide-grid {
+  position: relative;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.15);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.slide-cell {
+  position: absolute;
+  cursor: pointer;
+  border-radius: 2px;
+  overflow: hidden;
+  border-top: 2px solid rgba(255, 255, 255, 0.5);
+  border-left: 2px solid rgba(255, 255, 255, 0.35);
+  border-right: 2px solid rgba(0, 0, 0, 0.35);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.4);
+  box-shadow: 1px 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+.slide-cell.correct {
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.slide-cell-empty {
+  cursor: default;
+  background: transparent;
+}
+
+.slide-cell.dragging {
+  z-index: 100;
+  cursor: grabbing;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.slide-cell.solved {
+  cursor: default;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.slide-number {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.6);
+  -webkit-text-stroke: 2px black;
+  paint-order: stroke fill;
+  line-height: 1;
+  pointer-events: none;
+  transition: font-size 0.15s ease;
+}
+
+.slide-cell.correct .slide-number {
+  font-size: 1.25rem;
 }
 
 /* Confetti */

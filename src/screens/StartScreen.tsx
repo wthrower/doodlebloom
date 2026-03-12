@@ -25,10 +25,11 @@ interface Props {
   onCancel: () => void
   onPaint: () => void
   onJigswap: () => void
+  onSlide: () => void
   onSelectStock: (imageUrl: string) => void
 }
 
-export function StartScreen({ state, actions, isGenerating, previewUrl, selectedStockUrl, onGenerate, onCancel, onPaint, onJigswap, onSelectStock }: Props) {
+export function StartScreen({ state, actions, isGenerating, previewUrl, selectedStockUrl, onGenerate, onCancel, onPaint, onJigswap, onSlide, onSelectStock }: Props) {
   const [showKey, setShowKey] = useState(false)
   const [showKeyInput, setShowKeyInput] = useState(false)
   const stripRef = useRef<HTMLDivElement>(null)
@@ -115,6 +116,7 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
             <div className="mode-buttons">
               <button className="btn btn-primary btn-large" onClick={onPaint}>Paint!</button>
               <button className="btn btn-secondary btn-large" onClick={onJigswap}>JigSwap!</button>
+              <button className="btn btn-secondary btn-large" onClick={onSlide}>Slide!</button>
             </div>
           )}
           <div className="start-divider">or generate your own</div>

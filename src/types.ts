@@ -1,4 +1,4 @@
-export type Screen = 'start' | 'generating' | 'preview' | 'playing' | 'complete' | 'jigswap'
+export type Screen = 'start' | 'generating' | 'preview' | 'playing' | 'complete' | 'jigswap' | 'slide'
 
 export interface PaletteColor {
   r: number
