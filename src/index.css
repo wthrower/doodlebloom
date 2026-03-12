@@ -1256,3 +1256,196 @@ input[type="range"]::-webkit-slider-thumb {
     width: 100%;
   }
 }
+
+/* ── Mode buttons (Paint / JigSwap) ── */
+.mode-buttons {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.mode-buttons .btn-large {
+  flex: 1;
+}
+
+/* ── JigSwap screen ── */
+.jigswap-screen {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100dvh;
+  padding: 0.5rem;
+  gap: 0.5rem;
+}
+
+.jigswap-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.jigswap-size-picker {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.jigswap-size-picker .size-btn {
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  color: var(--color-text);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.jigswap-size-picker .size-btn:hover {
+  border-color: var(--color-accent);
+}
+
+.jigswap-size-picker .size-btn.selected {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.jigswap-moves {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.jigswap-container {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  touch-action: none;
+}
+
+.jigswap-grid {
+  position: relative;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.15);
+}
+
+.jigswap-piece {
+  position: absolute;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.jigswap-piece:active,
+.jigswap-piece.dragging {
+  cursor: grabbing;
+}
+
+.jigswap-piece.dragging {
+  z-index: 100;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  opacity: 0.92;
+}
+
+.jigswap-piece.drop-target {
+  box-shadow: inset 0 0 0 3px var(--color-accent);
+  background: rgba(108, 99, 255, 0.25);
+}
+
+.jigswap-piece.solved {
+  cursor: default;
+}
+
+/* Piece borders */
+.piece-border {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.piece-border-top {
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.piece-border-right {
+  top: 0; right: 0; bottom: 0;
+  width: 1px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.piece-border-bottom {
+  bottom: 0; left: 0; right: 0;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.piece-border-left {
+  top: 0; left: 0; bottom: 0;
+  width: 1px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* Win overlay */
+.jigswap-win-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 4px;
+  animation: jigswapFadeIn 0.5s ease;
+}
+
+.jigswap-win-overlay h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.jigswap-win-overlay p {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 1rem;
+}
+
+.jigswap-win-overlay .btn-play {
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  padding: 0.6rem 1.5rem;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@keyframes jigswapFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Confetti */
+.confetti-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+@keyframes confettiFall {
+  to {
+    top: 110vh;
+    transform: rotate(720deg);
+  }
+}

@@ -17,6 +17,7 @@ import { useGame } from './hooks/useGame'
 import { useOpenAI } from './hooks/useOpenAI'
 import { StartScreen } from './screens/StartScreen'
 import { PaintScreen } from './screens/PaintScreen'
+import { JigswapScreen } from './screens/JigswapScreen'
 import { ProcessingScreen } from './screens/ProcessingScreen'
 import { saveImage, loadImage, deleteImage, loadSelectedStockUrl, saveSelectedStockUrl } from './game/storage'
 
@@ -81,6 +82,11 @@ export default function App() {
     await actions.processImage(previewBlobRef.current)
   }, [actions])
 
+  const handleJigswap = useCallback(() => {
+    if (!previewUrl) return
+    actions.goTo('jigswap')
+  }, [previewUrl, actions])
+
   const handleSelectStock = useCallback(async (imageUrl: string) => {
     const response = await fetch(imageUrl)
     const blob = await response.blob()
@@ -128,6 +134,7 @@ export default function App() {
           onGenerate={handleGenerate}
           onCancel={handleCancel}
           onPaint={handlePaint}
+          onJigswap={handleJigswap}
           onSelectStock={handleSelectStock}
         />
       )}
@@ -136,6 +143,14 @@ export default function App() {
           state={state}
           actions={actions}
           onNewPuzzle={handleNewPuzzle}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={toggleFullscreen}
+        />
+      )}
+      {state.screen === 'jigswap' && previewUrl && (
+        <JigswapScreen
+          imageUrl={previewUrl}
+          onBack={handleNewPuzzle}
           isFullscreen={isFullscreen}
           onToggleFullscreen={toggleFullscreen}
         />

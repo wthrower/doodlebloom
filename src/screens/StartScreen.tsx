@@ -24,10 +24,11 @@ interface Props {
   onGenerate: () => void
   onCancel: () => void
   onPaint: () => void
+  onJigswap: () => void
   onSelectStock: (imageUrl: string) => void
 }
 
-export function StartScreen({ state, actions, isGenerating, previewUrl, selectedStockUrl, onGenerate, onCancel, onPaint, onSelectStock }: Props) {
+export function StartScreen({ state, actions, isGenerating, previewUrl, selectedStockUrl, onGenerate, onCancel, onPaint, onJigswap, onSelectStock }: Props) {
   const [showKey, setShowKey] = useState(false)
   const [showKeyInput, setShowKeyInput] = useState(false)
   const stripRef = useRef<HTMLDivElement>(null)
@@ -102,14 +103,20 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
           </div>
 
           {previewUrl && !isGenerating && (
-            <div className="preview-inline" onClick={onPaint} title="Paint!">
+            <div className="preview-inline">
               <img src={previewUrl} alt="Selected" className="preview-inline-img" />
             </div>
           )}
         </div>
 
-        {/* Right: settings + generate */}
+        {/* Right: mode buttons + generate */}
         <div className="start-right">
+          {previewUrl && !isGenerating && (
+            <div className="mode-buttons">
+              <button className="btn btn-primary btn-large" onClick={onPaint}>Paint!</button>
+              <button className="btn btn-secondary btn-large" onClick={onJigswap}>JigSwap!</button>
+            </div>
+          )}
           <div className="start-divider">or generate your own</div>
 
           <div className="form-group">
@@ -180,16 +187,9 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                 <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
               </>
             ) : (
-              <>
-                <button className="btn btn-primary btn-large" onClick={onGenerate} disabled={!canGenerate}>
-                  Generate
-                </button>
-                {previewUrl && (
-                  <button className="btn btn-secondary btn-large" onClick={onPaint}>
-                    Paint!
-                  </button>
-                )}
-              </>
+              <button className="btn btn-primary btn-large" onClick={onGenerate} disabled={!canGenerate}>
+                Generate
+              </button>
             )}
           </div>
         </div>
