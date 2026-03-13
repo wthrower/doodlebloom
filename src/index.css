@@ -628,6 +628,8 @@ input[type="range"]::-webkit-slider-thumb {
   color: var(--color-text-muted);
 }
 
+
+
 /* ── Generating screen (standalone, no longer used in main flow) ── */
 .generating-screen {
   align-items: center;
@@ -1010,6 +1012,48 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .win-footer-actions .btn {
+  flex: 1;
+}
+
+/* ── Resume overlay ── */
+.resume-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 30, 10, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  backdrop-filter: blur(2px);
+}
+
+.resume-dialog {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 1.5rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  max-width: 300px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+.resume-dialog p {
+  font-size: 1.125rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.resume-actions {
+  display: flex;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.resume-actions .btn {
   flex: 1;
 }
 

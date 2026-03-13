@@ -114,7 +114,7 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
         <div className="start-right">
           {previewUrl && !isGenerating && (
             <div className="mode-buttons">
-              <button className="btn btn-primary btn-large" onClick={onPaint}>Paint!</button>
+              <button className="btn btn-secondary btn-large" onClick={onPaint}>Paint!</button>
               <button className="btn btn-secondary btn-large" onClick={onJigswap}>JigSwap!</button>
               <button className="btn btn-secondary btn-large" onClick={onSlide}>Slide!</button>
             </div>

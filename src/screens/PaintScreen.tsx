@@ -18,6 +18,8 @@ interface Props {
   onNewPuzzle: () => void
   isFullscreen: boolean
   onToggleFullscreen: () => void
+  hasSaved: boolean
+  onStartFresh: () => void
 }
 
 interface Transform { scale: number; tx: number; ty: number }
@@ -34,7 +36,8 @@ function clampTransform(t: Transform): Transform {
   return t
 }
 
-export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggleFullscreen }: Props) {
+export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggleFullscreen, hasSaved, onStartFresh }: Props) {
+  const [showResumePrompt, setShowResumePrompt] = useState(hasSaved)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const confetti = useConfetti()
@@ -905,6 +908,18 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
         </div>
       </div>
       )}
+      {showResumePrompt && (
+        <div className="resume-overlay">
+          <div className="resume-dialog">
+            <p>Resume previous game?</p>
+            <div className="resume-actions">
+              <button className="btn btn-secondary" onClick={() => { setShowResumePrompt(false); onStartFresh() }}>Start New</button>
+              <button className="btn btn-primary" onClick={() => setShowResumePrompt(false)}>Resume</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="confetti-container" ref={confetti.ref} />
     </div>
   )

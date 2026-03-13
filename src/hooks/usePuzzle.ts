@@ -8,22 +8,22 @@ interface PuzzleState {
   config: PuzzleConfig
   moves: number
   won: boolean
-  imageUrl: string
 }
 
-/** Load/save puzzle state from localStorage, keyed by storageKey + imageUrl match. */
-function loadState(storageKey: string, imageUrl: string): PuzzleState | null {
+function loadState(storageKey: string): PuzzleState | null {
   try {
     const raw = localStorage.getItem(storageKey)
     if (!raw) return null
-    const saved = JSON.parse(raw) as PuzzleState
-    if (saved.imageUrl !== imageUrl) return null
-    return saved
+    return JSON.parse(raw) as PuzzleState
   } catch { return null }
 }
 
 function saveState(storageKey: string, state: PuzzleState): void {
   localStorage.setItem(storageKey, JSON.stringify(state))
+}
+
+export function clearPuzzleStorage(storageKey: string): void {
+  localStorage.removeItem(storageKey)
 }
 
 /** Shared image loader. */
@@ -104,21 +104,22 @@ export function useDownload(image: HTMLImageElement | null, filename: string) {
 /**
  * Core puzzle state: board, config, moves, won.
  * Handles localStorage persistence and new-puzzle reset.
+ * When resumeSaved is false, saved state is ignored and a fresh board is created.
  */
 export function usePuzzleState(
   storageKey: string,
-  imageUrl: string,
   createBoard: (cols: number, rows: number) => number[],
+  resumeSaved: boolean,
 ) {
-  const saved = useRef(loadState(storageKey, imageUrl)).current
+  const saved = useRef(resumeSaved ? loadState(storageKey) : null).current
   const [config, setConfig] = useState<PuzzleConfig>(saved?.config ?? SIZE_PRESETS[1])
   const [board, setBoard] = useState<number[]>(() => saved?.board ?? createBoard(SIZE_PRESETS[1].cols, SIZE_PRESETS[1].rows))
   const [won, setWon] = useState(saved?.won ?? false)
   const [moves, setMoves] = useState(saved?.moves ?? 0)
 
   useEffect(() => {
-    saveState(storageKey, { board, config, moves, won, imageUrl })
-  }, [storageKey, board, config, moves, won, imageUrl])
+    saveState(storageKey, { board, config, moves, won })
+  }, [storageKey, board, config, moves, won])
 
   const startNewPuzzle = useCallback((preset: PuzzleConfig) => {
     setConfig(preset)

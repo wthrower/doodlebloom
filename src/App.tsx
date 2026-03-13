@@ -20,7 +20,7 @@ import { PaintScreen } from './screens/PaintScreen'
 import { JigswapScreen } from './screens/JigswapScreen'
 import { SlideScreen } from './screens/SlideScreen'
 import { ProcessingScreen } from './screens/ProcessingScreen'
-import { saveImage, loadImage, loadSelectedStockUrl, saveSelectedStockUrl } from './game/storage'
+import { saveImage, loadImage, loadSelectedStockUrl, saveSelectedStockUrl, hasSavedPuzzle, hasSavedPaint, loadPuzzleImage, savePuzzleImage } from './game/storage'
 
 const PREVIEW_KEY = '__preview__'
 
@@ -38,6 +38,15 @@ export default function App() {
   const [selectedStockUrl, setSelectedStockUrl] = useState<string | null>(() => loadSelectedStockUrl())
   const [genError, setGenError] = useState<string | null>(null)
 
+  // Per-mode resume state
+  const [jigswapImageUrl, setJigswapImageUrl] = useState<string | null>(null)
+  const [jigswapBlob, setJigswapBlob] = useState<Blob | null>(null)
+  const [jigswapHasSaved, setJigswapHasSaved] = useState(false)
+  const [slideImageUrl, setSlideImageUrl] = useState<string | null>(null)
+  const [slideBlob, setSlideBlob] = useState<Blob | null>(null)
+  const [slideHasSaved, setSlideHasSaved] = useState(false)
+  const [paintHasSaved, setPaintHasSaved] = useState(false)
+
   // Restore preview image from IDB on mount
   useEffect(() => {
     loadImage(PREVIEW_KEY).then(blob => {
@@ -46,6 +55,9 @@ export default function App() {
       setPreviewUrl(URL.createObjectURL(blob))
     })
   }, [])
+
+  // Detect if paint was auto-restored on mount (hasSavedPaint reads localStorage synchronously)
+  const [paintAutoRestored, setPaintAutoRestored] = useState(() => hasSavedPaint())
 
   // Available puzzle width is capped by the container max-width (540px).
   // Available puzzle height is the viewport minus approximate UI chrome.
@@ -80,18 +92,49 @@ export default function App() {
 
   const handlePaint = useCallback(async () => {
     if (!previewBlobRef.current) return
+    setPaintHasSaved(false)
     await actions.processImage(previewBlobRef.current)
   }, [actions])
 
-  const handleJigswap = useCallback(() => {
-    if (!previewUrl) return
+  const handleJigswap = useCallback(async () => {
+    if (hasSavedPuzzle('jigswap')) {
+      const savedBlob = await loadPuzzleImage('jigswap')
+      if (savedBlob) {
+        if (jigswapImageUrl) URL.revokeObjectURL(jigswapImageUrl)
+        const url = URL.createObjectURL(savedBlob)
+        setJigswapImageUrl(url)
+        setJigswapBlob(savedBlob)
+        setJigswapHasSaved(true)
+        actions.goTo('jigswap')
+        return
+      }
+    }
+    if (!previewUrl || !previewBlobRef.current) return
+    setJigswapImageUrl(previewUrl)
+    setJigswapBlob(previewBlobRef.current)
+    setJigswapHasSaved(false)
     actions.goTo('jigswap')
-  }, [previewUrl, actions])
+  }, [previewUrl, actions, jigswapImageUrl])
 
-  const handleSlide = useCallback(() => {
-    if (!previewUrl) return
+  const handleSlide = useCallback(async () => {
+    if (hasSavedPuzzle('slide')) {
+      const savedBlob = await loadPuzzleImage('slide')
+      if (savedBlob) {
+        if (slideImageUrl) URL.revokeObjectURL(slideImageUrl)
+        const url = URL.createObjectURL(savedBlob)
+        setSlideImageUrl(url)
+        setSlideBlob(savedBlob)
+        setSlideHasSaved(true)
+        actions.goTo('slide')
+        return
+      }
+    }
+    if (!previewUrl || !previewBlobRef.current) return
+    setSlideImageUrl(previewUrl)
+    setSlideBlob(previewBlobRef.current)
+    setSlideHasSaved(false)
     actions.goTo('slide')
-  }, [previewUrl, actions])
+  }, [previewUrl, actions, slideImageUrl])
 
   const handleSelectStock = useCallback(async (imageUrl: string) => {
     const response = await fetch(imageUrl)
@@ -142,19 +185,38 @@ export default function App() {
           onNewPuzzle={() => actions.resetPuzzle()}
           isFullscreen={isFullscreen}
           onToggleFullscreen={toggleFullscreen}
+          hasSaved={paintHasSaved || paintAutoRestored}
+          onStartFresh={async () => {
+            setPaintAutoRestored(false)
+            setPaintHasSaved(false)
+            // resetPuzzle goes to start screen; processImage will go to processing then playing
+            await actions.resetPuzzle()
+            if (previewBlobRef.current) {
+              await actions.processImage(previewBlobRef.current)
+            }
+            // If no preview blob loaded yet, user lands on start screen and can pick an image
+          }}
         />
       )}
-      {state.screen === 'jigswap' && previewUrl && (
+      {state.screen === 'jigswap' && jigswapImageUrl && jigswapBlob && (
         <JigswapScreen
-          imageUrl={previewUrl}
+          imageUrl={jigswapImageUrl}
+          imageBlob={jigswapBlob}
+          hasSaved={jigswapHasSaved}
+          previewUrl={previewUrl ?? jigswapImageUrl}
+          previewBlob={previewBlobRef.current ?? jigswapBlob}
           onBack={() => actions.goTo('start')}
           isFullscreen={isFullscreen}
           onToggleFullscreen={toggleFullscreen}
         />
       )}
-      {state.screen === 'slide' && previewUrl && (
+      {state.screen === 'slide' && slideImageUrl && slideBlob && (
         <SlideScreen
-          imageUrl={previewUrl}
+          imageUrl={slideImageUrl}
+          imageBlob={slideBlob}
+          hasSaved={slideHasSaved}
+          previewUrl={previewUrl ?? slideImageUrl}
+          previewBlob={previewBlobRef.current ?? slideBlob}
           onBack={() => actions.goTo('start')}
           isFullscreen={isFullscreen}
           onToggleFullscreen={toggleFullscreen}

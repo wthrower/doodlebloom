@@ -281,8 +281,9 @@ export function useGame(): [GameState, GameActions] {
 
   const resetPuzzle = useCallback(async () => {
     const { sessionId, prompt, colorCount, showOutline } = state
-    // Stash session for potential restore if the user picks the same image
-    if (sessionId) {
+    // Stash in-progress session for potential restore if the user picks the same image
+    // Don't stash completed games -- those shouldn't be resumable
+    if (sessionId && state.screen === 'playing') {
       const blob = await retrieveImage(sessionId)
       prevSessionRef.current = blob ? { state: { ...state }, blobSize: blob.size } : null
     } else {

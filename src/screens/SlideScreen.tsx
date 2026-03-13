@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useConfetti } from '../hooks/useConfetti'
-import { useImage, useContainerSize, useGridLayout, useDownload, usePuzzleState } from '../hooks/usePuzzle'
+import { useImage, useContainerSize, useGridLayout, useDownload, usePuzzleState, clearPuzzleStorage } from '../hooks/usePuzzle'
 import { GameHeader, WinFooter } from '../components/PuzzleChrome'
+import { clearPuzzleState, savePuzzleImage } from '../game/storage'
 import {
   createBoard,
   isSolved,
@@ -16,14 +17,32 @@ import {
 
 interface Props {
   imageUrl: string
+  imageBlob: Blob
+  hasSaved: boolean
+  previewUrl: string
+  previewBlob: Blob
   onBack: () => void
   isFullscreen: boolean
   onToggleFullscreen: () => void
 }
 
-export function SlideScreen({ imageUrl, onBack, isFullscreen, onToggleFullscreen }: Props) {
-  const { config, board, won, moves, setBoard, setWon, setMoves, startNewPuzzle } = usePuzzleState('doodlebloom_slide', imageUrl, createBoard)
-  const image = useImage(imageUrl)
+export function SlideScreen({ imageUrl: initialImageUrl, imageBlob: initialImageBlob, hasSaved, previewUrl, previewBlob, onBack, isFullscreen, onToggleFullscreen }: Props) {
+  const [resumeSaved, setResumeSaved] = useState(hasSaved)
+  const [showResumePrompt, setShowResumePrompt] = useState(hasSaved)
+  const [activeImageUrl, setActiveImageUrl] = useState(initialImageUrl)
+  const [activeImageBlob, setActiveImageBlob] = useState(initialImageBlob)
+  const { config, board, won, moves, setBoard, setWon, setMoves, startNewPuzzle } = usePuzzleState('doodlebloom_slide', createBoard, resumeSaved)
+  const image = useImage(activeImageUrl)
+
+  // Save image blob to IDB on mount (for future resume)
+  useEffect(() => {
+    savePuzzleImage('slide', activeImageBlob).catch(() => undefined)
+  }, [activeImageBlob])
+
+  // Clear saved state on win
+  useEffect(() => {
+    if (won) clearPuzzleState('slide')
+  }, [won])
   const containerRef = useRef<HTMLDivElement>(null)
   const containerSize = useContainerSize(containerRef)
   const gridLayout = useGridLayout(containerSize, config)
@@ -94,6 +113,18 @@ export function SlideScreen({ imageUrl, onBack, isFullscreen, onToggleFullscreen
     window.addEventListener('keydown', down)
     return () => window.removeEventListener('keydown', down)
   }, [config, emptyPos, won, confetti.fire, doSlide, setBoard, setWon])
+
+  const handleResume = useCallback(() => {
+    setShowResumePrompt(false)
+  }, [])
+
+  const handleStartFresh = useCallback(() => {
+    clearPuzzleStorage('doodlebloom_slide')
+    setActiveImageUrl(previewUrl)
+    setActiveImageBlob(previewBlob)
+    startNewPuzzle(config)
+    setShowResumePrompt(false)
+  }, [startNewPuzzle, config, previewUrl, previewBlob])
 
   const handleStartNew = useCallback((preset: typeof config) => {
     startNewPuzzle(preset)
@@ -276,6 +307,18 @@ export function SlideScreen({ imageUrl, onBack, isFullscreen, onToggleFullscreen
       </div>
 
       {won && <WinFooter moves={moves} onBack={onBack} onDownload={handleDownload} />}
+
+      {showResumePrompt && (
+        <div className="resume-overlay">
+          <div className="resume-dialog">
+            <p>Resume previous game?</p>
+            <div className="resume-actions">
+              <button className="btn btn-secondary" onClick={handleStartFresh}>Start New</button>
+              <button className="btn btn-primary" onClick={handleResume}>Resume</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="confetti-container" ref={confetti.ref} />
     </div>
