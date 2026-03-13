@@ -10,17 +10,22 @@ interface GameHeaderProps {
   moves: number
   config: PuzzleConfig
   onStartNewPuzzle: (preset: PuzzleConfig) => void
+  modeLabel?: string
 }
 
-export function GameHeader({ onBack, isFullscreen, onToggleFullscreen, moves, config, onStartNewPuzzle }: GameHeaderProps) {
+export function GameHeader({ onBack, isFullscreen, onToggleFullscreen, moves, config, onStartNewPuzzle, modeLabel }: GameHeaderProps) {
   return (
     <div className="game-header">
       <button className="btn btn-ghost btn-icon btn-small" onClick={onBack} title="Back" aria-label="Back">
         <ArrowLeft size={18} />
       </button>
-      <div className="game-header-logo"><DoodlebloomLogo /></div>
+      <div className="game-header-logo">
+        <DoodlebloomLogo />
+        {modeLabel && <span className="game-header-mode">{modeLabel}</span>}
+      </div>
       <div className="game-header-mini">
         <DoodlebloomMini />
+        {modeLabel && <span className="game-header-mode">{modeLabel}</span>}
       </div>
       <div className="puzzle-size-picker">
         {SIZE_PRESETS.map(p => (

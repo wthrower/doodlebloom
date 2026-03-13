@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import type { GameActions, GameState } from '../App'
+import type { GalleryEntry } from '../game/storage'
 import { DoodlebloomLogo } from '../components/DoodlebloomLogo'
 import { ScrollChevrons } from '../components/ScrollChevrons'
 
@@ -27,9 +28,13 @@ interface Props {
   onJigswap: () => void
   onSlide: () => void
   onSelectStock: (imageUrl: string) => void
+  galleryEntries: GalleryEntry[]
+  galleryThumbs: Map<string, string>
+  onSelectGallery: (entry: GalleryEntry) => void
+  onDeleteGallery: (id: string) => void
 }
 
-export function StartScreen({ state, actions, isGenerating, previewUrl, selectedStockUrl, onGenerate, onCancel, onPaint, onJigswap, onSlide, onSelectStock }: Props) {
+export function StartScreen({ state, actions, isGenerating, previewUrl, selectedStockUrl, onGenerate, onCancel, onPaint, onJigswap, onSlide, onSelectStock, galleryEntries, galleryThumbs, onSelectGallery, onDeleteGallery }: Props) {
   const [showKey, setShowKey] = useState(false)
   const [showKeyInput, setShowKeyInput] = useState(false)
   const stripRef = useRef<HTMLDivElement>(null)
@@ -79,6 +84,35 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                 onMouseUp={onStripMouseUp}
                 onMouseLeave={onStripMouseUp}
               >
+                {galleryEntries.map(entry => {
+                  const thumbUrl = galleryThumbs.get(entry.id)
+                  if (!thumbUrl) return null
+                  return (
+                    <div
+                      key={`gallery-${entry.id}`}
+                      className="stock-thumb-btn gallery-thumb-wrap"
+                      onClick={e => onStripClick(e, () => onSelectGallery(entry))}
+                      title={entry.prompt}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={entry.prompt}
+                    >
+                      <button
+                        className="gallery-delete-btn"
+                        onClick={e => { e.stopPropagation(); onDeleteGallery(entry.id) }}
+                        aria-label="Delete image"
+                      >
+                        ×
+                      </button>
+                      <img
+                        src={thumbUrl}
+                        alt={entry.prompt}
+                        className="stock-thumb-img"
+                      />
+                      <span className="stock-thumb-label gallery-thumb-label">{entry.prompt}</span>
+                    </div>
+                  )
+                })}
                 {STOCK_IMAGES.map(({ file, label, thumbUrl }) => {
                   const url = `${BASE}images/${file}.png`
                   const isSelected = selectedStockUrl === url
@@ -113,16 +147,32 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
         {/* Right: mode buttons + generate */}
         <div className="start-right">
           {previewUrl && !isGenerating && (
-            <div className="mode-buttons">
-              <button className="btn btn-secondary btn-large" onClick={onPaint}>Paint!</button>
-              <button className="btn btn-secondary btn-large" onClick={onJigswap}>JigSwap!</button>
-              <button className="btn btn-secondary btn-large" onClick={onSlide}>Slide!</button>
-            </div>
+            <>
+              <div className="mode-buttons">
+                <button className="btn btn-primary btn-large" onClick={onPaint}>Paint!</button>
+                <button className="btn btn-primary btn-large" onClick={onJigswap}>JigSwap!</button>
+                <button className="btn btn-primary btn-large" onClick={onSlide}>Slide!</button>
+              </div>
+              <div className="form-group color-count-inline">
+                <label htmlFor="colorCount">Colors <span className="label-hint">(for Paint!)</span>: <strong>{state.colorCount}</strong></label>
+                <input
+                  id="colorCount"
+                  type="range"
+                  min={4}
+                  max={32}
+                  value={state.colorCount}
+                  onChange={e => actions.setColorCount(Number(e.target.value))}
+                />
+              </div>
+            </>
           )}
           <div className="start-divider">or generate your own</div>
 
           <div className="form-group">
-            <label htmlFor="prompt">Prompt</label>
+            <div className="prompt-label-row">
+              <label htmlFor="prompt">Prompt</label>
+              {state.prompt && <button className="btn-clear-prompt" type="button" onClick={() => actions.setPrompt('')} title="Clear prompt" aria-label="Clear prompt">×</button>}
+            </div>
             <textarea
               id="prompt"
               rows={3}
@@ -165,21 +215,6 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
               </div>
             )}
           </div>
-
-          {!isGenerating && (
-            <div className="form-group color-count-inline">
-              <label htmlFor="colorCount">Colors: <strong>{state.colorCount}</strong></label>
-              <input
-                id="colorCount"
-                type="range"
-                min={4}
-                max={32}
-                value={state.colorCount}
-                onChange={e => actions.setColorCount(Number(e.target.value))}
-                disabled={isGenerating}
-              />
-            </div>
-          )}
 
           <div className="start-generate-row">
             {isGenerating ? (

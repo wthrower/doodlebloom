@@ -26,7 +26,7 @@ export function ScrollChevrons({ scrollRef }: Props) {
   const scroll = (dir: -1 | 1) => {
     const el = scrollRef.current
     if (!el) return
-    el.scrollBy({ left: dir * el.clientWidth * 0.25, behavior: 'smooth' })
+    el.scrollBy({ left: dir * el.clientWidth * 0.5, behavior: 'smooth' })
   }
 
   return (

@@ -228,6 +228,7 @@ export function SlideScreen({ imageUrl: initialImageUrl, imageBlob: initialImage
         moves={moves}
         config={config}
         onStartNewPuzzle={handleStartNew}
+        modeLabel="Slide!"
       />
 
       <div

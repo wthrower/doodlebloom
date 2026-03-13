@@ -87,6 +87,26 @@ html, body {
   margin-bottom: 1.25rem;
 }
 
+.prompt-label-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.btn-clear-prompt {
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0 0.2rem;
+  line-height: 1;
+}
+
+.btn-clear-prompt:hover {
+  color: var(--color-text);
+}
+
 .form-group label {
   font-size: 0.875rem;
   font-weight: 600;
@@ -433,12 +453,19 @@ input[type="range"]::-webkit-slider-thumb {
   gap: 0.2rem;
   flex: 1;
   min-width: 0;
+  margin-top: 0.75rem;
 }
 
 .color-count-inline label {
   font-size: 0.8rem;
   color: var(--color-text-muted);
   white-space: nowrap;
+}
+
+.label-hint {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .color-count-inline input[type="range"] {
@@ -628,6 +655,48 @@ input[type="range"]::-webkit-slider-thumb {
   color: var(--color-text-muted);
 }
 
+.gallery-thumb-label {
+  display: block;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gallery-thumb-wrap {
+  position: relative;
+  cursor: pointer;
+}
+
+.gallery-delete-btn {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 1;
+}
+
+.gallery-thumb-wrap:hover .gallery-delete-btn {
+  opacity: 1;
+}
+
+.gallery-delete-btn:hover {
+  background: rgba(200, 40, 40, 0.85);
+}
+
 
 
 /* ── Generating screen (standalone, no longer used in main flow) ── */
@@ -770,11 +839,20 @@ input[type="range"]::-webkit-slider-thumb {
 
 .game-header-logo {
   display: none;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .game-header-logo .app-title {
   height: 2.5rem;
   margin: -0.25rem 0;
+}
+
+.game-header-mode {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 .game-header-mini {
@@ -1181,7 +1259,7 @@ input[type="range"]::-webkit-slider-thumb {
 /* On wider screens: full logo, standard progress bar, hide mini */
 @media (min-width: 421px) {
   .game-header-logo {
-    display: block;
+    display: flex;
   }
   .game-header-mini {
     display: none;
@@ -1412,26 +1490,26 @@ input[type="range"]::-webkit-slider-thumb {
 
 .piece-border-top {
   top: 0; left: 0; right: 0;
-  height: 1px;
-  background: rgba(0, 0, 0, 0.25);
+  height: 2px;
+  background: rgba(255, 255, 255, 0.35);
 }
 
 .piece-border-right {
   top: 0; right: 0; bottom: 0;
-  width: 1px;
+  width: 2px;
   background: rgba(0, 0, 0, 0.25);
 }
 
 .piece-border-bottom {
   bottom: 0; left: 0; right: 0;
-  height: 1px;
+  height: 2px;
   background: rgba(0, 0, 0, 0.25);
 }
 
 .piece-border-left {
   top: 0; left: 0; bottom: 0;
-  width: 1px;
-  background: rgba(0, 0, 0, 0.25);
+  width: 2px;
+  background: rgba(255, 255, 255, 0.35);
 }
 
 /* Win overlay */

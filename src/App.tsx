@@ -20,7 +20,8 @@ import { PaintScreen } from './screens/PaintScreen'
 import { JigswapScreen } from './screens/JigswapScreen'
 import { SlideScreen } from './screens/SlideScreen'
 import { ProcessingScreen } from './screens/ProcessingScreen'
-import { saveImage, loadImage, loadSelectedStockUrl, saveSelectedStockUrl, hasSavedPuzzle, hasSavedPaint, loadPuzzleImage, savePuzzleImage } from './game/storage'
+import { saveImage, loadImage, loadSelectedStockUrl, saveSelectedStockUrl, hasSavedPuzzle, hasSavedPaint, loadPuzzleImage, savePuzzleImage, saveToGallery, loadGalleryImage, loadGalleryIndex, loadGalleryThumbnails, deleteGalleryEntry } from './game/storage'
+import type { GalleryEntry } from './game/storage'
 
 const PREVIEW_KEY = '__preview__'
 
@@ -37,6 +38,16 @@ export default function App() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [selectedStockUrl, setSelectedStockUrl] = useState<string | null>(() => loadSelectedStockUrl())
   const [genError, setGenError] = useState<string | null>(null)
+
+  // Generated image gallery
+  const [galleryEntries, setGalleryEntries] = useState<GalleryEntry[]>(() => loadGalleryIndex())
+  const [galleryThumbs, setGalleryThumbs] = useState<Map<string, string>>(new Map())
+  const previewIsGeneratedRef = useRef(false)
+  const previewPromptRef = useRef('')
+
+  useEffect(() => {
+    loadGalleryThumbnails().then(setGalleryThumbs)
+  }, [])
 
   // Per-mode resume state
   const [jigswapImageUrl, setJigswapImageUrl] = useState<string | null>(null)
@@ -59,13 +70,7 @@ export default function App() {
   // Detect if paint was auto-restored on mount (hasSavedPaint reads localStorage synchronously)
   const [paintAutoRestored, setPaintAutoRestored] = useState(() => hasSavedPaint())
 
-  // Available puzzle width is capped by the container max-width (540px).
-  // Available puzzle height is the viewport minus approximate UI chrome.
-  const getImageSize = useCallback((): '1024x1536' | '1536x1024' => {
-    const availW = Math.min(window.innerWidth, 540)
-    const availH = window.innerHeight - 164
-    return availH > availW ? '1024x1536' : '1536x1024'
-  }, [])
+  const getImageSize = useCallback((): '1024x1536' => '1024x1536', [])
 
   const handleGenerate = useCallback(async () => {
     setGenError(null)
@@ -78,6 +83,8 @@ export default function App() {
       return
     }
     previewBlobRef.current = blob
+    previewIsGeneratedRef.current = true
+    previewPromptRef.current = state.prompt
     if (previewUrl) URL.revokeObjectURL(previewUrl)
     const url = URL.createObjectURL(blob)
     setPreviewUrl(url)
@@ -90,11 +97,22 @@ export default function App() {
     actions.goTo('start')
   }, [cancelGenerate, actions])
 
+  /** If current preview is a fresh generation, save it to the gallery. */
+  const maybeSaveToGallery = useCallback(async () => {
+    if (!previewIsGeneratedRef.current || !previewBlobRef.current) return
+    previewIsGeneratedRef.current = false
+    const id = await saveToGallery(previewPromptRef.current, previewBlobRef.current)
+    const url = URL.createObjectURL(previewBlobRef.current)
+    setGalleryEntries(loadGalleryIndex())
+    setGalleryThumbs(prev => new Map(prev).set(id, url))
+  }, [])
+
   const handlePaint = useCallback(async () => {
     if (!previewBlobRef.current) return
     setPaintHasSaved(false)
+    await maybeSaveToGallery()
     await actions.processImage(previewBlobRef.current)
-  }, [actions])
+  }, [actions, maybeSaveToGallery])
 
   const handleJigswap = useCallback(async () => {
     if (hasSavedPuzzle('jigswap')) {
@@ -110,11 +128,12 @@ export default function App() {
       }
     }
     if (!previewUrl || !previewBlobRef.current) return
+    await maybeSaveToGallery()
     setJigswapImageUrl(previewUrl)
     setJigswapBlob(previewBlobRef.current)
     setJigswapHasSaved(false)
     actions.goTo('jigswap')
-  }, [previewUrl, actions, jigswapImageUrl])
+  }, [previewUrl, actions, jigswapImageUrl, maybeSaveToGallery])
 
   const handleSlide = useCallback(async () => {
     if (hasSavedPuzzle('slide')) {
@@ -130,16 +149,18 @@ export default function App() {
       }
     }
     if (!previewUrl || !previewBlobRef.current) return
+    await maybeSaveToGallery()
     setSlideImageUrl(previewUrl)
     setSlideBlob(previewBlobRef.current)
     setSlideHasSaved(false)
     actions.goTo('slide')
-  }, [previewUrl, actions, slideImageUrl])
+  }, [previewUrl, actions, slideImageUrl, maybeSaveToGallery])
 
   const handleSelectStock = useCallback(async (imageUrl: string) => {
     const response = await fetch(imageUrl)
     const blob = await response.blob()
     previewBlobRef.current = blob
+    previewIsGeneratedRef.current = false
     if (previewUrl) URL.revokeObjectURL(previewUrl)
     const url = URL.createObjectURL(blob)
     setPreviewUrl(url)
@@ -148,6 +169,33 @@ export default function App() {
     saveImage(PREVIEW_KEY, blob).catch(() => undefined)
     actions.goTo('start')
   }, [previewUrl, actions])
+
+  const handleSelectGallery = useCallback(async (entry: GalleryEntry) => {
+    const blob = await loadGalleryImage(entry.id)
+    if (!blob) return
+    previewBlobRef.current = blob
+    previewIsGeneratedRef.current = false
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    const url = URL.createObjectURL(blob)
+    setPreviewUrl(url)
+    setSelectedStockUrl(null)
+    saveSelectedStockUrl(null)
+    saveImage(PREVIEW_KEY, blob).catch(() => undefined)
+    actions.setPrompt(entry.prompt)
+    actions.goTo('start')
+  }, [previewUrl, actions])
+
+  const handleDeleteGallery = useCallback(async (id: string) => {
+    await deleteGalleryEntry(id)
+    setGalleryEntries(loadGalleryIndex())
+    const thumb = galleryThumbs.get(id)
+    if (thumb) URL.revokeObjectURL(thumb)
+    setGalleryThumbs(prev => {
+      const next = new Map(prev)
+      next.delete(id)
+      return next
+    })
+  }, [galleryThumbs])
 
   const isStartPhase = state.screen === 'start' || state.screen === 'generating' || state.screen === 'preview'
 
@@ -176,6 +224,10 @@ export default function App() {
           onJigswap={handleJigswap}
           onSlide={handleSlide}
           onSelectStock={handleSelectStock}
+          galleryEntries={galleryEntries}
+          galleryThumbs={galleryThumbs}
+          onSelectGallery={handleSelectGallery}
+          onDeleteGallery={handleDeleteGallery}
         />
       )}
       {(state.screen === 'playing' || state.screen === 'complete') && (

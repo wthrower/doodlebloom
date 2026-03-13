@@ -179,6 +179,7 @@ export function JigswapScreen({ imageUrl: initialImageUrl, imageBlob: initialIma
         moves={moves}
         config={config}
         onStartNewPuzzle={handleStartNew}
+        modeLabel="JigSwap!"
       />
 
       <div
