@@ -1292,12 +1292,12 @@ input[type="range"]::-webkit-slider-thumb {
   touch-action: none;
 }
 
-.jigswap-size-picker {
+.puzzle-size-picker {
   display: flex;
   gap: 0.25rem;
 }
 
-.jigswap-size-picker .size-btn {
+.puzzle-size-picker .size-btn {
   background: var(--color-surface);
   border: 1.5px solid var(--color-border);
   color: var(--color-text);
@@ -1308,17 +1308,17 @@ input[type="range"]::-webkit-slider-thumb {
   transition: border-color 0.15s, background 0.15s;
 }
 
-.jigswap-size-picker .size-btn:hover {
+.puzzle-size-picker .size-btn:hover {
   border-color: var(--color-accent);
 }
 
-.jigswap-size-picker .size-btn.selected {
+.puzzle-size-picker .size-btn.selected {
   border-color: var(--color-accent);
   background: var(--color-accent);
   color: #fff;
 }
 
-.jigswap-moves {
+.puzzle-moves {
   margin-left: auto;
   font-size: 0.8rem;
   color: var(--color-text-muted);
@@ -1462,6 +1462,8 @@ input[type="range"]::-webkit-slider-thumb {
 .slide-cell-empty {
   cursor: default;
   background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .slide-cell.dragging {
