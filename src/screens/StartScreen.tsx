@@ -154,7 +154,7 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                 <button className="btn btn-primary btn-large" onClick={onSlide}>Slide!</button>
               </div>
               <div className="form-group color-count-inline">
-                <label htmlFor="colorCount">Colors <span className="label-hint">(for Paint!)</span>: <strong>{state.colorCount}</strong></label>
+                <label htmlFor="colorCount">Paint colors: <strong>{state.colorCount}</strong></label>
                 <input
                   id="colorCount"
                   type="range"
