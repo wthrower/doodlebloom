@@ -15,7 +15,8 @@ function useFullscreen() {
 }
 import { useGame } from './hooks/useGame'
 import { useOpenAI } from './hooks/useOpenAI'
-import { StartScreen } from './screens/StartScreen'
+import { StartScreen, type GameMode } from './screens/StartScreen'
+import type { JigswapConfig } from './game/jigswap'
 import { PaintScreen } from './screens/PaintScreen'
 import { JigswapScreen } from './screens/JigswapScreen'
 import { SlideScreen } from './screens/SlideScreen'
@@ -107,59 +108,57 @@ export default function App() {
     setGalleryThumbs(prev => new Map(prev).set(id, url))
   }, [])
 
-  const handlePaint = useCallback(async () => {
-    if (!previewBlobRef.current) return
-    await maybeSaveToGallery()
-    if (actions.hasPrevSession) {
-      await actions.restoreStashedSession()
-      setPaintHasSaved(true)
+  const handlePlay = useCallback(async (mode: GameMode, _puzzleSize: JigswapConfig) => {
+    if (mode === 'paint') {
+      if (!previewBlobRef.current) return
+      await maybeSaveToGallery()
+      if (actions.hasPrevSession) {
+        await actions.restoreStashedSession()
+        setPaintHasSaved(true)
+      } else {
+        setPaintHasSaved(false)
+        await actions.processImage(previewBlobRef.current!)
+      }
+    } else if (mode === 'jigswap') {
+      if (hasSavedPuzzle('jigswap')) {
+        const savedBlob = await loadPuzzleImage('jigswap')
+        if (savedBlob) {
+          if (jigswapImageUrl) URL.revokeObjectURL(jigswapImageUrl)
+          const url = URL.createObjectURL(savedBlob)
+          setJigswapImageUrl(url)
+          setJigswapBlob(savedBlob)
+          setJigswapHasSaved(true)
+          actions.goTo('jigswap')
+          return
+        }
+      }
+      if (!previewUrl || !previewBlobRef.current) return
+      await maybeSaveToGallery()
+      setJigswapImageUrl(previewUrl)
+      setJigswapBlob(previewBlobRef.current)
+      setJigswapHasSaved(false)
+      actions.goTo('jigswap')
     } else {
-      setPaintHasSaved(false)
-      await actions.processImage(previewBlobRef.current!)
-    }
-  }, [actions, maybeSaveToGallery])
-
-  const handleJigswap = useCallback(async () => {
-    if (hasSavedPuzzle('jigswap')) {
-      const savedBlob = await loadPuzzleImage('jigswap')
-      if (savedBlob) {
-        if (jigswapImageUrl) URL.revokeObjectURL(jigswapImageUrl)
-        const url = URL.createObjectURL(savedBlob)
-        setJigswapImageUrl(url)
-        setJigswapBlob(savedBlob)
-        setJigswapHasSaved(true)
-        actions.goTo('jigswap')
-        return
+      if (hasSavedPuzzle('slide')) {
+        const savedBlob = await loadPuzzleImage('slide')
+        if (savedBlob) {
+          if (slideImageUrl) URL.revokeObjectURL(slideImageUrl)
+          const url = URL.createObjectURL(savedBlob)
+          setSlideImageUrl(url)
+          setSlideBlob(savedBlob)
+          setSlideHasSaved(true)
+          actions.goTo('slide')
+          return
+        }
       }
+      if (!previewUrl || !previewBlobRef.current) return
+      await maybeSaveToGallery()
+      setSlideImageUrl(previewUrl)
+      setSlideBlob(previewBlobRef.current)
+      setSlideHasSaved(false)
+      actions.goTo('slide')
     }
-    if (!previewUrl || !previewBlobRef.current) return
-    await maybeSaveToGallery()
-    setJigswapImageUrl(previewUrl)
-    setJigswapBlob(previewBlobRef.current)
-    setJigswapHasSaved(false)
-    actions.goTo('jigswap')
-  }, [previewUrl, actions, jigswapImageUrl, maybeSaveToGallery])
-
-  const handleSlide = useCallback(async () => {
-    if (hasSavedPuzzle('slide')) {
-      const savedBlob = await loadPuzzleImage('slide')
-      if (savedBlob) {
-        if (slideImageUrl) URL.revokeObjectURL(slideImageUrl)
-        const url = URL.createObjectURL(savedBlob)
-        setSlideImageUrl(url)
-        setSlideBlob(savedBlob)
-        setSlideHasSaved(true)
-        actions.goTo('slide')
-        return
-      }
-    }
-    if (!previewUrl || !previewBlobRef.current) return
-    await maybeSaveToGallery()
-    setSlideImageUrl(previewUrl)
-    setSlideBlob(previewBlobRef.current)
-    setSlideHasSaved(false)
-    actions.goTo('slide')
-  }, [previewUrl, actions, slideImageUrl, maybeSaveToGallery])
+  }, [previewUrl, actions, jigswapImageUrl, slideImageUrl, maybeSaveToGallery])
 
   const handleSelectStock = useCallback(async (imageUrl: string) => {
     const response = await fetch(imageUrl)
@@ -225,9 +224,7 @@ export default function App() {
           selectedStockUrl={selectedStockUrl}
           onGenerate={handleGenerate}
           onCancel={handleCancel}
-          onPaint={handlePaint}
-          onJigswap={handleJigswap}
-          onSlide={handleSlide}
+          onPlay={handlePlay}
           onSelectStock={handleSelectStock}
           galleryEntries={galleryEntries}
           galleryThumbs={galleryThumbs}

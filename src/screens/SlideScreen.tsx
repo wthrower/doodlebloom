@@ -175,8 +175,6 @@ export function SlideScreen(props: PuzzleScreenProps) {
       onToggleFullscreen={props.onToggleFullscreen}
       moves={moves}
       won={won}
-      config={config}
-      onStartNewPuzzle={handleStartNew}
       onDownload={p.handleDownload}
       containerRef={containerRef}
       onPointerMove={handlePointerMove}

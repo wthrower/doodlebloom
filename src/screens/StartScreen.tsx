@@ -1,8 +1,11 @@
 import { useRef, useState } from 'react'
 import type { GameActions, GameState } from '../App'
 import type { GalleryEntry } from '../game/storage'
+import { SIZE_PRESETS, type JigswapConfig } from '../game/jigswap'
 import { DoodlebloomLogo } from '../components/DoodlebloomLogo'
 import { ScrollChevrons } from '../components/ScrollChevrons'
+
+export type GameMode = 'paint' | 'jigswap' | 'slide'
 
 const BASE = import.meta.env.BASE_URL
 
@@ -24,9 +27,7 @@ interface Props {
   selectedStockUrl: string | null
   onGenerate: () => void
   onCancel: () => void
-  onPaint: () => void
-  onJigswap: () => void
-  onSlide: () => void
+  onPlay: (mode: GameMode, puzzleSize: JigswapConfig) => void
   onSelectStock: (imageUrl: string) => void
   galleryEntries: GalleryEntry[]
   galleryThumbs: Map<string, string>
@@ -34,9 +35,11 @@ interface Props {
   onDeleteGallery: (id: string) => void
 }
 
-export function StartScreen({ state, actions, isGenerating, previewUrl, selectedStockUrl, onGenerate, onCancel, onPaint, onJigswap, onSlide, onSelectStock, galleryEntries, galleryThumbs, onSelectGallery, onDeleteGallery }: Props) {
+export function StartScreen({ state, actions, isGenerating, previewUrl, selectedStockUrl, onGenerate, onCancel, onPlay, onSelectStock, galleryEntries, galleryThumbs, onSelectGallery, onDeleteGallery }: Props) {
   const [showKey, setShowKey] = useState(false)
   const [showKeyInput, setShowKeyInput] = useState(false)
+  const [selectedMode, setSelectedMode] = useState<GameMode>('paint')
+  const [puzzleSize, setPuzzleSize] = useState<JigswapConfig>(SIZE_PRESETS[1])
   const stripRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ startX: number; scrollLeft: number; dragging: boolean } | null>(null)
 
@@ -148,22 +151,48 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
         <div className="start-right">
           {previewUrl && !isGenerating && (
             <>
-              <div className="mode-buttons">
-                <button className="btn btn-primary btn-large" onClick={onPaint}>Paint!</button>
-                <button className="btn btn-primary btn-large" onClick={onJigswap}>JigSwap!</button>
-                <button className="btn btn-primary btn-large" onClick={onSlide}>Slide!</button>
+              <div className="mode-toggle">
+                {(['paint', 'jigswap', 'slide'] as const).map(mode => (
+                  <button
+                    key={mode}
+                    className={`mode-toggle-btn${selectedMode === mode ? ' selected' : ''}`}
+                    onClick={() => setSelectedMode(mode)}
+                  >
+                    {mode === 'paint' ? 'Paint' : mode === 'jigswap' ? 'JigSwap' : 'Slide'}
+                  </button>
+                ))}
               </div>
-              <div className="form-group color-count-inline">
-                <label htmlFor="colorCount">Paint colors: <strong>{state.colorCount}</strong></label>
-                <input
-                  id="colorCount"
-                  type="range"
-                  min={4}
-                  max={32}
-                  value={state.colorCount}
-                  onChange={e => actions.setColorCount(Number(e.target.value))}
-                />
+              <div className="mode-settings">
+                {selectedMode === 'paint' && (
+                  <div className="form-group color-count-inline">
+                    <label htmlFor="colorCount">Colors: <strong>{state.colorCount}</strong></label>
+                    <input
+                      id="colorCount"
+                      type="range"
+                      min={4}
+                      max={32}
+                      value={state.colorCount}
+                      onChange={e => actions.setColorCount(Number(e.target.value))}
+                    />
+                  </div>
+                )}
+                {(selectedMode === 'jigswap' || selectedMode === 'slide') && (
+                  <div className="puzzle-size-picker">
+                    {SIZE_PRESETS.map(p => (
+                      <button
+                        key={p.cols}
+                        className={`size-btn${p.cols === puzzleSize.cols ? ' selected' : ''}`}
+                        onClick={() => setPuzzleSize(p)}
+                      >
+                        {p.cols}&times;{p.rows}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
+              <button className="btn btn-primary btn-large play-btn" onClick={() => onPlay(selectedMode, puzzleSize)}>
+                Play!
+              </button>
             </>
           )}
           <div className="start-divider">or generate your own</div>

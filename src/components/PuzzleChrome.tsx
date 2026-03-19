@@ -1,20 +1,16 @@
 import type { ReactNode, RefObject } from 'react'
 import { ArrowLeft, Download, Maximize2, Minimize2 } from 'lucide-react'
 import { DoodlebloomLogo, DoodlebloomMini } from './DoodlebloomLogo'
-import { SIZE_PRESETS } from '../game/jigswap'
-import type { PuzzleConfig } from '../hooks/usePuzzle'
 
 interface GameHeaderProps {
   onBack: () => void
   isFullscreen: boolean
   onToggleFullscreen: () => void
   moves: number
-  config: PuzzleConfig
-  onStartNewPuzzle: (preset: PuzzleConfig) => void
   modeLabel?: string
 }
 
-export function GameHeader({ onBack, isFullscreen, onToggleFullscreen, moves, config, onStartNewPuzzle, modeLabel }: GameHeaderProps) {
+export function GameHeader({ onBack, isFullscreen, onToggleFullscreen, moves, modeLabel }: GameHeaderProps) {
   return (
     <div className="game-header">
       <button className="btn btn-ghost btn-icon btn-small" onClick={onBack} title="Back" aria-label="Back">
@@ -27,17 +23,6 @@ export function GameHeader({ onBack, isFullscreen, onToggleFullscreen, moves, co
       <div className="game-header-mini">
         <DoodlebloomMini />
         {modeLabel && <span className="game-header-mode">{modeLabel}</span>}
-      </div>
-      <div className="puzzle-size-picker">
-        {SIZE_PRESETS.map(p => (
-          <button
-            key={p.cols}
-            className={`size-btn${p.cols === config.cols ? ' selected' : ''}`}
-            onClick={() => onStartNewPuzzle(p)}
-          >
-            {p.cols}&times;{p.rows}
-          </button>
-        ))}
       </div>
       <span className="puzzle-moves">{moves} moves</span>
       <button className="btn btn-ghost btn-icon btn-small" onClick={onToggleFullscreen} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
@@ -75,8 +60,6 @@ interface PuzzleScreenShellProps {
   onToggleFullscreen: () => void
   moves: number
   won: boolean
-  config: PuzzleConfig
-  onStartNewPuzzle: (preset: PuzzleConfig) => void
   onDownload: () => void
   containerRef: RefObject<HTMLDivElement | null>
   onPointerMove: (e: React.PointerEvent) => void
@@ -91,7 +74,7 @@ interface PuzzleScreenShellProps {
 
 export function PuzzleScreenShell({
   className, modeLabel, onBack, isFullscreen, onToggleFullscreen,
-  moves, won, config, onStartNewPuzzle, onDownload,
+  moves, won, onDownload,
   containerRef, onPointerMove, onPointerUp, ready,
   showResumePrompt, onResume, onStartFresh, confettiRef,
   children,
@@ -103,8 +86,6 @@ export function PuzzleScreenShell({
         isFullscreen={isFullscreen}
         onToggleFullscreen={onToggleFullscreen}
         moves={moves}
-        config={config}
-        onStartNewPuzzle={onStartNewPuzzle}
         modeLabel={modeLabel}
       />
 

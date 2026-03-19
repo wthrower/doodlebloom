@@ -1392,15 +1392,51 @@ input[type="range"]::-webkit-slider-thumb {
   }
 }
 
-/* ── Mode buttons (Paint / JigSwap) ── */
-.mode-buttons {
+/* ── Mode toggle + settings ── */
+.mode-toggle {
   display: flex;
-  gap: 0.5rem;
   margin-top: 0.75rem;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1.5px solid var(--color-border);
 }
 
-.mode-buttons .btn-large {
+.mode-toggle-btn {
   flex: 1;
+  padding: 0.45rem 0.5rem;
+  border: none;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.mode-toggle-btn:not(:last-child) {
+  border-right: 1.5px solid var(--color-border);
+}
+
+.mode-toggle-btn:hover {
+  background: var(--color-surface-hover, rgba(0, 0, 0, 0.05));
+}
+
+.mode-toggle-btn.selected {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.mode-settings {
+  margin-top: 0.5rem;
+}
+
+.mode-settings .puzzle-size-picker {
+  justify-content: center;
+}
+
+.play-btn {
+  margin-top: 0.75rem;
+  width: 100%;
 }
 
 /* ── Puzzle screens (shared: JigSwap, Slide) ── */
