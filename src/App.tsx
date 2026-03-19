@@ -109,9 +109,14 @@ export default function App() {
 
   const handlePaint = useCallback(async () => {
     if (!previewBlobRef.current) return
-    setPaintHasSaved(false)
     await maybeSaveToGallery()
-    await actions.processImage(previewBlobRef.current)
+    if (actions.hasPrevSession) {
+      await actions.restoreStashedSession()
+      setPaintHasSaved(true)
+    } else {
+      setPaintHasSaved(false)
+      await actions.processImage(previewBlobRef.current!)
+    }
   }, [actions, maybeSaveToGallery])
 
   const handleJigswap = useCallback(async () => {
@@ -230,7 +235,7 @@ export default function App() {
           onDeleteGallery={handleDeleteGallery}
         />
       )}
-      {(state.screen === 'playing' || state.screen === 'complete') && (
+      {(state.screen === 'playing' || state.screen === 'complete') && actions.processingStage === null && (
         <PaintScreen
           state={state}
           actions={actions}
@@ -239,14 +244,15 @@ export default function App() {
           onToggleFullscreen={toggleFullscreen}
           hasSaved={paintHasSaved || paintAutoRestored}
           onStartFresh={async () => {
-            setPaintAutoRestored(false)
+            const sameImage = previewBlobRef.current?.size === actions.prevSessionBlobSize
+            actions.clearStash()
             setPaintHasSaved(false)
-            // resetPuzzle goes to start screen; processImage will go to processing then playing
-            await actions.resetPuzzle()
-            if (previewBlobRef.current) {
+            setPaintAutoRestored(false)
+            if (sameImage) {
+              actions.resetProgress()
+            } else if (previewBlobRef.current) {
               await actions.processImage(previewBlobRef.current)
             }
-            // If no preview blob loaded yet, user lands on start screen and can pick an image
           }}
         />
       )}

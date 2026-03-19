@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { SIZE_PRESETS, type JigswapConfig } from '../game/jigswap'
+import { clearPuzzleState, savePuzzleImage } from '../game/storage'
+import { useConfetti } from './useConfetti'
 
 export type PuzzleConfig = JigswapConfig
 
@@ -132,5 +134,94 @@ export function usePuzzleState(
     config, board, won, moves,
     setBoard, setWon, setMoves,
     startNewPuzzle,
+  }
+}
+
+/**
+ * Shared puzzle screen state: resume flow, image persistence, confetti, cheat key, layout.
+ * Each mode screen calls this then only handles its own drag logic and grid rendering.
+ */
+export interface PuzzleScreenProps {
+  imageUrl: string
+  imageBlob: Blob
+  hasSaved: boolean
+  previewUrl: string
+  previewBlob: Blob
+  onBack: () => void
+  isFullscreen: boolean
+  onToggleFullscreen: () => void
+}
+
+export type PuzzleMode = 'jigswap' | 'slide'
+
+export function usePuzzleScreen(
+  mode: PuzzleMode,
+  storageKey: string,
+  createBoard: (cols: number, rows: number) => number[],
+  downloadFilename: string,
+  props: PuzzleScreenProps,
+) {
+  const { imageUrl: initialImageUrl, imageBlob: initialImageBlob, hasSaved, previewUrl, previewBlob } = props
+  const [resumeSaved] = useState(hasSaved)
+  const [showResumePrompt, setShowResumePrompt] = useState(hasSaved)
+  const [activeImageUrl, setActiveImageUrl] = useState(initialImageUrl)
+  const [activeImageBlob, setActiveImageBlob] = useState(initialImageBlob)
+  const puzzle = usePuzzleState(storageKey, createBoard, resumeSaved)
+  const { config, board, won, setBoard, setWon, startNewPuzzle } = puzzle
+  const image = useImage(activeImageUrl)
+
+  useEffect(() => {
+    savePuzzleImage(mode, activeImageBlob).catch(() => undefined)
+  }, [mode, activeImageBlob])
+
+  useEffect(() => {
+    if (won) clearPuzzleState(mode)
+  }, [mode, won])
+
+  const containerRef = useRef<HTMLDivElement>(null)
+  const containerSize = useContainerSize(containerRef)
+  const gridLayout = useGridLayout(containerSize, config)
+  const handleDownload = useDownload(image, downloadFilename)
+  const confetti = useConfetti()
+
+  // Cheat key
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === 'w' || e.key === 'W') {
+        const n = config.cols * config.rows
+        setBoard(Array.from({ length: n }, (_, i) => i))
+        setWon(true)
+        setTimeout(confetti.fire, 100)
+      }
+    }
+    window.addEventListener('keydown', down)
+    return () => window.removeEventListener('keydown', down)
+  }, [config, confetti.fire, setBoard, setWon])
+
+  const handleResume = useCallback(() => {
+    setShowResumePrompt(false)
+  }, [])
+
+  const handleStartFresh = useCallback(() => {
+    clearPuzzleStorage(storageKey)
+    setActiveImageUrl(previewUrl)
+    setActiveImageBlob(previewBlob)
+    startNewPuzzle(config)
+    setShowResumePrompt(false)
+  }, [storageKey, startNewPuzzle, config, previewUrl, previewBlob])
+
+  const ready = !!image && !!gridLayout
+
+  return {
+    ...puzzle,
+    image,
+    containerRef,
+    gridLayout,
+    handleDownload,
+    confetti,
+    ready,
+    showResumePrompt,
+    handleResume,
+    handleStartFresh,
   }
 }

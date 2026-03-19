@@ -1,3 +1,4 @@
+import type { ReactNode, RefObject } from 'react'
 import { ArrowLeft, Download, Maximize2, Minimize2 } from 'lucide-react'
 import { DoodlebloomLogo, DoodlebloomMini } from './DoodlebloomLogo'
 import { SIZE_PRESETS } from '../game/jigswap'
@@ -62,6 +63,82 @@ export function WinFooter({ moves, onBack, onDownload }: WinFooterProps) {
           <Download size={16} /> Download
         </button>
       </div>
+    </div>
+  )
+}
+
+interface PuzzleScreenShellProps {
+  className: string
+  modeLabel: string
+  onBack: () => void
+  isFullscreen: boolean
+  onToggleFullscreen: () => void
+  moves: number
+  won: boolean
+  config: PuzzleConfig
+  onStartNewPuzzle: (preset: PuzzleConfig) => void
+  onDownload: () => void
+  containerRef: RefObject<HTMLDivElement | null>
+  onPointerMove: (e: React.PointerEvent) => void
+  onPointerUp: (e: React.PointerEvent) => void
+  ready: boolean
+  showResumePrompt: boolean
+  onResume: () => void
+  onStartFresh: () => void
+  confettiRef: RefObject<HTMLDivElement | null>
+  children: ReactNode
+}
+
+export function PuzzleScreenShell({
+  className, modeLabel, onBack, isFullscreen, onToggleFullscreen,
+  moves, won, config, onStartNewPuzzle, onDownload,
+  containerRef, onPointerMove, onPointerUp, ready,
+  showResumePrompt, onResume, onStartFresh, confettiRef,
+  children,
+}: PuzzleScreenShellProps) {
+  return (
+    <div className={`screen game-screen ${className}`}>
+      <GameHeader
+        onBack={onBack}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={onToggleFullscreen}
+        moves={moves}
+        config={config}
+        onStartNewPuzzle={onStartNewPuzzle}
+        modeLabel={modeLabel}
+      />
+
+      <div
+        className="puzzle-container"
+        ref={containerRef}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+      >
+        {!ready && (
+          <div className="loading">
+            <div className="spinner" />
+            <span>Loading image...</span>
+          </div>
+        )}
+        {ready && children}
+      </div>
+
+      {won && <WinFooter moves={moves} onBack={onBack} onDownload={onDownload} />}
+
+      {showResumePrompt && (
+        <div className="resume-overlay">
+          <div className="resume-dialog">
+            <p>Resume previous game?</p>
+            <div className="resume-actions">
+              <button className="btn btn-secondary" onClick={onStartFresh}>Start New</button>
+              <button className="btn btn-primary" onClick={onResume}>Resume</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="confetti-container" ref={confettiRef} />
     </div>
   )
 }

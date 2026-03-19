@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useConfetti } from '../hooks/useConfetti'
-import { useImage, useContainerSize, useGridLayout, useDownload, usePuzzleState, clearPuzzleStorage } from '../hooks/usePuzzle'
-import { GameHeader, WinFooter } from '../components/PuzzleChrome'
-import { clearPuzzleState, savePuzzleImage } from '../game/storage'
+import { usePuzzleScreen, type PuzzleScreenProps } from '../hooks/usePuzzle'
+import { PuzzleScreenShell } from '../components/PuzzleChrome'
 import {
   createBoard,
   isSolved,
@@ -15,56 +13,25 @@ import {
   piecePos,
 } from '../game/slide'
 
-interface Props {
-  imageUrl: string
-  imageBlob: Blob
-  hasSaved: boolean
-  previewUrl: string
-  previewBlob: Blob
-  onBack: () => void
-  isFullscreen: boolean
-  onToggleFullscreen: () => void
-}
-
-export function SlideScreen({ imageUrl: initialImageUrl, imageBlob: initialImageBlob, hasSaved, previewUrl, previewBlob, onBack, isFullscreen, onToggleFullscreen }: Props) {
-  const [resumeSaved, setResumeSaved] = useState(hasSaved)
-  const [showResumePrompt, setShowResumePrompt] = useState(hasSaved)
-  const [activeImageUrl, setActiveImageUrl] = useState(initialImageUrl)
-  const [activeImageBlob, setActiveImageBlob] = useState(initialImageBlob)
-  const { config, board, won, moves, setBoard, setWon, setMoves, startNewPuzzle } = usePuzzleState('doodlebloom_slide', createBoard, resumeSaved)
-  const image = useImage(activeImageUrl)
-
-  // Save image blob to IDB on mount (for future resume)
-  useEffect(() => {
-    savePuzzleImage('slide', activeImageBlob).catch(() => undefined)
-  }, [activeImageBlob])
-
-  // Clear saved state on win
-  useEffect(() => {
-    if (won) clearPuzzleState('slide')
-  }, [won])
-  const containerRef = useRef<HTMLDivElement>(null)
-  const containerSize = useContainerSize(containerRef)
-  const gridLayout = useGridLayout(containerSize, config)
-  const handleDownload = useDownload(image, 'doodlebloom-slide.png')
-  const confetti = useConfetti()
+export function SlideScreen(props: PuzzleScreenProps) {
+  const p = usePuzzleScreen('slide', 'doodlebloom_slide', createBoard, 'doodlebloom-slide.png', props)
+  const { config, board, won, moves, setBoard, setMoves, setWon, image, containerRef, gridLayout, confetti, startNewPuzzle } = p
 
   // Drag state
   const [dragPositions, setDragPositions] = useState<number[] | null>(null)
   const [dragAxis, setDragAxis] = useState<'x' | 'y' | null>(null)
   const [dragOffset, setDragOffset] = useState(0)
+  const [suppressTransition, setSuppressTransition] = useState(false)
   const dragStartRef = useRef<{ x: number; y: number; tilePos: number } | null>(null)
   const dragGroupRef = useRef<{ positions: number[]; dir: number } | null>(null)
 
   const emptyPos = findEmpty(board, config.cols, config.rows)
   const prevEmptyRef = useRef<number | null>(null)
 
-  // Apply a move
   const doSlide = useCallback((clickedPos: number) => {
     const targets = getSlideTargets(clickedPos, emptyPos, config.cols)
     if (!targets) return
     const newBoard = executeSlide(board, clickedPos, emptyPos, config.cols)
-    // If this move puts empty back where it was before the last move, undo the move count
     const isUndo = prevEmptyRef.current === clickedPos
     prevEmptyRef.current = isUndo ? null : emptyPos
     setBoard(newBoard)
@@ -80,15 +47,6 @@ export function SlideScreen({ imageUrl: initialImageUrl, imageBlob: initialImage
     const down = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return
       const key = e.key.toLowerCase()
-
-      if (key === 'w') {
-        const n = config.cols * config.rows
-        setBoard(Array.from({ length: n }, (_, i) => i))
-        setWon(true)
-        setTimeout(confetti.fire, 100)
-        return
-      }
-
       if (won) return
 
       const dirMap: Record<string, number> = {
@@ -112,19 +70,7 @@ export function SlideScreen({ imageUrl: initialImageUrl, imageBlob: initialImage
     }
     window.addEventListener('keydown', down)
     return () => window.removeEventListener('keydown', down)
-  }, [config, emptyPos, won, confetti.fire, doSlide, setBoard, setWon])
-
-  const handleResume = useCallback(() => {
-    setShowResumePrompt(false)
-  }, [])
-
-  const handleStartFresh = useCallback(() => {
-    clearPuzzleStorage('doodlebloom_slide')
-    setActiveImageUrl(previewUrl)
-    setActiveImageBlob(previewBlob)
-    startNewPuzzle(config)
-    setShowResumePrompt(false)
-  }, [startNewPuzzle, config, previewUrl, previewBlob])
+  }, [config, emptyPos, won, doSlide])
 
   const handleStartNew = useCallback((preset: typeof config) => {
     startNewPuzzle(preset)
@@ -132,7 +78,6 @@ export function SlideScreen({ imageUrl: initialImageUrl, imageBlob: initialImage
     setDragAxis(null)
   }, [startNewPuzzle])
 
-  // Pointer handlers for drag
   const handlePointerDown = useCallback((e: React.PointerEvent, cellIndex: number) => {
     if (won) return
     if (board[cellIndex] === config.cols * config.rows - 1) return
@@ -143,7 +88,7 @@ export function SlideScreen({ imageUrl: initialImageUrl, imageBlob: initialImage
     setDragAxis(null)
     setDragPositions(null)
     setDragOffset(0)
-  }, [won, board, config])
+  }, [won, board, config, containerRef])
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragStartRef.current || !gridLayout) return
@@ -203,6 +148,9 @@ export function SlideScreen({ imageUrl: initialImageUrl, imageBlob: initialImage
       doSlide(tilePos)
     }
 
+    setSuppressTransition(true)
+    requestAnimationFrame(() => requestAnimationFrame(() => setSuppressTransition(false)))
+
     dragStartRef.current = null
     dragGroupRef.current = null
     setDragPositions(null)
@@ -210,7 +158,6 @@ export function SlideScreen({ imageUrl: initialImageUrl, imageBlob: initialImage
     setDragOffset(0)
   }, [dragAxis, gridLayout, doSlide])
 
-  const ready = !!image && !!gridLayout
   const { gridW, gridH, cellSize } = gridLayout ?? { gridW: 0, gridH: 0, cellSize: 0 }
   const imgW = image?.naturalWidth ?? 0
   const imgH = image?.naturalHeight ?? 0
@@ -220,108 +167,87 @@ export function SlideScreen({ imageUrl: initialImageUrl, imageBlob: initialImage
   const dragSet = dragPositions ? new Set(dragPositions) : null
 
   return (
-    <div className="screen game-screen puzzle-screen">
-      <GameHeader
-        onBack={onBack}
-        isFullscreen={isFullscreen}
-        onToggleFullscreen={onToggleFullscreen}
-        moves={moves}
-        config={config}
-        onStartNewPuzzle={handleStartNew}
-        modeLabel="Slide!"
-      />
-
+    <PuzzleScreenShell
+      className="puzzle-screen"
+      modeLabel="Slide!"
+      onBack={props.onBack}
+      isFullscreen={props.isFullscreen}
+      onToggleFullscreen={props.onToggleFullscreen}
+      moves={moves}
+      won={won}
+      config={config}
+      onStartNewPuzzle={handleStartNew}
+      onDownload={p.handleDownload}
+      containerRef={containerRef}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      ready={p.ready}
+      showResumePrompt={p.showResumePrompt}
+      onResume={p.handleResume}
+      onStartFresh={p.handleStartFresh}
+      confettiRef={confetti.ref}
+    >
       <div
-        className="puzzle-container"
-        ref={containerRef}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
+        className="slide-grid"
+        style={{ width: gridW, height: gridH }}
       >
-        {!ready && (
-          <div className="loading">
-            <div className="spinner" />
-            <span>Loading image...</span>
-          </div>
-        )}
-        {ready && <div
-          className="slide-grid"
-          style={{ width: gridW, height: gridH }}
-        >
-          {Array.from({ length: config.cols * config.rows }, (_, pieceId) => {
-            const cellIndex = board.indexOf(pieceId)
-            const isEmptyCell = pieceId === emptyVal
-            const showEmpty = isEmptyCell && !won
-            const col = cellIndex % config.cols
-            const row = Math.floor(cellIndex / config.cols)
-            const origPos = piecePos(pieceId, config.cols)
+        {Array.from({ length: config.cols * config.rows }, (_, pieceId) => {
+          const cellIndex = board.indexOf(pieceId)
+          const isEmptyCell = pieceId === emptyVal
+          const showEmpty = isEmptyCell && !won
+          const col = cellIndex % config.cols
+          const row = Math.floor(cellIndex / config.cols)
+          const origPos = piecePos(pieceId, config.cols)
 
-            let tx = 0, ty = 0
-            const isTileDragging = dragSet?.has(cellIndex) ?? false
-            if (isTileDragging && dragAxis) {
-              if (dragAxis === 'x') tx = dragOffset
-              else ty = dragOffset
-            }
+          let tx = 0, ty = 0
+          const isTileDragging = dragSet?.has(cellIndex) ?? false
+          if (isTileDragging && dragAxis) {
+            if (dragAxis === 'x') tx = dragOffset
+            else ty = dragOffset
+          }
 
-            return (
-              <div
-                key={pieceId}
-                className={`slide-cell${showEmpty ? ' slide-cell-empty' : ''}${isTileDragging ? ' dragging' : ''}${won ? ' solved' : ''}${pieceId === cellIndex && !won ? ' correct' : ''}`}
-                style={{
-                  left: col * cellSize,
-                  top: row * cellSize,
-                  width: cellSize,
-                  height: cellSize,
-                  transform: isTileDragging ? `translate(${tx}px, ${ty}px)` : undefined,
-                  zIndex: isTileDragging ? 100 : undefined,
-                  transition: isTileDragging ? 'none' : 'left 0.15s ease-out, top 0.15s ease-out',
-                }}
-                onPointerDown={e => handlePointerDown(e, cellIndex)}
-              >
-                {!showEmpty && (
-                  <>
-                    <canvas
-                      width={cellSize}
-                      height={cellSize}
-                      ref={canvas => {
-                        if (!canvas) return
-                        const ctx = canvas.getContext('2d')
-                        if (!ctx) return
-                        ctx.clearRect(0, 0, cellSize, cellSize)
-                        ctx.drawImage(
-                          image!,
-                          origPos.col * pieceSrcW, origPos.row * pieceSrcH,
-                          pieceSrcW, pieceSrcH,
-                          0, 0,
-                          cellSize, cellSize,
-                        )
-                      }}
-                      style={{ display: 'block', width: '100%', height: '100%' }}
-                    />
-                    {!won && <span className="slide-number">{pieceId + 1}</span>}
-                  </>
-                )}
-              </div>
-            )
-          })}
-        </div>}
-      </div>
-
-      {won && <WinFooter moves={moves} onBack={onBack} onDownload={handleDownload} />}
-
-      {showResumePrompt && (
-        <div className="resume-overlay">
-          <div className="resume-dialog">
-            <p>Resume previous game?</p>
-            <div className="resume-actions">
-              <button className="btn btn-secondary" onClick={handleStartFresh}>Start New</button>
-              <button className="btn btn-primary" onClick={handleResume}>Resume</button>
+          return (
+            <div
+              key={pieceId}
+              className={`slide-cell${showEmpty ? ' slide-cell-empty' : ''}${isTileDragging ? ' dragging' : ''}${won ? ' solved' : ''}${pieceId === cellIndex && !won ? ' correct' : ''}`}
+              style={{
+                left: col * cellSize,
+                top: row * cellSize,
+                width: cellSize,
+                height: cellSize,
+                transform: isTileDragging ? `translate(${tx}px, ${ty}px)` : undefined,
+                zIndex: isTileDragging ? 100 : undefined,
+                transition: (dragSet || suppressTransition) ? 'none' : 'left 0.15s ease-out, top 0.15s ease-out',
+              }}
+              onPointerDown={e => handlePointerDown(e, cellIndex)}
+            >
+              {!showEmpty && (
+                <>
+                  <canvas
+                    width={cellSize}
+                    height={cellSize}
+                    ref={canvas => {
+                      if (!canvas) return
+                      const ctx = canvas.getContext('2d')
+                      if (!ctx) return
+                      ctx.clearRect(0, 0, cellSize, cellSize)
+                      ctx.drawImage(
+                        image!,
+                        origPos.col * pieceSrcW, origPos.row * pieceSrcH,
+                        pieceSrcW, pieceSrcH,
+                        0, 0,
+                        cellSize, cellSize,
+                      )
+                    }}
+                    style={{ display: 'block', width: '100%', height: '100%' }}
+                  />
+                  {!won && <span className="slide-number">{pieceId + 1}</span>}
+                </>
+              )}
             </div>
-          </div>
-        </div>
-      )}
-
-      <div className="confetti-container" ref={confetti.ref} />
-    </div>
+          )
+        })}
+      </div>
+    </PuzzleScreenShell>
   )
 }
