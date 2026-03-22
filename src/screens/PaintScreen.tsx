@@ -3,7 +3,6 @@ import { ArrowLeft, Lightbulb, Maximize2, Minimize2, RotateCcw, ScanSearch } fro
 import type { GameActions, GameState } from '../App'
 import type { RegionSnapshot } from '../game/regions'
 import { DoodlebloomLogo, DoodlebloomMini } from '../components/DoodlebloomLogo'
-import { PillToggle } from '../components/PillToggle'
 import { ScrollChevrons } from '../components/ScrollChevrons'
 import { useConfetti } from '../hooks/useConfetti'
 import { renderPuzzle, flashRegion, buildOutlineChains } from '../game/canvas'
@@ -184,13 +183,14 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     return { sortedPaletteIndices: bestChain, colorDisplayNumbers: displayNums }
   }, [palette])
 
-  // When the active color becomes fully filled, auto-select the color with the most remaining unfilled pixels
+  // When the active color is null or fully filled, auto-select the color with the most remaining unfilled pixels
   useEffect(() => {
-    if (activeColorIndex === null) return
-    const allFilled = regions
-      .filter(r => r.colorIndex === activeColorIndex)
-      .every(r => playerColors[r.id] !== undefined)
-    if (!allFilled) return
+    if (activeColorIndex !== null) {
+      const allFilled = regions
+        .filter(r => r.colorIndex === activeColorIndex)
+        .every(r => playerColors[r.id] !== undefined)
+      if (!allFilled) return
+    }
 
     const unfilled = new Map<number, number>()
     for (const r of regions) {
@@ -200,7 +200,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     }
     if (unfilled.size === 0) { setActiveColorIndex(null); return }
 
-    let next = activeColorIndex, max = 0
+    let next = activeColorIndex ?? 0, max = 0
     for (const [ci, total] of unfilled) {
       if (total > max) { max = total; next = ci }
     }
@@ -878,7 +878,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
         <div className="game-header-logo"><DoodlebloomLogo /></div>
         <div className="game-header-mini">
           <DoodlebloomMini />
-          <div className="mini-progress-stack">
+          <div className="mini-progress-stack" style={{ cursor: 'pointer' }} onMouseDown={hintDown} onMouseUp={hintUp} onMouseLeave={hintUp} onTouchStart={(e) => { e.preventDefault(); hintDown() }} onTouchEnd={(e) => { e.preventDefault(); hintUp() }} onTouchCancel={hintUp}>
             {activeColor && colorProgress < 100 && (
               <div className="mini-progress color-progress" style={{ border: '1px solid #000', background: incompleteFill }}>
                 <div className="mini-progress-fill" style={{ width: `${colorProgress}%`, background: `rgb(${colorRgb})` }} />
@@ -891,7 +891,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
           </div>
         </div>
         <div className="game-header-spacer" />
-        <div className="progress-bars">
+        <div className="progress-bars" style={{ cursor: 'pointer' }} onMouseDown={hintDown} onMouseUp={hintUp} onMouseLeave={hintUp}>
           {activeColor && colorProgress < 100 && (
             <div className="progress-row">
               <div className="progress-bar color-progress" style={{ border: '1px solid #000', background: incompleteFill }}>
@@ -974,7 +974,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
         <svg
           ref={outlineSvgRef}
           className="outline-svg"
-          style={{ visibility: (state.screen === 'complete' && !showOutline) ? 'hidden' : 'visible' }}
+          style={{ visibility: state.screen === 'complete' ? 'hidden' : 'visible' }}
         >
           <path fill={outlineMagenta ? 'rgba(255,0,255,0.85)' : 'rgba(0,0,0,0.75)'} stroke="none" />
         </svg>
@@ -984,11 +984,6 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
         <div className="win-footer">
           <div className="win-footer-title">You did it!</div>
           <div className="win-footer-actions">
-            <PillToggle
-              options={[{ value: true, label: 'Outline' }, { value: false, label: 'Clean' }]}
-              value={showOutline}
-              onChange={actions.setShowOutline}
-            />
             <button className="btn btn-secondary" onClick={onNewPuzzle}>New puzzle</button>
             <button className="btn btn-primary" onClick={handleDownload}>Download</button>
           </div>
