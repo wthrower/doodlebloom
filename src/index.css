@@ -1286,6 +1286,18 @@ input[type="range"]::-webkit-slider-thumb {
   .game-header-spacer {
     display: none;
   }
+
+  .start-screen {
+    padding-top: 0.5rem;
+  }
+
+  .start-screen .app-title-wrap {
+    margin-bottom: 0;
+  }
+
+  .start-screen .app-title {
+    height: 2rem;
+  }
 }
 
 /* On wider screens: full logo, standard progress bar, hide mini */
