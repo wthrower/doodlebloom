@@ -933,7 +933,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
             <ScanSearch size={18} />
           </button>
         )}
-        {!window.matchMedia('(display-mode: standalone)').matches && (
+        {!(window.matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || (navigator as any).standalone) && (
           <button
             className="btn btn-ghost btn-icon btn-small"
             onClick={onToggleFullscreen}
