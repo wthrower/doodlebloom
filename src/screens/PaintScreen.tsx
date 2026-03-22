@@ -24,7 +24,7 @@ interface Props {
 
 interface Transform { scale: number; tx: number; ty: number }
 
-const MIN_SCALE = 1
+const MIN_SCALE = 0.5
 const MAX_SCALE = 8
 
 function clampScale(scale: number): number {
@@ -32,8 +32,7 @@ function clampScale(scale: number): number {
 }
 
 function clampTransform(t: Transform): Transform {
-  if (t.scale <= MIN_SCALE) return { scale: MIN_SCALE, tx: 0, ty: 0 }
-  return t
+  return { scale: clampScale(t.scale), tx: t.tx, ty: t.ty }
 }
 
 export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggleFullscreen, hasSaved, onStartFresh }: Props) {
@@ -825,7 +824,19 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
   const filledCount = regions.filter(r => playerColors[r.id] !== undefined).length
   const totalCount = regions.length
   const progress = totalCount > 0 ? Math.round((filledCount / totalCount) * 100) : 0
-  const isZoomed = transformRef.current.scale > 1.05
+  const isZoomed = Math.abs(transformRef.current.scale - 1) > 0.05
+
+  // Color-specific progress
+  const colorRegions = activeColorIndex !== null ? regions.filter(r => r.colorIndex === activeColorIndex) : []
+  const colorFilled = colorRegions.filter(r => playerColors[r.id] !== undefined).length
+  const colorProgress = colorRegions.length > 0 ? Math.round((colorFilled / colorRegions.length) * 100) : 0
+  const activeColor = activeColorIndex !== null ? palette[activeColorIndex] : null
+  const colorRgb = activeColor ? `${activeColor.r},${activeColor.g},${activeColor.b}` : '128,128,128'
+  // High contrast same-hue incomplete fill: lighten for dark colors, darken for light ones
+  const activeLum = activeColor ? (0.299 * activeColor.r + 0.587 * activeColor.g + 0.114 * activeColor.b) / 255 : 0.5
+  const incompleteFill = activeLum < 0.5
+    ? `rgba(${Math.min(255, activeColor!.r + 80)},${Math.min(255, activeColor!.g + 80)},${Math.min(255, activeColor!.b + 80)},0.3)`
+    : `rgba(${Math.max(0, activeColor!.r - 80)},${Math.max(0, activeColor!.g - 80)},${Math.max(0, activeColor!.b - 80)},0.3)`
 
   return (
     <div className="screen game-screen">
@@ -839,16 +850,35 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
         <div className="game-header-logo"><DoodlebloomLogo /></div>
         <div className="game-header-mini">
           <DoodlebloomMini />
-          <div className="mini-progress">
-            <div className="mini-progress-fill" style={{ width: `${progress}%` }} />
-            <span className="mini-progress-text">{progress}%</span>
+          <div className="mini-progress-stack">
+            {activeColor && colorProgress < 100 && (
+              <div className="mini-progress color-progress" style={{ border: '1px solid #000', background: incompleteFill }}>
+                <div className="mini-progress-fill" style={{ width: `${colorProgress}%`, background: `rgb(${colorRgb})` }} />
+              </div>
+            )}
+            <div className="mini-progress">
+              <div className="mini-progress-fill" style={{ width: `${progress}%` }} />
+              <span className="mini-progress-text">{progress}%</span>
+            </div>
           </div>
         </div>
         <div className="game-header-spacer" />
-        <div className="progress-bar">
-          <div className="progress-fill" style={{ width: `${progress}%` }} />
+        <div className="progress-bars">
+          {activeColor && colorProgress < 100 && (
+            <div className="progress-row">
+              <div className="progress-bar color-progress" style={{ border: '1px solid #000', background: incompleteFill }}>
+                <div className="progress-fill" style={{ width: `${colorProgress}%`, background: `rgb(${colorRgb})` }} />
+              </div>
+              <span className="progress-text">{colorProgress}%</span>
+            </div>
+          )}
+          <div className="progress-row">
+            <div className="progress-bar" style={{ border: '1px solid #000' }}>
+              <div className="progress-fill" style={{ width: `${progress}%` }} />
+            </div>
+            <span className="progress-text">{progress}%</span>
+          </div>
         </div>
-        <span className="progress-text">{progress}%</span>
         {state.screen !== 'complete' && (
           <button
             className="btn btn-ghost btn-icon btn-small"

@@ -897,12 +897,43 @@ input[type="range"]::-webkit-slider-thumb {
   min-width: 0;
 }
 
+.progress-bars {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.progress-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .progress-bar {
   flex: 1;
-  height: 6px;
+  height: 8px;
   background: var(--color-surface2);
-  border-radius: 3px;
+  border-radius: 4px;
   overflow: hidden;
+}
+
+.progress-bar.color-progress {
+  height: 10px;
+  border-radius: 5px;
+}
+
+.mini-progress-stack {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mini-progress.color-progress {
+  border-radius: 10px;
 }
 
 .progress-fill {
@@ -1250,8 +1281,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* ── Narrow phones: compact mode with mini flower + inline progress ── */
 @media (max-width: 420px) {
-  .progress-bar,
-  .progress-text {
+  .progress-bars {
     display: none;
   }
 }
