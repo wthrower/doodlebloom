@@ -930,7 +930,13 @@ input[type="range"]::-webkit-slider-thumb {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  justify-content: center;
 }
+
+.mini-progress-stack .mini-progress {
+  width: 100%;
+}
+
 
 .mini-progress.color-progress {
   border-radius: 10px;
