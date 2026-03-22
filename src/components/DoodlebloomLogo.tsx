@@ -1,4 +1,17 @@
+import { useEffect, useState } from 'react'
+
 const flowerOutline = 'drop-shadow(0 0 0.6px #1a0f00) drop-shadow(0 0 0.6px #1a0f00)'
+
+function useFontReady(family: string, timeoutMs = 3000) {
+  const [ready, setReady] = useState(() => document.fonts.check(`1em ${family}`))
+  useEffect(() => {
+    if (ready) return
+    document.fonts.ready.then(() => setReady(true))
+    const timer = setTimeout(() => setReady(true), timeoutMs)
+    return () => clearTimeout(timer)
+  }, [family, ready, timeoutMs])
+  return ready
+}
 
 function Lavender({ cx, cy, r }: { cx: number; cy: number; r: number }) {
   const n = 12
@@ -59,6 +72,7 @@ export function DoodlebloomMini() {
 }
 
 export function DoodlebloomLogo() {
+  const fontReady = useFontReady('Acme')
   const textProps = {
     fontFamily: 'Acme, sans-serif',
     fontSize: 40,
@@ -69,7 +83,7 @@ export function DoodlebloomLogo() {
   }
 
   return (
-    <svg className="app-title" overflow="visible" height="3rem" viewBox="0 0 228 50" aria-hidden="true">
+    <svg className="app-title" overflow="visible" height="3rem" viewBox="0 0 228 50" aria-hidden="true" style={{ visibility: fontReady ? 'visible' : 'hidden' }}>
       <defs>
         <linearGradient id="title-gradient" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0%" stopColor="#ffc49a" />
