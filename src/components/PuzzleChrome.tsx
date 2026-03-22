@@ -25,9 +25,11 @@ export function GameHeader({ onBack, isFullscreen, onToggleFullscreen, moves, mo
         {modeLabel && <span className="game-header-mode">{modeLabel}</span>}
       </div>
       <span className="puzzle-moves">{moves} moves</span>
-      <button className="btn btn-ghost btn-icon btn-small" onClick={onToggleFullscreen} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
-        {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-      </button>
+      {!window.matchMedia('(display-mode: standalone)').matches && (
+        <button className="btn btn-ghost btn-icon btn-small" onClick={onToggleFullscreen} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
+          {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+        </button>
+      )}
     </div>
   )
 }

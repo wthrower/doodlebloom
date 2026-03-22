@@ -67,7 +67,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     cancelFlash()
     let count = 0
     const flash = () => {
-      if (count >= 5) { setShowHint(false); hintTimerRef.current = null; return }
+      if (count >= 10) { setShowHint(false); hintTimerRef.current = null; return }
       setShowHint(true)
       count++
       hintTimerRef.current = setTimeout(() => {
@@ -933,14 +933,16 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
             <ScanSearch size={18} />
           </button>
         )}
-        <button
-          className="btn btn-ghost btn-icon btn-small"
-          onClick={onToggleFullscreen}
-          title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-          aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-        >
-          {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-        </button>
+        {!window.matchMedia('(display-mode: standalone)').matches && (
+          <button
+            className="btn btn-ghost btn-icon btn-small"
+            onClick={onToggleFullscreen}
+            title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+          >
+            {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+          </button>
+        )}
       </div>
 
       <div className="canvas-wrap" ref={wrapRef}>
