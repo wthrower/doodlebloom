@@ -57,6 +57,57 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     return dominant
   })
   const [showHint, setShowHint] = useState(false)
+  const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hintHeldRef = useRef(false)
+
+  const cancelFlash = useCallback(() => {
+    if (hintTimerRef.current) { clearTimeout(hintTimerRef.current); hintTimerRef.current = null }
+  }, [])
+
+  const flashHint = useCallback(() => {
+    cancelFlash()
+    let count = 0
+    const flash = () => {
+      if (count >= 5) { setShowHint(false); hintTimerRef.current = null; return }
+      setShowHint(true)
+      count++
+      hintTimerRef.current = setTimeout(() => {
+        setShowHint(false)
+        hintTimerRef.current = setTimeout(flash, 100) // 100ms off
+      }, 200) // 200ms on
+    }
+    flash()
+  }, [cancelFlash])
+
+  const hintDown = useCallback(() => {
+    cancelFlash()
+    hintHeldRef.current = true
+    // Delay showing hint so quick taps don't flicker
+    hintTimerRef.current = setTimeout(() => {
+      if (hintHeldRef.current) setShowHint(true)
+    }, 200)
+  }, [cancelFlash])
+
+  const showHintRef = useRef(false)
+  useEffect(() => { showHintRef.current = showHint }, [showHint])
+
+  const hintUp = useCallback(() => {
+    if (!hintHeldRef.current) return
+    hintHeldRef.current = false
+    cancelFlash()
+    if (showHintRef.current) {
+      // Was holding — just release
+      setShowHint(false)
+    } else {
+      // Quick tap — flash
+      flashHint()
+    }
+  }, [cancelFlash, flashHint])
+
+  // Clean up flash timer on unmount
+  useEffect(() => {
+    return () => { if (hintTimerRef.current) clearTimeout(hintTimerRef.current) }
+  }, [])
   const [outlineMagenta, setOutlineMagenta] = useState(false)
   const [debugStage, setDebugStage] = useState(-1)
   const [debugHover, setDebugHover] = useState<{ rid: number; ci: number; rgb: string } | null>(null)
@@ -403,7 +454,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
       for (const region of currentRegions) {
         if (currentPlayerColors[region.id] !== undefined) continue
         const label = displayNums[region.colorIndex] ?? region.colorIndex + 1
-        const fill = region.colorIndex === currentActive ? '#2e7d32' : 'rgba(0,0,0,0.35)'
+        const fill = region.colorIndex === currentActive ? '#2e7d32' : 'rgba(0,0,0,0.25)'
         const labelPoints = region.labels?.length ? region.labels : [{ x: region.centroid.x, y: region.centroid.y, radius: region.labelRadius }]
         for (const lp of labelPoints) {
           const sx = ox + lp.x * pixelScale
@@ -652,15 +703,20 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const { tx, ty, scale } = transformRef.current
-      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12
-      const newScale = clampScale(scale * factor)
-      const r = wrap.getBoundingClientRect()
-      // Position relative to canvas layout origin (offsetLeft accounts for flex centering)
-      const wx = e.clientX - r.left - canvas.offsetLeft
-      const wy = e.clientY - r.top - canvas.offsetTop
-      const lx = (wx - tx) / scale
-      const ly = (wy - ty) / scale
-      setTransform(clampTransform({ scale: newScale, tx: wx - lx * newScale, ty: wy - ly * newScale }))
+      if (e.ctrlKey) {
+        // Pinch-to-zoom (trackpad) or ctrl+scroll (mouse)
+        const factor = Math.exp(-e.deltaY * 0.01)
+        const newScale = clampScale(scale * factor)
+        const r = wrap.getBoundingClientRect()
+        const wx = e.clientX - r.left - canvas.offsetLeft
+        const wy = e.clientY - r.top - canvas.offsetTop
+        const lx = (wx - tx) / scale
+        const ly = (wy - ty) / scale
+        setTransform(clampTransform({ scale: newScale, tx: wx - lx * newScale, ty: wy - ly * newScale }))
+      } else {
+        // Two-finger drag (trackpad) or mouse scroll → pan
+        setTransform(clampTransform({ scale, tx: tx - e.deltaX, ty: ty - e.deltaY }))
+      }
     }
 
     const onTouchStart = (e: TouchEvent) => {
@@ -796,15 +852,15 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
         {state.screen !== 'complete' && (
           <button
             className="btn btn-ghost btn-icon btn-small"
-            onMouseDown={() => setShowHint(true)}
-            onMouseUp={() => setShowHint(false)}
-            onMouseLeave={() => setShowHint(false)}
-            onTouchStart={(e) => { e.preventDefault(); setShowHint(true) }}
-            onTouchEnd={(e) => { e.preventDefault(); setShowHint(false) }}
-            onTouchCancel={() => setShowHint(false)}
+            onMouseDown={hintDown}
+            onMouseUp={hintUp}
+            onMouseLeave={hintUp}
+            onTouchStart={(e) => { e.preventDefault(); hintDown() }}
+            onTouchEnd={(e) => { e.preventDefault(); hintUp() }}
+            onTouchCancel={hintUp}
             onContextMenu={(e) => e.preventDefault()}
-            title="Hold to highlight regions"
-            aria-label="Hold to highlight regions"
+            title="Tap to flash, hold to highlight"
+            aria-label="Highlight regions"
           >
             <Lightbulb size={18} />
           </button>
