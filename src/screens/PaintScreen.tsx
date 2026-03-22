@@ -853,9 +853,9 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
   const colorRgb = activeColor ? `${activeColor.r},${activeColor.g},${activeColor.b}` : '128,128,128'
   // High contrast same-hue incomplete fill: lighten for dark colors, darken for light ones
   const activeLum = activeColor ? (0.299 * activeColor.r + 0.587 * activeColor.g + 0.114 * activeColor.b) / 255 : 0.5
-  const incompleteFill = activeLum < 0.5
-    ? `rgba(${Math.min(255, activeColor!.r + 80)},${Math.min(255, activeColor!.g + 80)},${Math.min(255, activeColor!.b + 80)},0.3)`
-    : `rgba(${Math.max(0, activeColor!.r - 80)},${Math.max(0, activeColor!.g - 80)},${Math.max(0, activeColor!.b - 80)},0.3)`
+  const incompleteFill = !activeColor ? 'transparent' : activeLum < 0.5
+    ? `rgba(${Math.min(255, activeColor.r + 80)},${Math.min(255, activeColor.g + 80)},${Math.min(255, activeColor.b + 80)},0.3)`
+    : `rgba(${Math.max(0, activeColor.r - 80)},${Math.max(0, activeColor.g - 80)},${Math.max(0, activeColor.b - 80)},0.3)`
 
   return (
     <div className="screen game-screen">
