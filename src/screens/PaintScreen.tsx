@@ -132,6 +132,15 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
   const sortedPaletteRef = useRef<number[]>([])
   useEffect(() => { rawPaletteRef.current = state.rawPalette }, [state.rawPalette])
   useEffect(() => { activeColorRef.current = activeColorIndex }, [activeColorIndex])
+
+  // Scroll the active swatch to center of the palette
+  useEffect(() => {
+    if (activeColorIndex === null) return
+    const container = paletteRef.current
+    if (!container) return
+    const swatch = container.querySelector('.palette-swatch.active') as HTMLElement | null
+    if (swatch) swatch.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+  }, [activeColorIndex])
   useEffect(() => { regionsRef.current = regions }, [regions])
   useEffect(() => { playerColorsRef.current = playerColors }, [playerColors])
   useEffect(() => { fillRegionRef.current = fillRegion }, [fillRegion])
