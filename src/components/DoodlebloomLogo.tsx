@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 
 const flowerOutline = 'drop-shadow(0 0 0.6px #1a0f00) drop-shadow(0 0 0.6px #1a0f00)'
 
-function useFontReady(family: string, timeoutMs = 3000) {
+function useFontReady(family: string, timeoutMs = 1000) {
   const [ready, setReady] = useState(() => document.fonts.check(`1em ${family}`))
   useEffect(() => {
     if (ready) return
