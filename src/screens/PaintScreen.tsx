@@ -25,7 +25,7 @@ interface Props {
 interface Transform { scale: number; tx: number; ty: number }
 
 const MIN_SCALE = 0.5
-const MAX_SCALE = 8
+const MAX_SCALE = 20
 
 function clampScale(scale: number): number {
   return Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale))
@@ -698,6 +698,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     let pinchStart: { dist: number; midX: number; midY: number; scale: number; tx: number; ty: number } | null = null
     let panStart: { x: number; y: number; scale: number; tx: number; ty: number } | null = null
     let tapStart: { x: number; y: number; time: number } | null = null
+    let twoFingerTapStart: number | null = null
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
@@ -730,6 +731,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
       } else if (all.length >= 2) {
         tapStart = null
         panStart = null
+        twoFingerTapStart = Date.now()
         const [a, b] = all
         pinchStart = {
           dist: Math.hypot(b.x - a.x, b.y - a.y),
@@ -774,16 +776,31 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     const onTouchEnd = (e: TouchEvent) => {
       if (e.cancelable) e.preventDefault()
       const wasSingle = touches.size === 1
+      const wasMulti = touches.size >= 2
       for (const t of Array.from(e.changedTouches)) touches.delete(t.identifier)
       if (wasSingle && tapStart && Date.now() - tapStart.time < 300) {
         handleTap(tapStart.x, tapStart.y)
       }
-      if (touches.size === 0) { pinchStart = null; panStart = null; tapStart = null }
+      // Two-finger tap: all fingers lifted quickly without significant pinch or pan
+      if (touches.size === 0 && twoFingerTapStart && Date.now() - twoFingerTapStart < 400) {
+        if (pinchStart) {
+          const { scale, tx, ty } = transformRef.current
+          const scaleChange = Math.abs(scale - pinchStart.scale)
+          const panDist = Math.hypot(tx - pinchStart.tx, ty - pinchStart.ty)
+          if (scaleChange < 0.15 && panDist < 15) setTransform({ scale: 1, tx: 0, ty: 0 })
+        }
+      }
+      if (touches.size === 0) { pinchStart = null; panStart = null; tapStart = null; twoFingerTapStart = null }
     }
 
     const onTouchCancel = () => {
       touches.clear()
-      pinchStart = null; panStart = null; tapStart = null
+      pinchStart = null; panStart = null; tapStart = null; twoFingerTapStart = null
+    }
+
+    const onContextMenu = (e: MouseEvent) => {
+      e.preventDefault()
+      setTransform({ scale: 1, tx: 0, ty: 0 })
     }
 
     wrap.addEventListener('mousedown', onMouseDown)
@@ -794,6 +811,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     wrap.addEventListener('touchmove', onTouchMove, { passive: false })
     wrap.addEventListener('touchend', onTouchEnd, { passive: false })
     wrap.addEventListener('touchcancel', onTouchCancel)
+    wrap.addEventListener('contextmenu', onContextMenu)
     return () => {
       wrap.removeEventListener('mousedown', onMouseDown)
       window.removeEventListener('mousemove', onMouseMove)
@@ -803,6 +821,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
       wrap.removeEventListener('touchmove', onTouchMove)
       wrap.removeEventListener('touchend', onTouchEnd)
       wrap.removeEventListener('touchcancel', onTouchCancel)
+      wrap.removeEventListener('contextmenu', onContextMenu)
     }
   }, [canvasWidth, handleTap, setTransform]) // handleTap is stable via useCallback with refs
 
