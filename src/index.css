@@ -932,10 +932,6 @@ input[type="range"]::-webkit-slider-thumb {
   min-width: 0;
 }
 
-.mini-progress-stack .mini-progress {
-  width: 100%;
-}
-
 .mini-progress.color-progress {
   border-radius: 10px;
 }
@@ -1285,7 +1281,8 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* ── Narrow phones: compact mode with mini flower + inline progress ── */
 @media (max-width: 420px) {
-  .progress-bars {
+  .progress-bars,
+  .game-header-spacer {
     display: none;
   }
 }
