@@ -83,7 +83,7 @@ export function DoodlebloomLogo() {
   }
 
   return (
-    <svg className="app-title" overflow="visible" height="3rem" viewBox="0 0 228 50" aria-hidden="true" style={{ visibility: fontReady ? 'visible' : 'hidden' }}>
+    <svg className="app-title" overflow="visible" height="3rem" viewBox="0 0 228 50" aria-hidden="true" style={{ opacity: fontReady ? 1 : 0, transition: 'opacity 1s ease' }}>
       <defs>
         <linearGradient id="title-gradient" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0%" stopColor="#ffc49a" />
