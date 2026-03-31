@@ -38,6 +38,8 @@ export interface GameActions {
   originalImageDataRef: React.MutableRefObject<ImageData | null>
   debugSnapshotsRef: React.MutableRefObject<RegionSnapshot[]>
   processingStage: string | null
+  pipelineError: string | null
+  clearPipelineError: () => void
 }
 
 
@@ -49,6 +51,7 @@ export function useGame(): [GameState, GameActions] {
     loadApiKey() || (import.meta.env.VITE_OPENAI_API_KEY as string) || ''
   )
   const [processingStage, setProcessingStage] = useState<string | null>(null)
+  const [pipelineError, setPipelineError] = useState<string | null>(null)
   const [paletteSpread, setPaletteSpread] = useState(false)
   const basePaletteRef = useRef<PaletteColor[] | null>(null)
   const { persistState, restoreState, wipeState, storeImage, retrieveImage, storeRegionMap, retrieveRegionMap } = useStorage()
@@ -169,7 +172,9 @@ export function useGame(): [GameState, GameActions] {
   }, [wipeState])
 
   const processImage = useCallback(async (blob: Blob) => {
+    setPipelineError(null)
     const sessionId = crypto.randomUUID()
+    try {
     await storeImage(sessionId, blob)
 
     setProcessingStage('decode')
@@ -259,6 +264,12 @@ export function useGame(): [GameState, GameActions] {
       canvasHeight: ch,
       rawPalette,
     })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Image processing failed'
+      setPipelineError(msg)
+      setProcessingStage(null)
+      update({ screen: 'start' })
+    }
   }, [storeImage, storeRegionMap, update])
 
   const fillRegion = useCallback((regionId: number, colorIndex: number) => {
@@ -324,6 +335,8 @@ export function useGame(): [GameState, GameActions] {
     setShowOutline,
     setApiKey,
     processingStage,
+    pipelineError,
+    clearPipelineError: useCallback(() => setPipelineError(null), []),
     apiKey,
     goTo,
     processImage,

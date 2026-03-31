@@ -1280,6 +1280,27 @@ input[type="range"]::-webkit-slider-thumb {
   line-height: 1;
 }
 
+.error-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  gap: 1rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.error-screen h2 {
+  font-family: var(--font-display);
+  color: var(--color-accent);
+}
+
+.error-screen p {
+  color: var(--color-text-muted);
+  max-width: 400px;
+}
+
 /* ── Narrow phones: compact mode with mini flower + inline progress ── */
 @media (max-width: 420px) {
   .progress-bars,
