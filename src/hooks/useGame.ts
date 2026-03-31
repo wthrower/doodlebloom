@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DEFAULT_STATE } from '../types'
-import type { GameState, PaletteColor, Region, Screen } from '../types'
+import type { GameState, PaletteColor, Screen } from '../types'
 import { useStorage } from './useStorage'
-import { colorDist } from '../game/colorDistance'
-import { analyzeColors, assignColors, assignPixels } from '../game/quantize'
-import { buildRegions, fuseSameColorRegions, traceRegions, mergeRegions, finalizeRegions, mergeGradientSeams, snapshotRegions, relabelRegions } from '../game/regions'
+import { assignPixels } from '../game/quantize'
+import { buildRegions, fuseSameColorRegions } from '../game/regions'
 import type { RegionSnapshot } from '../game/regions'
+import type { PipelineMessage } from '../game/pipeline.worker'
 import { loadApiKey, saveApiKey, clearCorruptedState } from '../game/storage'
-import { recomputePalette, spreadPalette } from '../game/paletteColor'
+import { spreadPalette } from '../game/paletteColor'
 
 /** Scale image so its shorter side = this many pixels. */
 const CANVAS_SHORT = 1024
@@ -42,8 +42,6 @@ export interface GameActions {
   clearPipelineError: () => void
 }
 
-
-const tick = () => new Promise<void>(r => setTimeout(r, 0))
 
 export function useGame(): [GameState, GameActions] {
   const [state, setState] = useState<GameState>(() => DEFAULT_STATE)
@@ -175,95 +173,66 @@ export function useGame(): [GameState, GameActions] {
     setPipelineError(null)
     const sessionId = crypto.randomUUID()
     try {
-    await storeImage(sessionId, blob)
+      await storeImage(sessionId, blob)
 
-    setProcessingStage('decode')
-    await tick()
-    const img = await loadBlobAsImage(blob)
-    const scale = CANVAS_SHORT / Math.min(img.naturalWidth, img.naturalHeight)
-    const cw = Math.round(img.naturalWidth * scale)
-    const ch = Math.round(img.naturalHeight * scale)
-    const canvas = document.createElement('canvas')
-    canvas.width = cw
-    canvas.height = ch
-    const ctx = canvas.getContext('2d')!
-    ctx.drawImage(img, 0, 0, cw, ch)
-    const imageData = ctx.getImageData(0, 0, cw, ch)
+      // Decode on main thread (needs DOM)
+      setProcessingStage('decode')
+      const img = await loadBlobAsImage(blob)
+      const scale = CANVAS_SHORT / Math.min(img.naturalWidth, img.naturalHeight)
+      const cw = Math.round(img.naturalWidth * scale)
+      const ch = Math.round(img.naturalHeight * scale)
+      const canvas = document.createElement('canvas')
+      canvas.width = cw
+      canvas.height = ch
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(img, 0, 0, cw, ch)
+      const imageData = ctx.getImageData(0, 0, cw, ch)
 
-    setProcessingStage('palette')
-    await tick()
-    const rawPalette = analyzeColors(imageData, colorCountRef.current)
+      // Pipeline runs in a web worker
+      const worker = new Worker(
+        new URL('../game/pipeline.worker.ts', import.meta.url),
+        { type: 'module' },
+      )
 
-    setProcessingStage('assign')
-    await tick()
-    const indexMap = assignColors(rawPalette, imageData)
+      await new Promise<void>((resolve, reject) => {
+        worker.onmessage = async (e: MessageEvent<PipelineMessage>) => {
+          if (e.data.type === 'progress') {
+            setProcessingStage(e.data.stage)
+          } else if (e.data.type === 'error') {
+            worker.terminate()
+            reject(new Error(e.data.message))
+          } else if (e.data.type === 'complete') {
+            worker.terminate()
+            const { palette, basePalette, regions, indexMap, regionMap, rawPalette } = e.data.result
 
-    setProcessingStage('trace')
-    await tick()
-    const regionState = traceRegions(indexMap, cw, ch)
-    const snapshots: RegionSnapshot[] = []
-    snapshots.push(snapshotRegions('after trace', regionState))
+            await storeRegionMap(sessionId, regionMap)
 
-    setProcessingStage('merge')
-    await tick()
-    mergeRegions(regionState, rawPalette)
-    snapshots.push(snapshotRegions('after merge', regionState))
+            basePaletteRef.current = basePalette
+            indexMapRef.current = indexMap
+            regionMapRef.current = regionMap
+            originalImageDataRef.current = imageData
+            debugSnapshotsRef.current = []
 
-    setProcessingStage('measure')
-    await tick()
-    const { regions: rawRegions, regionMap } = finalizeRegions(regionState, rawPalette)
-    snapshots.push(snapshotRegions('after finalize', regionState))
-
-    setProcessingStage('seams')
-    await tick()
-    const { regions: seamedRegions } = { regions: mergeGradientSeams(rawRegions, regionMap, imageData, cw, 0.01, rawPalette) }
-
-    const snapFromRegions = (label: string, rs: Region[], rm: Int32Array): RegionSnapshot => {
-      const colorOf = new Map<number, number>()
-      for (const r of rs) colorOf.set(r.id, r.colorIndex)
-      return { label, regionMap: rm.slice(), colorOf }
-    }
-    snapshots.push(snapFromRegions('after seams', seamedRegions, regionMap))
-
-    setProcessingStage('finish')
-    await tick()
-
-    // Compact: remove palette colors with no surviving regions
-    const usedIndices = [...new Set(seamedRegions.map(r => r.colorIndex))].sort((a, b) => a - b)
-    const compactRemap = new Map(usedIndices.map((old, i) => [old, i]))
-    let palette = usedIndices.map(i => rawPalette[i])
-    let regions = seamedRegions.map(r => ({ ...r, colorIndex: compactRemap.get(r.colorIndex)! }))
-
-    if (palette.length > colorCountRef.current) {
-      mergeToTarget(palette, regions, colorCountRef.current)
-    }
-    regions = fuseSameColorRegions(regions, regionMap, cw)
-    relabelRegions(regions, regionMap, cw)
-
-    // Recompute palette: most saturated pixel near the average, then spread apart
-    palette = recomputePalette('saturated', regions, regionMap, imageData, palette.length)
-    basePaletteRef.current = palette
-    palette = spreadPalette(palette)
-
-    debugSnapshotsRef.current = snapshots
-
-    await storeRegionMap(sessionId, regionMap)
-
-    indexMapRef.current = indexMap
-    regionMapRef.current = regionMap
-    originalImageDataRef.current = imageData
-
-    setProcessingStage(null)
-    update({
-      screen: 'playing',
-      sessionId,
-      palette,
-      regions,
-      playerColors: {},
-      canvasWidth: cw,
-      canvasHeight: ch,
-      rawPalette,
-    })
+            setProcessingStage(null)
+            update({
+              screen: 'playing',
+              sessionId,
+              palette,
+              regions,
+              playerColors: {},
+              canvasWidth: cw,
+              canvasHeight: ch,
+              rawPalette,
+            })
+            resolve()
+          }
+        }
+        worker.onerror = (e) => {
+          worker.terminate()
+          reject(new Error(e.message || 'Worker error'))
+        }
+        worker.postMessage({ imageData, colorCount: colorCountRef.current })
+      })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Image processing failed'
       setPipelineError(msg)
@@ -367,33 +336,4 @@ function loadBlobAsImage(blob: Blob): Promise<HTMLImageElement> {
   })
 }
 
-/** Merge the closest Lab pairs in palette until palette.length === targetCount.
- *  Mutates palette and regions in place. The larger (by pixel count) color survives. */
-function mergeToTarget(palette: PaletteColor[], regions: Region[], targetCount: number): void {
-  // Sum pixel counts per colorIndex
-  const counts = new Array(palette.length).fill(0)
-  for (const r of regions) counts[r.colorIndex] += r.pixelCount
-
-  while (palette.length > targetCount) {
-    // Find closest Lab pair
-    let minDist = Infinity, minI = 0, minJ = 1
-    for (let a = 0; a < palette.length; a++) {
-      for (let b = a + 1; b < palette.length; b++) {
-        const d = colorDist(palette[a].r, palette[a].g, palette[a].b,
-                            palette[b].r, palette[b].g, palette[b].b)
-        if (d < minDist) { minDist = d; minI = a; minJ = b }
-      }
-    }
-    const [keep, drop] = counts[minI] >= counts[minJ] ? [minI, minJ] : [minJ, minI]
-    counts[keep] += counts[drop]
-    palette.splice(drop, 1)
-    counts.splice(drop, 1)
-    // Remap regions: dropped index → keep (adjusted for the splice shift)
-    const keepAdj = keep > drop ? keep - 1 : keep
-    for (const r of regions) {
-      if (r.colorIndex === drop) r.colorIndex = keepAdj
-      else if (r.colorIndex > drop) r.colorIndex--
-    }
-  }
-}
 

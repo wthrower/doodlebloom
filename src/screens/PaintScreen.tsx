@@ -886,7 +886,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
             )}
             <div className="mini-progress">
               <div className="mini-progress-fill" style={{ width: `${progress}%` }} />
-              <span className="mini-progress-text">{progress}%</span>
+              <span className="mini-progress-text">{filledCount}/{totalCount}</span>
             </div>
           </div>
         </div>
@@ -897,14 +897,14 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
               <div className="progress-bar color-progress" style={{ border: '1px solid #000', background: incompleteFill }}>
                 <div className="progress-fill" style={{ width: `${colorProgress}%`, background: `rgb(${colorRgb})` }} />
               </div>
-              <span className="progress-text">{colorProgress}%</span>
+              <span className="progress-text">{colorFilled}/{colorRegions.length}</span>
             </div>
           )}
           <div className="progress-row">
             <div className="progress-bar" style={{ border: '1px solid #000' }}>
               <div className="progress-fill" style={{ width: `${progress}%` }} />
             </div>
-            <span className="progress-text">{progress}%</span>
+            <span className="progress-text">{filledCount}/{totalCount}</span>
           </div>
         </div>
         {state.screen !== 'complete' && (
