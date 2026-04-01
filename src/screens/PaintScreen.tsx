@@ -5,14 +5,15 @@ import type { GameActions } from '../hooks/useGame'
 import { DoodlebloomLogo, DoodlebloomMini } from '../components/DoodlebloomLogo'
 import { ScrollChevrons } from '../components/ScrollChevrons'
 import { useConfetti } from '../hooks/useConfetti'
-import { renderPuzzle, flashRegion, buildOutlineChains } from '../game/canvas'
-import type { OutlineBatch } from '../game/canvas'
+import { usePanZoom } from '../hooks/usePanZoom'
+import { useOutlineSvg } from '../hooks/useOutlineSvg'
+import { renderPuzzle, flashRegion } from '../game/canvas'
 import { colorDist } from '../game/colorDistance'
+import { getRegionAt } from '../game/regions'
+import { CURSOR_CAN_FILL, CURSOR_CANT_FILL } from '../game/cursors'
 
 const IS_STANDALONE = typeof window !== 'undefined' &&
   (window.matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || (navigator as any).standalone)
-import { getRegionAt } from '../game/regions'
-import { CURSOR_CAN_FILL, CURSOR_CANT_FILL } from '../game/cursors'
 
 interface Props {
   state: GameState
@@ -24,19 +25,6 @@ interface Props {
   onStartFresh: () => void
 }
 
-interface Transform { scale: number; tx: number; ty: number }
-
-const MIN_SCALE = 0.5
-const MAX_SCALE = 20
-
-function clampScale(scale: number): number {
-  return Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale))
-}
-
-function clampTransform(t: Transform): Transform {
-  return { scale: clampScale(t.scale), tx: t.tx, ty: t.ty }
-}
-
 export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggleFullscreen, hasSaved, onStartFresh }: Props) {
   const [showResumePrompt, setShowResumePrompt] = useState(hasSaved)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -46,8 +34,6 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
   const outlineSvgRef = useRef<SVGSVGElement>(null)
   const numbersSvgRef = useRef<SVGSVGElement>(null)
   const numbersRafRef = useRef(0)
-  const outlineChainsRef = useRef<OutlineBatch | null>(null)
-  const outlineRafRef = useRef(0)
   const [activeColorIndex, setActiveColorIndex] = useState<number | null>(() => {
     const rs = state.regions
     if (rs.length === 0) return null
@@ -74,8 +60,8 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
       count++
       hintTimerRef.current = setTimeout(() => {
         setShowHint(false)
-        hintTimerRef.current = setTimeout(flash, 100) // 100ms off
-      }, 200) // 200ms on
+        hintTimerRef.current = setTimeout(flash, 100)
+      }, 200)
     }
     flash()
   }, [cancelFlash])
@@ -83,7 +69,6 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
   const hintDown = useCallback(() => {
     cancelFlash()
     hintHeldRef.current = true
-    // Delay showing hint so quick taps don't flicker
     hintTimerRef.current = setTimeout(() => {
       if (hintHeldRef.current) setShowHint(true)
     }, 200)
@@ -97,18 +82,16 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     hintHeldRef.current = false
     cancelFlash()
     if (showHintRef.current) {
-      // Was holding — just release
       setShowHint(false)
     } else {
-      // Quick tap — flash
       flashHint()
     }
   }, [cancelFlash, flashHint])
 
-  // Clean up flash timer on unmount
   useEffect(() => {
     return () => { if (hintTimerRef.current) clearTimeout(hintTimerRef.current) }
   }, [])
+
   const [outlineMagenta, setOutlineMagenta] = useState(false)
   const { palette, regions, playerColors, canvasWidth, canvasHeight, showOutline, screen } = state
   const { getIndexMap, getRegionMap, getOriginalImageData, fillRegion } = actions
@@ -119,15 +102,16 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
   }, [screen, confetti.fire])
 
   // --- Refs for event handlers (avoid stale closures, avoid re-adding listeners) ---
-  const transformRef = useRef<Transform>({ scale: 1, tx: 0, ty: 0 })
-  const displaySizeRef = useRef(0)
   const activeColorRef = useRef<number | null>(null)
   const regionsRef = useRef(regions)
   const playerColorsRef = useRef(playerColors)
   const fillRegionRef = useRef(fillRegion)
-
   const sortedPaletteRef = useRef<number[]>([])
+
   useEffect(() => { activeColorRef.current = activeColorIndex }, [activeColorIndex])
+  useEffect(() => { regionsRef.current = regions }, [regions])
+  useEffect(() => { playerColorsRef.current = playerColors }, [playerColors])
+  useEffect(() => { fillRegionRef.current = fillRegion }, [fillRegion])
 
   // Scroll the active swatch to center of the palette
   useEffect(() => {
@@ -137,9 +121,103 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     const swatch = container.querySelector('.palette-swatch.active') as HTMLElement | null
     if (swatch) swatch.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
   }, [activeColorIndex])
-  useEffect(() => { regionsRef.current = regions }, [regions])
-  useEffect(() => { playerColorsRef.current = playerColors }, [playerColors])
-  useEffect(() => { fillRegionRef.current = fillRegion }, [fillRegion])
+
+  // --- Callback refs (filled after hooks are called, read at event time) ---
+  const onTransformChangeRef = useRef<(() => void) | null>(null)
+  const onTapRef = useRef<(clientX: number, clientY: number) => void>(() => {})
+  const onPointerMoveRef = useRef<((clientX: number, clientY: number) => void) | null>(null)
+
+  // --- Pan/zoom hook (called first -- refs are wired after) ---
+  const panZoom = usePanZoom({
+    canvasRef, wrapRef, canvasWidth, canvasHeight,
+    onTapRef, onPointerMoveRef, onTransformChangeRef,
+  })
+
+  // --- Outline SVG hook (uses panZoom refs) ---
+  const { updateOutlineSvg } = useOutlineSvg({
+    outlineSvgRef, canvasRef, wrapRef,
+    transformRef: panZoom.transformRef,
+    displaySizeRef: panZoom.displaySizeRef,
+    getRegionMap, getOriginalImageData,
+    regions, canvasWidth, canvasHeight,
+  })
+
+  // --- SVG number overlay ---
+  const updateNumbersSvg = useCallback(() => {
+    cancelAnimationFrame(numbersRafRef.current)
+    numbersRafRef.current = requestAnimationFrame(() => {
+      const svg = numbersSvgRef.current
+      const canvas = canvasRef.current
+      if (!svg || !canvas) return
+
+      const { tx, ty, scale } = panZoom.transformRef.current
+      const displayW = panZoom.displaySizeRef.current || canvasWidth
+      const pixelScale = (displayW / canvasWidth) * scale
+      const ox = canvas.offsetLeft + tx
+      const oy = canvas.offsetTop + ty
+
+      const currentRegions = regionsRef.current
+      const currentPlayerColors = playerColorsRef.current
+      const currentActive = activeColorRef.current
+      const displayNums = sortedPaletteRef.current.length > 0
+        ? Object.fromEntries(sortedPaletteRef.current.map((ci, pos) => [ci, pos + 1]))
+        : {} as Record<number, number>
+
+      const parts: string[] = []
+      for (const region of currentRegions) {
+        if (currentPlayerColors[region.id] !== undefined) continue
+        const label = displayNums[region.colorIndex] ?? region.colorIndex + 1
+        const fill = region.colorIndex === currentActive ? '#2e7d32' : 'rgba(0,0,0,0.25)'
+        const labelPoints = region.labels?.length ? region.labels : [{ x: region.centroid.x, y: region.centroid.y, radius: region.labelRadius }]
+        for (const lp of labelPoints) {
+          const sx = ox + lp.x * pixelScale
+          const sy = oy + lp.y * pixelScale
+          const canvasFontSize = Math.max(9, Math.min(Math.round(lp.radius * 0.8), 72))
+          const fontSize = Math.max(6, canvasFontSize * pixelScale)
+          parts.push(`<text x="${sx.toFixed(1)}" y="${sy.toFixed(1)}" font-size="${fontSize.toFixed(1)}" fill="${fill}" text-anchor="middle" dominant-baseline="central" font-family="sans-serif">${label}</text>`)
+        }
+      }
+      svg.innerHTML = parts.join('')
+    })
+  }, [canvasWidth])
+
+  // --- Wire callback refs (read at event time, not setup time) ---
+  onTransformChangeRef.current = () => { updateOutlineSvg(); updateNumbersSvg() }
+
+  onTapRef.current = (clientX: number, clientY: number) => {
+    const canvas = canvasRef.current
+    const rm = getRegionMap()
+    if (!canvas || !rm || activeColorRef.current === null) return
+    const pos = panZoom.screenToCanvas(clientX, clientY)
+    if (!pos) return
+    const colorIndex = activeColorRef.current
+    const regionId = getRegionAt(pos.x, pos.y, rm, canvasWidth, canvasHeight)
+    if (regionId < 0) return
+    const region = regionsRef.current.find(r => r.id === regionId)
+    if (!region || playerColorsRef.current[regionId] !== undefined) return
+    if (colorIndex === region.colorIndex) {
+      fillRegionRef.current(regionId, colorIndex)
+    } else {
+      flashRegion(canvas.getContext('2d')!, regionId, rm, canvasWidth, canvasHeight)
+    }
+  }
+
+  onPointerMoveRef.current = (clientX: number, clientY: number) => {
+    const wrap = wrapRef.current
+    if (!wrap) return
+    const pos = panZoom.screenToCanvas(clientX, clientY)
+    const rm = getRegionMap()
+    if (pos && rm && activeColorRef.current !== null) {
+      const regionId = getRegionAt(pos.x, pos.y, rm, canvasWidth, canvasHeight)
+      const region = regionId >= 0 ? regionsRef.current.find(r => r.id === regionId) : null
+      const canFill = region
+        && playerColorsRef.current[regionId] === undefined
+        && activeColorRef.current === region.colorIndex
+      wrap.style.cursor = canFill ? CURSOR_CAN_FILL : CURSOR_CANT_FILL
+    } else {
+      wrap.style.cursor = CURSOR_CANT_FILL
+    }
+  }
 
   // Sort palette by nearest-neighbor chaining (greedy, RGB Euclidean distance)
   const { sortedPaletteIndices, colorDisplayNumbers } = useMemo(() => {
@@ -213,322 +291,6 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     setActiveColorIndex(next)
   }, [playerColors, activeColorIndex, regions, regionsByColorIndex])
 
-  // --- SVG outline overlay: redraws in screen coordinates on every zoom/pan/resize ---
-  // The SVG is not CSS-transformed, so its paths are rendered at screen resolution.
-  // Throttled to one update per animation frame.
-  const updateOutlineSvg = useCallback(() => {
-    cancelAnimationFrame(outlineRafRef.current)
-    outlineRafRef.current = requestAnimationFrame(() => {
-      const svg = outlineSvgRef.current
-      const canvas = canvasRef.current
-      const wrap = wrapRef.current
-      const batch = outlineChainsRef.current
-      if (!svg || !canvas || !wrap || !batch) return
-
-      const { tx, ty, scale } = transformRef.current
-      const displayW = displaySizeRef.current || canvasWidth
-      const pixelScale = (displayW / canvasWidth) * scale
-      const ox = canvas.offsetLeft + tx
-      const oy = canvas.offsetTop + ty
-      const wrapW = wrap.clientWidth
-      const wrapH = wrap.clientHeight
-
-
-      // Convert canvas coords to screen coords
-      const sx = (cx: number) => (ox + cx * pixelScale).toFixed(1)
-      const sy = (cy: number) => (oy + cy * pixelScale).toFixed(1)
-
-      // Visible canvas bounds (with small margin for curves that extend slightly outside bbox)
-      const margin = 3
-      const visMinX = (-ox / pixelScale) - margin
-      const visMinY = (-oy / pixelScale) - margin
-      const visMaxX = visMinX + (wrapW / pixelScale) + margin * 2
-      const visMaxY = visMinY + (wrapH / pixelScale) + margin * 2
-
-      const { chains, bboxes } = batch
-      const imgData = getOriginalImageData()
-      const imgW = canvasWidth
-
-      // Sample contrast at a boundary-grid point (gx, gy) from the original image.
-      // High contrast (dark next to bright) → thick line; low contrast → thin line.
-      // Uses luminance range (max − min) across a small neighborhood so that
-      // nearby boundary points get consistent weights even across chain junctions.
-      // Returns 0 (no contrast) – 1 (max contrast).
-      const sampleRadius = 4
-      const sampleContrast = (gx: number, gy: number): number => {
-        if (!imgData) return 0.5
-        let minL = 1, maxL = 0
-        for (let py = gy - sampleRadius; py <= gy + sampleRadius; py++) {
-          for (let px = gx - sampleRadius; px <= gx + sampleRadius; px++) {
-            if (px < 0 || py < 0 || px >= imgW || py >= imgData.height) continue
-            const i = (py * imgW + px) * 4
-            const d = imgData.data
-            const L = (0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2]) / 255
-            if (L < minL) minL = L
-            if (L > maxL) maxL = L
-          }
-        }
-        return maxL - minL
-      }
-
-      // Half-width range in screen pixels (thin for bright, thick for dark)
-      const minHW = 0.5
-      const maxHW = Math.min(3, Math.max(0.75, scale * 0.75))
-      const shortSeg = 15 // spine segments shorter than this get full smoothing (staircase artifacts)
-      const t = 0.5 // Catmull-Rom tension
-
-      // Catmull-Rom → cubic Bezier, clamping control vectors to chord length.
-      // When a control vector exceeds the chord, the curve can loop -- clamping
-      // prevents overshooting without abandoning smooth curves elsewhere.
-      const crSeg = (arr: [number, number][], i: number): string => {
-        const p0 = arr[Math.max(0, i - 1)]
-        const p1 = arr[i]
-        const p2 = arr[i + 1]
-        const p3 = arr[Math.min(arr.length - 1, i + 2)]
-        let cp1x = p1[0] + (p2[0] - p0[0]) * t / 3
-        let cp1y = p1[1] + (p2[1] - p0[1]) * t / 3
-        let cp2x = p2[0] - (p3[0] - p1[0]) * t / 3
-        let cp2y = p2[1] - (p3[1] - p1[1]) * t / 3
-        const chord = Math.hypot(p2[0] - p1[0], p2[1] - p1[1])
-        const cv1 = Math.hypot(cp1x - p1[0], cp1y - p1[1])
-        const cv2 = Math.hypot(cp2x - p2[0], cp2y - p2[1])
-        if (cv1 > chord && cv1 > 0) { const s = chord / cv1; cp1x = p1[0] + (cp1x - p1[0]) * s; cp1y = p1[1] + (cp1y - p1[1]) * s }
-        if (cv2 > chord && cv2 > 0) { const s = chord / cv2; cp2x = p2[0] + (cp2x - p2[0]) * s; cp2y = p2[1] + (cp2y - p2[1]) * s }
-        return `C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`
-      }
-
-      const polygons: string[] = []
-
-      for (let ci = 0; ci < chains.length; ci++) {
-        // Viewport cull
-        const bi = ci * 4
-        if (bboxes[bi + 2] < visMinX || bboxes[bi] > visMaxX ||
-            bboxes[bi + 3] < visMinY || bboxes[bi + 1] > visMaxY) continue
-
-        const pts = chains[ci]
-        if (pts.length < 2) continue
-        const n = pts.length
-
-        // Convert to screen coords
-        const sp = pts.map(([x, y]) => [ox + x * pixelScale, oy + y * pixelScale] as [number, number])
-
-        const hwCore = pts.map(([gx, gy]) => minHW + Math.max(0.5, sampleContrast(gx, gy)) * (maxHW - minHW))
-        const hwSmooth = hwCore.map((_, i) => {
-          let sum = 0, count = 0
-          for (let j = Math.max(0, i - 6); j <= Math.min(n - 1, i + 6); j++) { sum += hwCore[j]; count++ }
-          return sum / count
-        })
-        for (let i = 1; i < n - 1; i++) {
-          const dx1 = pts[i][0] - pts[i-1][0], dy1 = pts[i][1] - pts[i-1][1]
-          const dx2 = pts[i+1][0] - pts[i][0],  dy2 = pts[i+1][1] - pts[i][1]
-          const len1 = Math.hypot(dx1, dy1), len2 = Math.hypot(dx2, dy2)
-          const len = len1 * len2
-          // Zero half-width at sharp reversals, but only on long segments
-          // (short segments are staircase artifacts that should stay smooth)
-          if (len > 0 && (dx1*dx2 + dy1*dy2) / len < 0 && Math.min(len1, len2) > shortSeg) hwSmooth[i] = 0
-        }
-        const taperK = 2
-        const taperFloor = 0.2
-        const hw = hwSmooth.map((v, i) => {
-          const taper = taperFloor + (1 - taperFloor) * Math.min(1, i / taperK) * Math.min(1, (n - 1 - i) / taperK)
-          return Math.max(0.75, v * taper)
-        })
-
-        // Spine sharpness: detect corners for segment-type decisions
-        const spineSharp = (i: number): boolean => {
-          if (i <= 0 || i >= n - 1) return false
-          const dx1 = pts[i][0] - pts[i-1][0], dy1 = pts[i][1] - pts[i-1][1]
-          const dx2 = pts[i+1][0] - pts[i][0],  dy2 = pts[i+1][1] - pts[i][1]
-          const len = Math.hypot(dx1, dy1) * Math.hypot(dx2, dy2)
-          return len > 0 && (dx1*dx2 + dy1*dy2) / len <= 0.7
-        }
-        const sharpAt = new Uint8Array(n)
-        for (let i = 0; i < n; i++) if (spineSharp(i)) sharpAt[i] = 1
-        const nearSharp = (i: number): boolean => {
-          for (let j = Math.max(0, i - 1); j <= Math.min(n - 1, i + 1); j++) {
-            if (sharpAt[j]) return true
-          }
-          return false
-        }
-
-        // Build offset left/right sides with miter correction at corners.
-        const left:  [number, number][] = []
-        const right: [number, number][] = []
-        for (let i = 0; i < n; i++) {
-          const [x, y] = sp[i]
-          const h = hw[i]
-          let nx: number, ny: number
-          if (i === 0 || i === n - 1) {
-            const [ax, ay] = sp[Math.max(0, i - 1)]
-            const [bx, by] = sp[Math.min(n - 1, i + 1)]
-            const dx = bx - ax, dy = by - ay
-            const len = Math.hypot(dx, dy) || 1
-            nx = -dy / len; ny = dx / len
-          } else {
-            const dx1 = sp[i][0] - sp[i-1][0], dy1 = sp[i][1] - sp[i-1][1]
-            const dx2 = sp[i+1][0] - sp[i][0], dy2 = sp[i+1][1] - sp[i][1]
-            const len1 = Math.hypot(dx1, dy1) || 1
-            const len2 = Math.hypot(dx2, dy2) || 1
-            const n1x = -dy1 / len1, n1y = dx1 / len1
-            const n2x = -dy2 / len2, n2y = dx2 / len2
-            const bx = n1x + n2x, by = n1y + n2y
-            const blen = Math.hypot(bx, by)
-            if (blen < 1e-6) {
-              nx = n1x; ny = n1y
-            } else {
-              nx = bx / blen; ny = by / blen
-              const dot = nx * n1x + ny * n1y
-              const miter = Math.min(3, 1 / Math.max(dot, 0.01))
-              nx *= miter; ny *= miter
-            }
-          }
-          left.push( [x + nx * h, y + ny * h])
-          right.push([x - nx * h, y - ny * h])
-        }
-
-        // CR with adaptive chord clamping: tighter at sharp corners, full at
-        // smooth curves. Clamp factor = cosine of turning angle at the vertex,
-        // floored at 0.05. This naturally tightens at sharp turns.
-        const vtxCos = new Float32Array(n) // cosine of turning angle per vertex
-        for (let i = 0; i < n; i++) {
-          if (i === 0 || i === n - 1) { vtxCos[i] = 1; continue }
-          const dx1 = pts[i][0] - pts[i-1][0], dy1 = pts[i][1] - pts[i-1][1]
-          const dx2 = pts[i+1][0] - pts[i][0], dy2 = pts[i+1][1] - pts[i][1]
-          const len1 = Math.hypot(dx1, dy1), len2 = Math.hypot(dx2, dy2)
-          const len = len1 * len2
-          const cos = len > 0 ? (dx1*dx2 + dy1*dy2) / len : 1
-          // Relax clamping when both segments are short (staircase artifact)
-          const blend = Math.min(1, Math.min(len1, len2) / shortSeg)
-          vtxCos[i] = cos * blend + 1 * (1 - blend)
-        }
-        const crSegAdaptive = (arr: [number, number][], i: number, si: number): string => {
-          const p0 = arr[Math.max(0, i - 1)]
-          const p1 = arr[i]
-          const p2 = arr[i + 1]
-          const p3 = arr[Math.min(arr.length - 1, i + 2)]
-          let cp1x = p1[0] + (p2[0] - p0[0]) * t / 3
-          let cp1y = p1[1] + (p2[1] - p0[1]) * t / 3
-          let cp2x = p2[0] - (p3[0] - p1[0]) * t / 3
-          let cp2y = p2[1] - (p3[1] - p1[1]) * t / 3
-          // Clamp factor: min cosine of the two endpoints, floored at 0.05
-          const clamp = Math.max(0.05, Math.min(vtxCos[si], vtxCos[Math.min(si + 1, n - 1)]))
-          const chord = Math.hypot(p2[0] - p1[0], p2[1] - p1[1])
-          const maxCV = chord * clamp
-          const cv1 = Math.hypot(cp1x - p1[0], cp1y - p1[1])
-          const cv2 = Math.hypot(cp2x - p2[0], cp2y - p2[1])
-          if (cv1 > maxCV && cv1 > 0) { const s = maxCV / cv1; cp1x = p1[0] + (cp1x - p1[0]) * s; cp1y = p1[1] + (cp1y - p1[1]) * s }
-          if (cv2 > maxCV && cv2 > 0) { const s = maxCV / cv2; cp2x = p2[0] + (cp2x - p2[0]) * s; cp2y = p2[1] + (cp2y - p2[1]) * s }
-          return `C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`
-        }
-        const spineLen = (i: number) => Math.hypot(pts[i+1][0]-pts[i][0], pts[i+1][1]-pts[i][1])
-        const rightRev = [...right].reverse()
-        const f = ([x, y]: [number, number]) => `${x.toFixed(1)},${y.toFixed(1)}`
-        const segs = [`M${f(left[0])}`]
-        for (let i = 0; i < n - 1; i++) {
-          segs.push(spineLen(i) > 40 ? `L${f(left[i + 1])}` : crSegAdaptive(left, i, i))
-        }
-        segs.push(`L${f(right[n - 1])}`)
-        for (let i = 0; i < n - 1; i++) {
-          const si = n - 2 - i
-          segs.push(spineLen(si) > 40 ? `L${f(rightRev[i + 1])}` : crSegAdaptive(rightRev, i, si))
-        }
-
-        segs.push('Z')
-        polygons.push(segs.join(' '))
-      }
-
-      // Update single path directly (bypass React VDOM for perf)
-      const path = svg.querySelector('path')
-      if (path) path.setAttribute('d', polygons.join(' '))
-    })
-  }, [canvasWidth])
-
-  // --- SVG number overlay: redrawn in screen coordinates on zoom/pan/color changes ---
-  const updateNumbersSvg = useCallback(() => {
-    cancelAnimationFrame(numbersRafRef.current)
-    numbersRafRef.current = requestAnimationFrame(() => {
-      const svg = numbersSvgRef.current
-      const canvas = canvasRef.current
-      if (!svg || !canvas) return
-
-      const { tx, ty, scale } = transformRef.current
-      const displayW = displaySizeRef.current || canvasWidth
-      const pixelScale = (displayW / canvasWidth) * scale
-      const ox = canvas.offsetLeft + tx
-      const oy = canvas.offsetTop + ty
-
-      const currentRegions = regionsRef.current
-      const currentPlayerColors = playerColorsRef.current
-      const currentActive = activeColorRef.current
-      const displayNums = sortedPaletteRef.current.length > 0
-        ? Object.fromEntries(sortedPaletteRef.current.map((ci, pos) => [ci, pos + 1]))
-        : {} as Record<number, number>
-
-      const parts: string[] = []
-      for (const region of currentRegions) {
-        if (currentPlayerColors[region.id] !== undefined) continue
-        const label = displayNums[region.colorIndex] ?? region.colorIndex + 1
-        const fill = region.colorIndex === currentActive ? '#2e7d32' : 'rgba(0,0,0,0.25)'
-        const labelPoints = region.labels?.length ? region.labels : [{ x: region.centroid.x, y: region.centroid.y, radius: region.labelRadius }]
-        for (const lp of labelPoints) {
-          const sx = ox + lp.x * pixelScale
-          const sy = oy + lp.y * pixelScale
-          const canvasFontSize = Math.max(9, Math.min(Math.round(lp.radius * 0.8), 72))
-          const fontSize = Math.max(6, canvasFontSize * pixelScale)
-          parts.push(`<text x="${sx.toFixed(1)}" y="${sy.toFixed(1)}" font-size="${fontSize.toFixed(1)}" fill="${fill}" text-anchor="middle" dominant-baseline="central" font-family="sans-serif">${label}</text>`)
-        }
-      }
-      svg.innerHTML = parts.join('')
-    })
-  }, [canvasWidth])
-
-  // Rebuild outline chains when puzzle changes
-  useEffect(() => {
-    const rm = getRegionMap()
-    if (!rm || regions.length === 0) { outlineChainsRef.current = null; return }
-    outlineChainsRef.current = buildOutlineChains(rm, regions, canvasWidth, canvasHeight)
-    updateOutlineSvg()
-  }, [regions, canvasWidth, canvasHeight, getRegionMap, updateOutlineSvg])
-
-  // Trigger a CSS transform + state re-render
-  const [, forceRender] = useState(0)
-  const setTransform = useCallback((t: Transform) => {
-    transformRef.current = t
-    const canvas = canvasRef.current
-    if (canvas) {
-      canvas.style.transformOrigin = '0 0'
-      canvas.style.transform = `translate(${t.tx}px,${t.ty}px) scale(${t.scale})`
-    }
-    updateOutlineSvg()
-    updateNumbersSvg()
-    forceRender(n => n + 1)
-  }, [updateOutlineSvg, updateNumbersSvg])
-
-  // --- ResizeObserver: fit canvas inside wrap, maintaining aspect ratio ---
-  useEffect(() => {
-    const wrap = wrapRef.current
-    const canvas = canvasRef.current
-    if (!wrap || !canvas) return
-    const observer = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect
-      const aspect = canvasWidth / canvasHeight
-      let w = width, h = width / aspect
-      if (h > height) { h = height; w = height * aspect }
-      displaySizeRef.current = w
-      canvas.style.width = `${w}px`
-      canvas.style.height = `${h}px`
-      updateOutlineSvg()
-      updateNumbersSvg()
-    })
-    observer.observe(wrap)
-    return () => observer.disconnect()
-  }, [updateOutlineSvg, updateNumbersSvg])
-
-  // Initialize canvas context with willReadFrequently for faster getImageData
-  useEffect(() => {
-    canvasRef.current?.getContext('2d', { willReadFrequently: true })
-  }, [])
-
   // --- Render puzzle pixels ---
   useEffect(() => {
     const canvas = canvasRef.current
@@ -541,7 +303,6 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
       originalImageData: getOriginalImageData(),
       showHint,
     })
-
   }, [playerColors, activeColorIndex, regions, palette, showOutline, screen, canvasWidth, canvasHeight, getIndexMap, getRegionMap, getOriginalImageData, showHint])
 
   // Update number labels when fills, active color, or palette change
@@ -549,54 +310,14 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     updateNumbersSvg()
   }, [playerColors, activeColorIndex, palette, updateNumbersSvg])
 
-
-
-  // --- Coordinate mapping: screen → canvas pixels ---
-  // Use wrap rect + canvas.offsetLeft/Top (layout position, no transform) + explicit transform.
-  const screenToCanvas = useCallback((clientX: number, clientY: number) => {
-    const canvas = canvasRef.current
-    const wrap = wrapRef.current
-    if (!canvas || !wrap) return null
-    const { tx, ty, scale } = transformRef.current
-    const displayW = displaySizeRef.current || canvasWidth
-    const wr = wrap.getBoundingClientRect()
-    // canvas.offsetLeft/Top: layout position within wrap, unaffected by CSS transform
-    const lx = (clientX - wr.left - canvas.offsetLeft - tx) / scale
-    const ly = (clientY - wr.top - canvas.offsetTop - ty) / scale
-    // Uniform scale: canvasWidth/displayW === canvasHeight/displayH (aspect ratio maintained)
-    const s = canvasWidth / displayW
-    return { x: lx * s, y: ly * s }
-  }, [canvasWidth, canvasHeight])
-
-  // --- Tap action ---
-  const handleTap = useCallback((clientX: number, clientY: number) => {
-    const canvas = canvasRef.current
-    const rm = getRegionMap()
-    if (!canvas || !rm || activeColorRef.current === null) return
-    const pos = screenToCanvas(clientX, clientY)
-    if (!pos) return
-    const colorIndex = activeColorRef.current
-    const regionId = getRegionAt(pos.x, pos.y, rm, canvasWidth, canvasHeight)
-    if (regionId < 0) return
-    const region = regionsRef.current.find(r => r.id === regionId)
-    if (!region || playerColorsRef.current[regionId] !== undefined) return
-    if (colorIndex === region.colorIndex) {
-      fillRegionRef.current(regionId, colorIndex)
-    } else {
-      flashRegion(canvas.getContext('2d')!, regionId, rm, canvasWidth, canvasHeight)
-    }
-  }, [canvasWidth, canvasHeight, getRegionMap, screenToCanvas])
-
-  // --- Cheat key (x): highlight unfilled cells of selected color ---
-  // --- Cheat key (w): fill everything and win ---
+  // --- Keyboard shortcuts ---
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.key === 'w' || e.key === 'W') {
         for (const r of regionsRef.current) fillRegionRef.current(r.id, r.colorIndex)
       }
-      // Number keys 1-9, 0 select colors 1-10 in display order
       const numKey = e.key >= '0' && e.key <= '9'
-        ? (e.key === '0' ? 10 : Number(e.key))  // '0' maps to 10th color
+        ? (e.key === '0' ? 10 : Number(e.key))
         : 0
       if (numKey > 0 && numKey <= sortedPaletteRef.current.length) {
         const colorIdx = sortedPaletteRef.current[numKey - 1]
@@ -608,187 +329,6 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     window.addEventListener('keydown', down)
     return () => { window.removeEventListener('keydown', down) }
   }, [])
-
-  // --- Wheel + mouse + touch gesture listeners (non-passive) ---
-  useEffect(() => {
-    const canvas = canvasRef.current
-    const wrap = wrapRef.current
-    if (!canvas || !wrap) return
-
-    // Set initial cursor on wrap (interaction surface is the whole work area)
-    wrap.style.cursor = CURSOR_CANT_FILL
-
-    // Mouse pan
-    let mouseDown: { x: number; y: number; tx: number; ty: number; scale: number } | null = null
-    let mouseDragged = false
-
-    const updateCursor = (clientX: number, clientY: number) => {
-      const pos = screenToCanvas(clientX, clientY)
-      const rm = getRegionMap()
-      if (pos && rm && activeColorRef.current !== null) {
-        const regionId = getRegionAt(pos.x, pos.y, rm, canvasWidth, canvasHeight)
-        const region = regionId >= 0 ? regionsRef.current.find(r => r.id === regionId) : null
-        const canFill = region
-          && playerColorsRef.current[regionId] === undefined
-          && activeColorRef.current === region.colorIndex
-        wrap.style.cursor = canFill ? CURSOR_CAN_FILL : CURSOR_CANT_FILL
-      } else {
-        wrap.style.cursor = CURSOR_CANT_FILL
-      }
-    }
-
-    const onMouseDown = (e: MouseEvent) => {
-      if (e.button !== 0) return
-      mouseDown = { x: e.clientX, y: e.clientY, ...transformRef.current }
-      mouseDragged = false
-    }
-    const onMouseMove = (e: MouseEvent) => {
-      updateCursor(e.clientX, e.clientY)
-      if (!mouseDown) return
-      const dx = e.clientX - mouseDown.x
-      const dy = e.clientY - mouseDown.y
-      if (!mouseDragged && Math.hypot(dx, dy) > 4) mouseDragged = true
-      if (mouseDragged) {
-        setTransform(clampTransform({ scale: mouseDown.scale, tx: mouseDown.tx + dx, ty: mouseDown.ty + dy }))
-      }
-    }
-    const onMouseUp = (e: MouseEvent) => {
-      if (!mouseDown) return
-      if (!mouseDragged) handleTap(e.clientX, e.clientY)
-      mouseDown = null
-    }
-
-    // Touch tracking
-    const touches = new Map<number, { x: number; y: number }>()
-    let pinchStart: { dist: number; midX: number; midY: number; scale: number; tx: number; ty: number } | null = null
-    let panStart: { x: number; y: number; scale: number; tx: number; ty: number } | null = null
-    let tapStart: { x: number; y: number; time: number } | null = null
-    let twoFingerTapStart: number | null = null
-
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault()
-      const { tx, ty, scale } = transformRef.current
-      if (e.ctrlKey) {
-        // Pinch-to-zoom (trackpad) or ctrl+scroll (mouse)
-        const factor = Math.exp(-e.deltaY * 0.01)
-        const newScale = clampScale(scale * factor)
-        const r = wrap.getBoundingClientRect()
-        const wx = e.clientX - r.left - canvas.offsetLeft
-        const wy = e.clientY - r.top - canvas.offsetTop
-        const lx = (wx - tx) / scale
-        const ly = (wy - ty) / scale
-        setTransform(clampTransform({ scale: newScale, tx: wx - lx * newScale, ty: wy - ly * newScale }))
-      } else {
-        // Two-finger drag (trackpad) or mouse scroll → pan
-        setTransform(clampTransform({ scale, tx: tx - e.deltaX, ty: ty - e.deltaY }))
-      }
-    }
-
-    const onTouchStart = (e: TouchEvent) => {
-      e.preventDefault()
-      for (const t of Array.from(e.changedTouches)) touches.set(t.identifier, { x: t.clientX, y: t.clientY })
-      const all = [...touches.values()]
-      if (all.length === 1) {
-        const p = all[0]
-        tapStart = { x: p.x, y: p.y, time: Date.now() }
-        panStart = null
-        pinchStart = null
-      } else if (all.length >= 2) {
-        tapStart = null
-        panStart = null
-        twoFingerTapStart = Date.now()
-        const [a, b] = all
-        pinchStart = {
-          dist: Math.hypot(b.x - a.x, b.y - a.y),
-          midX: (a.x + b.x) / 2,
-          midY: (a.y + b.y) / 2,
-          ...transformRef.current,
-        }
-      }
-    }
-
-    const onTouchMove = (e: TouchEvent) => {
-      e.preventDefault()
-      for (const t of Array.from(e.changedTouches)) touches.set(t.identifier, { x: t.clientX, y: t.clientY })
-      const all = [...touches.values()]
-
-      if (all.length === 1) {
-        const p = all[0]
-        if (tapStart && Math.hypot(p.x - tapStart.x, p.y - tapStart.y) > 8) {
-          panStart = { x: p.x, y: p.y, ...transformRef.current }
-          tapStart = null
-        }
-        if (panStart) {
-          setTransform(clampTransform({ scale: panStart.scale, tx: panStart.tx + (p.x - panStart.x), ty: panStart.ty + (p.y - panStart.y) }))
-        }
-      } else if (all.length >= 2 && pinchStart) {
-        const [a, b] = all
-        const dist = Math.hypot(b.x - a.x, b.y - a.y)
-        const midX = (a.x + b.x) / 2
-        const midY = (a.y + b.y) / 2
-        const newScale = clampScale(pinchStart.scale * (dist / pinchStart.dist))
-        const r = wrap.getBoundingClientRect()
-        const ox = canvas.offsetLeft, oy = canvas.offsetTop
-        // Anchor the starting pinch midpoint in canvas-local space
-        const wStart = { x: pinchStart.midX - r.left - ox, y: pinchStart.midY - r.top - oy }
-        const lx = (wStart.x - pinchStart.tx) / pinchStart.scale
-        const ly = (wStart.y - pinchStart.ty) / pinchStart.scale
-        const wNew = { x: midX - r.left - ox, y: midY - r.top - oy }
-        setTransform(clampTransform({ scale: newScale, tx: wNew.x - lx * newScale, ty: wNew.y - ly * newScale }))
-      }
-    }
-
-    const onTouchEnd = (e: TouchEvent) => {
-      if (e.cancelable) e.preventDefault()
-      const wasSingle = touches.size === 1
-      const wasMulti = touches.size >= 2
-      for (const t of Array.from(e.changedTouches)) touches.delete(t.identifier)
-      if (wasSingle && tapStart && Date.now() - tapStart.time < 300) {
-        handleTap(tapStart.x, tapStart.y)
-      }
-      // Two-finger tap: all fingers lifted quickly without significant pinch or pan
-      if (touches.size === 0 && twoFingerTapStart && Date.now() - twoFingerTapStart < 400) {
-        if (pinchStart) {
-          const { scale, tx, ty } = transformRef.current
-          const scaleChange = Math.abs(scale - pinchStart.scale)
-          const panDist = Math.hypot(tx - pinchStart.tx, ty - pinchStart.ty)
-          if (scaleChange < 0.15 && panDist < 15) setTransform({ scale: 1, tx: 0, ty: 0 })
-        }
-      }
-      if (touches.size === 0) { pinchStart = null; panStart = null; tapStart = null; twoFingerTapStart = null }
-    }
-
-    const onTouchCancel = () => {
-      touches.clear()
-      pinchStart = null; panStart = null; tapStart = null; twoFingerTapStart = null
-    }
-
-    const onContextMenu = (e: MouseEvent) => {
-      e.preventDefault()
-      setTransform({ scale: 1, tx: 0, ty: 0 })
-    }
-
-    wrap.addEventListener('mousedown', onMouseDown)
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
-    wrap.addEventListener('wheel', onWheel, { passive: false })
-    wrap.addEventListener('touchstart', onTouchStart, { passive: false })
-    wrap.addEventListener('touchmove', onTouchMove, { passive: false })
-    wrap.addEventListener('touchend', onTouchEnd, { passive: false })
-    wrap.addEventListener('touchcancel', onTouchCancel)
-    wrap.addEventListener('contextmenu', onContextMenu)
-    return () => {
-      wrap.removeEventListener('mousedown', onMouseDown)
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', onMouseUp)
-      wrap.removeEventListener('wheel', onWheel)
-      wrap.removeEventListener('touchstart', onTouchStart)
-      wrap.removeEventListener('touchmove', onTouchMove)
-      wrap.removeEventListener('touchend', onTouchEnd)
-      wrap.removeEventListener('touchcancel', onTouchCancel)
-      wrap.removeEventListener('contextmenu', onContextMenu)
-    }
-  }, [canvasWidth, handleTap, setTransform]) // handleTap is stable via useCallback with refs
 
   const handleDownload = useCallback(() => {
     const canvas = canvasRef.current
@@ -804,19 +344,15 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     }, 'image/png')
   }, [])
 
-
   const filledCount = regions.filter(r => playerColors[r.id] !== undefined).length
   const totalCount = regions.length
   const progress = totalCount > 0 ? Math.round((filledCount / totalCount) * 100) : 0
-  const isZoomed = Math.abs(transformRef.current.scale - 1) > 0.05
 
-  // Color-specific progress
   const colorRegions = activeColorIndex !== null ? regions.filter(r => r.colorIndex === activeColorIndex) : []
   const colorFilled = colorRegions.filter(r => playerColors[r.id] !== undefined).length
   const colorProgress = colorRegions.length > 0 ? Math.round((colorFilled / colorRegions.length) * 100) : 0
   const activeColor = activeColorIndex !== null ? palette[activeColorIndex] : null
   const colorRgb = activeColor ? `${activeColor.r},${activeColor.g},${activeColor.b}` : '128,128,128'
-  // High contrast same-hue incomplete fill: lighten for dark colors, darken for light ones
   const activeLum = activeColor ? (0.299 * activeColor.r + 0.587 * activeColor.g + 0.114 * activeColor.b) / 255 : 0.5
   const incompleteFill = !activeColor ? 'transparent' : activeLum < 0.5
     ? `rgba(${Math.min(255, activeColor.r + 80)},${Math.min(255, activeColor.g + 80)},${Math.min(255, activeColor.b + 80)},0.3)`
@@ -879,10 +415,10 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
             <Lightbulb size={18} />
           </button>
         )}
-        {isZoomed && (
+        {panZoom.isZoomed && (
           <button
             className="btn btn-ghost btn-icon btn-small"
-            onClick={() => setTransform({ scale: 1, tx: 0, ty: 0 })}
+            onClick={() => panZoom.setTransform({ scale: 1, tx: 0, ty: 0 })}
             title="Reset zoom"
             aria-label="Reset zoom"
           >
@@ -902,20 +438,17 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
       </div>
 
       <div className="canvas-wrap" ref={wrapRef}>
-        {/* Canvas stays in DOM when complete so download still works */}
         <canvas
           ref={canvasRef}
           width={canvasWidth}
           height={canvasHeight}
           className="puzzle-canvas"
         />
-{/* SVG number labels: not CSS-transformed, redrawn in screen coords on zoom/pan */}
         <svg
           ref={numbersSvgRef}
           className="outline-svg"
           style={{ visibility: state.screen === 'complete' ? 'hidden' : 'visible' }}
         />
-{/* SVG outline overlay: not CSS-transformed, redrawn in screen coords on zoom/pan */}
         <svg
           ref={outlineSvgRef}
           className="outline-svg"
