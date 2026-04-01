@@ -863,6 +863,86 @@ export function mergeToTarget(palette: PaletteColor[], regions: Region[], target
   }
 }
 
+/** Absorb the smallest regions into their closest-color neighbor until
+ *  region count <= maxRegions. Mutates regionMap in place, returns updated list. */
+export function capRegions(
+  regions: Region[],
+  regionMap: Int32Array,
+  width: number,
+  palette: PaletteColor[],
+  maxRegions: number,
+): Region[] {
+  if (regions.length <= maxRegions) return regions
+
+  const pixels = regionMap.length
+
+  // Build adjacency from regionMap
+  const adjSets = new Map<number, Set<number>>()
+  for (const r of regions) adjSets.set(r.id, new Set())
+  for (let i = 0; i < pixels; i++) {
+    const rid = regionMap[i]
+    if (rid < 0) continue
+    const x = i % width
+    for (const n of [x < width - 1 ? i + 1 : -1, i + width < pixels ? i + width : -1]) {
+      if (n < 0) continue
+      const nrid = regionMap[n]
+      if (nrid >= 0 && nrid !== rid) {
+        adjSets.get(rid)?.add(nrid)
+        adjSets.get(nrid)?.add(rid)
+      }
+    }
+  }
+
+  // Union-find
+  const parent = new Map<number, number>()
+  const find = (x: number): number => {
+    let root = x
+    while (parent.has(root)) root = parent.get(root)!
+    while (parent.has(x)) { const next = parent.get(x)!; parent.set(x, root); x = next }
+    return root
+  }
+
+  const regionById = new Map(regions.map(r => [r.id, r]))
+
+  // Sort smallest first, absorb into closest-color neighbor
+  const sorted = [...regions].sort((a, b) => a.pixelCount - b.pixelCount)
+  let count = regions.length
+
+  for (const r of sorted) {
+    if (count <= maxRegions) break
+    if (find(r.id) !== r.id) continue // already absorbed
+
+    const neighbors = adjSets.get(r.id)
+    if (!neighbors || neighbors.size === 0) continue
+
+    let bestId = -1, bestDist = Infinity
+    for (const nid of neighbors) {
+      const canon = find(nid)
+      if (canon === r.id) continue
+      const nr = regionById.get(canon)
+      if (!nr) continue
+      const d = colorDist(
+        palette[r.colorIndex].r, palette[r.colorIndex].g, palette[r.colorIndex].b,
+        palette[nr.colorIndex].r, palette[nr.colorIndex].g, palette[nr.colorIndex].b,
+      )
+      if (d < bestDist) { bestDist = d; bestId = canon }
+    }
+    if (bestId < 0) continue
+
+    parent.set(r.id, bestId)
+    regionById.get(bestId)!.pixelCount += r.pixelCount
+    count--
+  }
+
+  // Rewrite regionMap
+  for (let i = 0; i < pixels; i++) {
+    if (regionMap[i] >= 0) regionMap[i] = find(regionMap[i])
+  }
+
+  const surviving = new Set(regions.filter(r => find(r.id) === r.id).map(r => r.id))
+  return regions.filter(r => surviving.has(r.id))
+}
+
 export function getRegionAt(
   x: number,
   y: number,

@@ -1,10 +1,13 @@
 import { analyzeColors, assignColors } from './quantize'
 import {
   traceRegions, mergeRegions, finalizeRegions,
-  mergeGradientSeams, fuseSameColorRegions, relabelRegions, mergeToTarget,
+  mergeGradientSeams, fuseSameColorRegions, relabelRegions, mergeToTarget, capRegions,
 } from './regions'
 import { recomputePalette, spreadPalette } from './paletteColor'
 import type { PaletteColor, Region } from '../types'
+
+/** Maximum number of regions in the final puzzle. */
+const MAX_REGIONS = 500
 
 export interface PipelineInput {
   imageData: ImageData
@@ -64,6 +67,8 @@ self.onmessage = (e: MessageEvent<PipelineInput>) => {
     if (palette.length > colorCount) {
       mergeToTarget(palette, regions, colorCount)
     }
+    regions = fuseSameColorRegions(regions, regionMap, cw)
+    regions = capRegions(regions, regionMap, cw, palette, MAX_REGIONS)
     regions = fuseSameColorRegions(regions, regionMap, cw)
     relabelRegions(regions, regionMap, cw)
 
