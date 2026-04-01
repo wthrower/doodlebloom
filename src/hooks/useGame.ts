@@ -1,12 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DEFAULT_STATE } from '../types'
 import type { GameState, PaletteColor, Screen } from '../types'
-import { useStorage } from './useStorage'
+import {
+  loadGameState,
+  saveGameState,
+  clearGameState,
+  saveImage,
+  loadImage,
+  deleteImage,
+  saveRegionMap,
+  loadRegionMap,
+  loadApiKey,
+  saveApiKey,
+  clearCorruptedState,
+} from '../game/storage'
 import { assignPixels } from '../game/quantize'
 import { buildRegions, fuseSameColorRegions } from '../game/regions'
-import type { RegionSnapshot } from '../game/regions'
 import type { PipelineMessage } from '../game/pipeline.worker'
-import { loadApiKey, saveApiKey, clearCorruptedState } from '../game/storage'
 import { spreadPalette } from '../game/paletteColor'
 
 /** Scale image so its shorter side = this many pixels. */
@@ -33,10 +43,9 @@ export interface GameActions {
   toggleSpreadPalette: () => void
   resetPuzzle: () => Promise<void>
   resetProgress: () => void
-  indexMapRef: React.MutableRefObject<Uint8Array | null>
-  regionMapRef: React.MutableRefObject<Int32Array | null>
-  originalImageDataRef: React.MutableRefObject<ImageData | null>
-  debugSnapshotsRef: React.MutableRefObject<RegionSnapshot[]>
+  getIndexMap: () => Uint8Array | null
+  getRegionMap: () => Int32Array | null
+  getOriginalImageData: () => ImageData | null
   processingStage: string | null
   pipelineError: string | null
   clearPipelineError: () => void
@@ -45,6 +54,7 @@ export interface GameActions {
 
 export function useGame(): [GameState, GameActions] {
   const [state, setState] = useState<GameState>(() => DEFAULT_STATE)
+  // This API key is not leaked, because it is only pulled from the local environment when debugging on localhost.
   const [apiKey, setApiKeyState] = useState<string>(() =>
     loadApiKey() || (import.meta.env.VITE_OPENAI_API_KEY as string) || ''
   )
@@ -52,12 +62,9 @@ export function useGame(): [GameState, GameActions] {
   const [pipelineError, setPipelineError] = useState<string | null>(null)
   const [paletteSpread, setPaletteSpread] = useState(false)
   const basePaletteRef = useRef<PaletteColor[] | null>(null)
-  const { persistState, restoreState, wipeState, storeImage, retrieveImage, storeRegionMap, retrieveRegionMap } = useStorage()
-
   const indexMapRef = useRef<Uint8Array | null>(null)
   const regionMapRef = useRef<Int32Array | null>(null)
   const originalImageDataRef = useRef<ImageData | null>(null)
-  const debugSnapshotsRef = useRef<RegionSnapshot[]>([])
   const prevSessionRef = useRef<{ state: GameState; blobSize: number } | null>(null)
   const [hasPrevSession, setHasPrevSession] = useState(false)
 
@@ -70,7 +77,7 @@ export function useGame(): [GameState, GameActions] {
 
     let saved: GameState | null
     try {
-      saved = restoreState()
+      saved = loadGameState()
     } catch {
       resetCorrupted()
       return
@@ -83,8 +90,8 @@ export function useGame(): [GameState, GameActions] {
 
     if (saved.screen === 'playing' || saved.screen === 'complete') {
       Promise.all([
-        retrieveImage(saved.sessionId),
-        retrieveRegionMap(saved.sessionId),
+        loadImage(saved.sessionId),
+        loadRegionMap(saved.sessionId),
       ]).then(async ([blob, storedRegionMap]) => {
         if (!blob) { resetCorrupted(); return }
 
@@ -115,15 +122,15 @@ export function useGame(): [GameState, GameActions] {
     }
 
     setState({ ...saved, screen: 'start' })
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   const update = useCallback((patch: Partial<GameState>) => {
     setState(prev => {
       const next = { ...prev, ...patch }
-      persistState(next)
+      saveGameState(next)
       return next
     })
-  }, [persistState])
+  }, [])
 
   const setPrompt = useCallback((prompt: string) => update({ prompt }), [update])
   const setColorCount = useCallback((colorCount: number) => update({ colorCount }), [update])
@@ -142,9 +149,9 @@ export function useGame(): [GameState, GameActions] {
   const restoreStashedSession = useCallback(async () => {
     const prev = prevSessionRef.current
     if (!prev?.state.sessionId) return
-    const storedBlob = await retrieveImage(prev.state.sessionId)
+    const storedBlob = await loadImage(prev.state.sessionId)
     if (!storedBlob) return
-    const storedRegionMap = await retrieveRegionMap(prev.state.sessionId)
+    const storedRegionMap = await loadRegionMap(prev.state.sessionId)
     if (!storedRegionMap) return
     const img = await loadBlobAsImage(storedBlob)
     const { canvasWidth: cw, canvasHeight: ch } = prev.state
@@ -160,20 +167,23 @@ export function useGame(): [GameState, GameActions] {
     basePaletteRef.current = prev.state.palette
     fuseSameColorRegions(prev.state.regions, storedRegionMap, cw)
     update(prev.state)
-  }, [retrieveImage, retrieveRegionMap, update])
+  }, [update])
 
   const clearStash = useCallback(() => {
     const prev = prevSessionRef.current
-    if (prev?.state.sessionId) wipeState(prev.state.sessionId)
+    if (prev?.state.sessionId) {
+      clearGameState()
+      deleteImage(prev.state.sessionId).catch(() => undefined)
+    }
     prevSessionRef.current = null
     setHasPrevSession(false)
-  }, [wipeState])
+  }, [])
 
   const processImage = useCallback(async (blob: Blob) => {
     setPipelineError(null)
     const sessionId = crypto.randomUUID()
     try {
-      await storeImage(sessionId, blob)
+      await saveImage(sessionId, blob)
 
       // Decode on main thread (needs DOM)
       setProcessingStage('decode')
@@ -205,13 +215,12 @@ export function useGame(): [GameState, GameActions] {
             worker.terminate()
             const { palette, basePalette, regions, indexMap, regionMap, rawPalette } = e.data.result
 
-            await storeRegionMap(sessionId, regionMap)
+            await saveRegionMap(sessionId, regionMap)
 
             basePaletteRef.current = basePalette
             indexMapRef.current = indexMap
             regionMapRef.current = regionMap
             originalImageDataRef.current = imageData
-            debugSnapshotsRef.current = []
 
             setProcessingStage(null)
             update({
@@ -239,7 +248,7 @@ export function useGame(): [GameState, GameActions] {
       setProcessingStage(null)
       update({ screen: 'start' })
     }
-  }, [storeImage, storeRegionMap, update])
+  }, [update])
 
   const fillRegion = useCallback((regionId: number, colorIndex: number) => {
     setState(prev => {
@@ -249,10 +258,10 @@ export function useGame(): [GameState, GameActions] {
       }
       const allCorrect = next.regions.every(r => next.playerColors[r.id] === r.colorIndex)
       if (allCorrect) next.screen = 'complete'
-      persistState(next)
+      saveGameState(next)
       return next
     })
-  }, [persistState])
+  }, [])
 
   const toggleSpreadPalette = useCallback(() => {
     const base = basePaletteRef.current
@@ -262,19 +271,19 @@ export function useGame(): [GameState, GameActions] {
       const palette = next ? spreadPalette(base) : base
       setState(s => {
         const updated = { ...s, palette }
-        persistState(updated)
+        saveGameState(updated)
         return updated
       })
       return next
     })
-  }, [persistState])
+  }, [])
 
   const resetPuzzle = useCallback(async () => {
     const { sessionId, prompt, colorCount, showOutline } = state
     // Stash in-progress session for potential restore if the user picks the same image
     // Don't stash completed games -- those shouldn't be resumable
     if (sessionId && state.screen === 'playing') {
-      const blob = await retrieveImage(sessionId)
+      const blob = await loadImage(sessionId)
       prevSessionRef.current = blob ? { state: { ...state }, blobSize: blob.size } : null
       setHasPrevSession(!!prevSessionRef.current)
     } else {
@@ -286,17 +295,17 @@ export function useGame(): [GameState, GameActions] {
     originalImageDataRef.current = null
     // Don't wipe IDB — processImage will restore or clean up
     const next = { ...DEFAULT_STATE, prompt, colorCount, showOutline }
-    persistState(next)
+    saveGameState(next)
     setState(next)
-  }, [state, retrieveImage, persistState])
+  }, [state])
 
   const resetProgress = useCallback(() => {
     setState(prev => {
       const next = { ...prev, playerColors: {}, screen: 'playing' as const }
-      persistState(next)
+      saveGameState(next)
       return next
     })
-  }, [persistState])
+  }, [])
 
   const actions: GameActions = {
     setPrompt,
@@ -317,10 +326,9 @@ export function useGame(): [GameState, GameActions] {
     toggleSpreadPalette,
     resetPuzzle,
     resetProgress,
-    indexMapRef,
-    regionMapRef,
-    originalImageDataRef,
-    debugSnapshotsRef,
+    getIndexMap: useCallback(() => indexMapRef.current, []),
+    getRegionMap: useCallback(() => regionMapRef.current, []),
+    getOriginalImageData: useCallback(() => originalImageDataRef.current, []),
   }
 
   return [state, actions]

@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Lightbulb, Maximize2, Minimize2, RotateCcw, ScanSearch } from 'lucide-react'
-import type { GameActions, GameState } from '../App'
-import type { RegionSnapshot } from '../game/regions'
+import type { GameState } from '../types'
+import type { GameActions } from '../hooks/useGame'
 import { DoodlebloomLogo, DoodlebloomMini } from '../components/DoodlebloomLogo'
 import { ScrollChevrons } from '../components/ScrollChevrons'
 import { useConfetti } from '../hooks/useConfetti'
 import { renderPuzzle, flashRegion, buildOutlineChains } from '../game/canvas'
 import type { OutlineBatch } from '../game/canvas'
 import { colorDist } from '../game/colorDistance'
+
+const IS_STANDALONE = typeof window !== 'undefined' &&
+  (window.matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || (navigator as any).standalone)
 import { getRegionAt } from '../game/regions'
 import { CURSOR_CAN_FILL, CURSOR_CANT_FILL } from '../game/cursors'
 
@@ -107,10 +110,8 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     return () => { if (hintTimerRef.current) clearTimeout(hintTimerRef.current) }
   }, [])
   const [outlineMagenta, setOutlineMagenta] = useState(false)
-  const [debugStage, setDebugStage] = useState(-1)
-  const [debugHover, setDebugHover] = useState<{ rid: number; ci: number; rgb: string } | null>(null)
   const { palette, regions, playerColors, canvasWidth, canvasHeight, showOutline, screen } = state
-  const { indexMapRef, regionMapRef, originalImageDataRef, debugSnapshotsRef, fillRegion } = actions
+  const { getIndexMap, getRegionMap, getOriginalImageData, fillRegion } = actions
   const prevScreenRef = useRef(screen)
   useEffect(() => {
     if (screen === 'complete' && prevScreenRef.current !== 'complete') confetti.fire()
@@ -119,17 +120,13 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
 
   // --- Refs for event handlers (avoid stale closures, avoid re-adding listeners) ---
   const transformRef = useRef<Transform>({ scale: 1, tx: 0, ty: 0 })
-  const debugStageRef = useRef(debugStage)
-  debugStageRef.current = debugStage
   const displaySizeRef = useRef(0)
   const activeColorRef = useRef<number | null>(null)
   const regionsRef = useRef(regions)
   const playerColorsRef = useRef(playerColors)
   const fillRegionRef = useRef(fillRegion)
 
-  const rawPaletteRef = useRef(state.rawPalette)
   const sortedPaletteRef = useRef<number[]>([])
-  useEffect(() => { rawPaletteRef.current = state.rawPalette }, [state.rawPalette])
   useEffect(() => { activeColorRef.current = activeColorIndex }, [activeColorIndex])
 
   // Scroll the active swatch to center of the palette
@@ -183,12 +180,21 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     return { sortedPaletteIndices: bestChain, colorDisplayNumbers: displayNums }
   }, [palette])
 
+  const regionsByColorIndex = useMemo(() => {
+    const m = new Map<number, typeof regions>()
+    for (const r of regions) {
+      const list = m.get(r.colorIndex)
+      if (list) list.push(r)
+      else m.set(r.colorIndex, [r])
+    }
+    return m
+  }, [regions])
+
   // When the active color is null or fully filled, auto-select the color with the most remaining unfilled pixels
   useEffect(() => {
     if (activeColorIndex !== null) {
-      const allFilled = regions
-        .filter(r => r.colorIndex === activeColorIndex)
-        .every(r => playerColors[r.id] !== undefined)
+      const group = regionsByColorIndex.get(activeColorIndex) ?? []
+      const allFilled = group.length > 0 && group.every(r => playerColors[r.id] !== undefined)
       if (!allFilled) return
     }
 
@@ -205,7 +211,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
       if (total > max) { max = total; next = ci }
     }
     setActiveColorIndex(next)
-  }, [playerColors, activeColorIndex, regions])
+  }, [playerColors, activeColorIndex, regions, regionsByColorIndex])
 
   // --- SVG outline overlay: redraws in screen coordinates on every zoom/pan/resize ---
   // The SVG is not CSS-transformed, so its paths are rendered at screen resolution.
@@ -240,7 +246,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
       const visMaxY = visMinY + (wrapH / pixelScale) + margin * 2
 
       const { chains, bboxes } = batch
-      const imgData = originalImageDataRef.current
+      const imgData = getOriginalImageData()
       const imgW = canvasWidth
 
       // Sample contrast at a boundary-grid point (gx, gy) from the original image.
@@ -478,10 +484,11 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
 
   // Rebuild outline chains when puzzle changes
   useEffect(() => {
-    if (!regionMapRef.current || regions.length === 0) { outlineChainsRef.current = null; return }
-    outlineChainsRef.current = buildOutlineChains(regionMapRef.current, regions, canvasWidth, canvasHeight)
+    const rm = getRegionMap()
+    if (!rm || regions.length === 0) { outlineChainsRef.current = null; return }
+    outlineChainsRef.current = buildOutlineChains(rm, regions, canvasWidth, canvasHeight)
     updateOutlineSvg()
-  }, [regions, canvasWidth, canvasHeight, regionMapRef, updateOutlineSvg])
+  }, [regions, canvasWidth, canvasHeight, getRegionMap, updateOutlineSvg])
 
   // Trigger a CSS transform + state re-render
   const [, forceRender] = useState(0)
@@ -525,55 +532,24 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
   // --- Render puzzle pixels ---
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas || !indexMapRef.current || !regionMapRef.current) return
+    const im = getIndexMap(), rm = getRegionMap()
+    if (!canvas || !im || !rm) return
     const ctx = canvas.getContext('2d')!
-    renderPuzzle(ctx, canvasWidth, canvasHeight, indexMapRef.current, regionMapRef.current, regions, palette, {
+    renderPuzzle(ctx, canvasWidth, canvasHeight, im, rm, regions, palette, {
       playerColors,
       activeColorIndex,
-      originalImageData: originalImageDataRef.current,
+      originalImageData: getOriginalImageData(),
       showHint,
     })
 
-  }, [playerColors, activeColorIndex, regions, palette, showOutline, screen, canvasWidth, canvasHeight, indexMapRef, regionMapRef, originalImageDataRef, showHint])
+  }, [playerColors, activeColorIndex, regions, palette, showOutline, screen, canvasWidth, canvasHeight, getIndexMap, getRegionMap, getOriginalImageData, showHint])
 
   // Update number labels when fills, active color, or palette change
   useEffect(() => {
     updateNumbersSvg()
   }, [playerColors, activeColorIndex, palette, updateNumbersSvg])
 
-  // --- Debug region map overlay (renders onto main canvas after normal render) ---
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas || debugStage < 0) return
-    const snap = debugSnapshotsRef.current[debugStage]
-    if (!snap) return
-    const ctx = canvas.getContext('2d')!
-    const rawPalette = state.rawPalette ?? []
-    const imageData = ctx.createImageData(canvasWidth, canvasHeight)
-    const buf = imageData.data
-    const pixels = canvasWidth * canvasHeight
-    const regionHue = new Map<number, number>()
-    let hueCounter = 0
-    for (let i = 0; i < pixels; i++) {
-      const rid = snap.regionMap[i]
-      const ci = snap.colorOf.get(rid)
-      const pi = i * 4
-      if (rid < 0) {
-        buf[pi] = 40; buf[pi+1] = 40; buf[pi+2] = 40; buf[pi+3] = 255
-      } else if (ci !== undefined && ci < rawPalette.length) {
-        buf[pi]   = rawPalette[ci].r
-        buf[pi+1] = rawPalette[ci].g
-        buf[pi+2] = rawPalette[ci].b
-        buf[pi+3] = 255
-      } else {
-        if (!regionHue.has(rid)) regionHue.set(rid, (hueCounter++ * 137) % 360)
-        const h = regionHue.get(rid)!
-        const [r, g, b] = hslToRgb(h / 360, 0.7, 0.5)
-        buf[pi] = r; buf[pi+1] = g; buf[pi+2] = b; buf[pi+3] = 255
-      }
-    }
-    ctx.putImageData(imageData, 0, 0)
-  }, [debugStage, canvasWidth, canvasHeight, state.rawPalette, playerColors, activeColorIndex, regions, palette, showOutline, screen, colorDisplayNumbers])
+
 
   // --- Coordinate mapping: screen → canvas pixels ---
   // Use wrap rect + canvas.offsetLeft/Top (layout position, no transform) + explicit transform.
@@ -595,20 +571,21 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
   // --- Tap action ---
   const handleTap = useCallback((clientX: number, clientY: number) => {
     const canvas = canvasRef.current
-    if (!canvas || !regionMapRef.current || activeColorRef.current === null) return
+    const rm = getRegionMap()
+    if (!canvas || !rm || activeColorRef.current === null) return
     const pos = screenToCanvas(clientX, clientY)
     if (!pos) return
     const colorIndex = activeColorRef.current
-    const regionId = getRegionAt(pos.x, pos.y, regionMapRef.current, canvasWidth, canvasHeight)
+    const regionId = getRegionAt(pos.x, pos.y, rm, canvasWidth, canvasHeight)
     if (regionId < 0) return
     const region = regionsRef.current.find(r => r.id === regionId)
     if (!region || playerColorsRef.current[regionId] !== undefined) return
     if (colorIndex === region.colorIndex) {
       fillRegionRef.current(regionId, colorIndex)
     } else {
-      flashRegion(canvas.getContext('2d')!, regionId, regionMapRef.current, canvasWidth, canvasHeight)
+      flashRegion(canvas.getContext('2d')!, regionId, rm, canvasWidth, canvasHeight)
     }
-  }, [canvasWidth, canvasHeight, regionMapRef, screenToCanvas])
+  }, [canvasWidth, canvasHeight, getRegionMap, screenToCanvas])
 
   // --- Cheat key (x): highlight unfilled cells of selected color ---
   // --- Cheat key (w): fill everything and win ---
@@ -627,13 +604,6 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
       }
       if (e.key === '/') { e.preventDefault(); actions.toggleSpreadPalette() }
       if (e.key === '\\') setOutlineMagenta(v => !v)
-      if (e.key === 'd' || e.key === 'D') {
-        setDebugStage(prev => {
-          const count = debugSnapshotsRef.current.length
-          if (count === 0) return -1
-          return prev + 1 >= count ? -1 : prev + 1
-        })
-      }
     }
     window.addEventListener('keydown', down)
     return () => { window.removeEventListener('keydown', down) }
@@ -654,8 +624,9 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
 
     const updateCursor = (clientX: number, clientY: number) => {
       const pos = screenToCanvas(clientX, clientY)
-      if (pos && regionMapRef.current && activeColorRef.current !== null) {
-        const regionId = getRegionAt(pos.x, pos.y, regionMapRef.current, canvasWidth, canvasHeight)
+      const rm = getRegionMap()
+      if (pos && rm && activeColorRef.current !== null) {
+        const regionId = getRegionAt(pos.x, pos.y, rm, canvasWidth, canvasHeight)
         const region = regionId >= 0 ? regionsRef.current.find(r => r.id === regionId) : null
         const canFill = region
           && playerColorsRef.current[regionId] === undefined
@@ -673,21 +644,6 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     }
     const onMouseMove = (e: MouseEvent) => {
       updateCursor(e.clientX, e.clientY)
-      // Debug hover: show region ID under cursor
-      const debugSnap = debugSnapshotsRef.current[debugStageRef.current]
-      if (debugSnap && debugStageRef.current >= 0) {
-        const pos = screenToCanvas(e.clientX, e.clientY)
-        if (pos) {
-          const px = Math.floor(pos.x), py = Math.floor(pos.y)
-          if (px >= 0 && px < canvasWidth && py >= 0 && py < canvasHeight) {
-            const rid = debugSnap.regionMap[py * canvasWidth + px]
-            const ci = debugSnap.colorOf.get(rid)
-            const rawPalette = rawPaletteRef.current ?? []
-            const p = ci !== undefined && ci < rawPalette.length ? rawPalette[ci] : null
-            setDebugHover({ rid, ci: ci ?? -1, rgb: p ? `${p.r},${p.g},${p.b}` : '?' })
-          }
-        }
-      }
       if (!mouseDown) return
       const dx = e.clientX - mouseDown.x
       const dy = e.clientY - mouseDown.y
@@ -933,7 +889,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
             <ScanSearch size={18} />
           </button>
         )}
-        {!(window.matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || (navigator as any).standalone) && (
+        {!IS_STANDALONE && (
           <button
             className="btn btn-ghost btn-icon btn-small"
             onClick={onToggleFullscreen}
@@ -953,17 +909,6 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
           height={canvasHeight}
           className="puzzle-canvas"
         />
-        {debugStage >= 0 && (
-          <div style={{
-            position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,0.7)',
-            color: '#fff', padding: '4px 10px', borderRadius: 4, fontSize: 13,
-            fontFamily: 'monospace', pointerEvents: 'none',
-          }}>
-            {debugSnapshotsRef.current[debugStage]?.label ?? `stage ${debugStage}`}
-            {' '}({debugStage + 1}/{debugSnapshotsRef.current.length}) — press D to cycle
-            {debugHover && <><br/>region {debugHover.rid} ci={debugHover.ci} rgb={debugHover.rgb}</>}
-          </div>
-        )}
 {/* SVG number labels: not CSS-transformed, redrawn in screen coords on zoom/pan */}
         <svg
           ref={numbersSvgRef}
@@ -995,8 +940,8 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
           {sortedPaletteIndices.map(idx => {
             const color = palette[idx]
             const { r, g, b } = color
-            const regionsOfColor = regions.filter(region => region.colorIndex === idx)
-            if (regionsOfColor.length === 0) return null
+            const regionsOfColor = regionsByColorIndex.get(idx)
+            if (!regionsOfColor || regionsOfColor.length === 0) return null
             const isActive = activeColorIndex === idx
             const isComplete = regionsOfColor.every(region => playerColors[region.id] === idx)
             const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
@@ -1034,13 +979,4 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
       <div className="confetti-container" ref={confetti.ref} />
     </div>
   )
-}
-
-function hslToRgb(h: number, s: number, l: number): [number, number, number] {
-  const a = s * Math.min(l, 1 - l)
-  const f = (n: number) => {
-    const k = (n + h * 12) % 12
-    return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))
-  }
-  return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255)]
 }

@@ -87,21 +87,13 @@ export async function loadImage(sessionId: string): Promise<Blob | null> {
 
 export async function deleteImage(sessionId: string): Promise<void> {
   const db = await openDb()
-  await new Promise<void>((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     const tx = db.transaction(IDB_STORE, 'readwrite')
     const store = tx.objectStore(IDB_STORE)
-    const req = store.delete(sessionId)
-    req.onsuccess = () => resolve()
-    req.onerror = () => reject(req.error)
-  })
-  await new Promise<void>((resolve) => {
-    openDb().then(db2 => {
-      const tx = db2.transaction(IDB_STORE, 'readwrite')
-      const store = tx.objectStore(IDB_STORE)
-      store.delete(sessionId + '_index')
-      store.delete(sessionId + '_regions')
-      tx.oncomplete = () => resolve()
-      tx.onerror = () => resolve() // best effort
-    })
+    store.delete(sessionId)
+    store.delete(sessionId + '_index') // migration cleanup from previous format
+    store.delete(sessionId + '_regions')
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
   })
 }

@@ -21,16 +21,21 @@ export const SIZE_PRESETS: JigswapConfig[] = [
   { cols: 8, rows: 12 },
 ]
 
+/** Fisher-Yates shuffle (in-place, returns the array). */
+export function shuffleArray<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[arr[i], arr[j]] = [arr[j], arr[i]]
+  }
+  return arr
+}
+
 /** Create a shuffled board. Guarantees it's not already solved. */
 export function createBoard(cols: number, rows: number): number[] {
   const n = cols * rows
   const board = Array.from({ length: n }, (_, i) => i)
 
-  // Fisher-Yates shuffle
-  for (let i = n - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[board[i], board[j]] = [board[j], board[i]]
-  }
+  shuffleArray(board)
 
   // If shuffle produced the solved state, swap first two
   if (board.every((v, i) => v === i)) {

@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
-import type { GameActions, GameState } from '../App'
+import type { GameState } from '../types'
+import type { GameActions } from '../hooks/useGame'
 import type { GalleryEntry } from '../game/storage'
-import { SIZE_PRESETS, type JigswapConfig } from '../game/jigswap'
+import { SIZE_PRESETS, shuffleArray, type JigswapConfig } from '../game/jigswap'
 import { DoodlebloomLogo } from '../components/DoodlebloomLogo'
 import { ScrollChevrons } from '../components/ScrollChevrons'
 
@@ -11,13 +12,13 @@ const BASE = import.meta.env.BASE_URL
 
 // Auto-discover stock images from public/images/thumbs/
 const thumbModules = import.meta.glob('/public/images/thumbs/*.jpg', { eager: true, query: '?url', import: 'default' }) as Record<string, string>
-const STOCK_IMAGES = Object.entries(thumbModules)
-  .map(([path, thumbUrl]) => {
+const STOCK_IMAGES = shuffleArray(
+  Object.entries(thumbModules).map(([path, thumbUrl]) => {
     const file = path.replace('/public/images/thumbs/', '').replace('.jpg', '')
     const label = file.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
     return { file, label, thumbUrl }
   })
-  .sort(() => Math.random() - 0.5)
+)
 
 interface Props {
   state: GameState

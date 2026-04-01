@@ -28,9 +28,6 @@ import type { GalleryEntry } from './game/storage'
 
 const PREVIEW_KEY = '__preview__'
 
-// Re-export types for screens to import from one place
-export type { GameState } from './types'
-export type { GameActions } from './hooks/useGame'
 
 export default function App() {
   const { isFullscreen, toggle: toggleFullscreen } = useFullscreen()

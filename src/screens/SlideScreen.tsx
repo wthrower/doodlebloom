@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePuzzleScreen, type PuzzleScreenProps } from '../hooks/usePuzzle'
 import { PuzzleScreenShell } from '../components/PuzzleChrome'
 import {
@@ -24,6 +24,12 @@ export function SlideScreen(props: PuzzleScreenProps) {
   const [suppressTransition, setSuppressTransition] = useState(false)
   const dragStartRef = useRef<{ x: number; y: number; tilePos: number } | null>(null)
   const dragGroupRef = useRef<{ positions: number[]; dir: number } | null>(null)
+
+  const pieceToCell = useMemo(() => {
+    const m = new Map<number, number>()
+    board.forEach((pieceId, cellIndex) => m.set(pieceId, cellIndex))
+    return m
+  }, [board])
 
   const emptyPos = findEmpty(board, config.cols, config.rows)
   const prevEmptyRef = useRef<number | null>(null)
@@ -190,7 +196,7 @@ export function SlideScreen(props: PuzzleScreenProps) {
         style={{ width: gridW, height: gridH }}
       >
         {Array.from({ length: config.cols * config.rows }, (_, pieceId) => {
-          const cellIndex = board.indexOf(pieceId)
+          const cellIndex = pieceToCell.get(pieceId)!
           const isEmptyCell = pieceId === emptyVal
           const showEmpty = isEmptyCell && !won
           const col = cellIndex % config.cols
