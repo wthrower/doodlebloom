@@ -1,0 +1,14 @@
+# HTML: always revalidate (picks up new asset hashes)
+<FilesMatch "\.html$">
+  Header set Cache-Control "no-cache"
+</FilesMatch>
+
+# Hashed assets (Vite output): cache forever
+<FilesMatch "\.[0-9a-f]{8,}\.(js|css)$">
+  Header set Cache-Control "max-age=31536000, immutable"
+</FilesMatch>
+
+# Service worker: never cache
+<FilesMatch "sw\.js$">
+  Header set Cache-Control "no-cache"
+</FilesMatch>
