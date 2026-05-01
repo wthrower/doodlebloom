@@ -66,8 +66,35 @@ html, body {
 }
 
 /* ── Setup screen ── */
-.app-title-wrap {
+.start-screen .title-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
   margin-bottom: 0.25rem;
+}
+
+.start-screen .sneakret-games {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  color: var(--color-text-muted);
+  opacity: 0.55;
+  text-decoration: none;
+  margin-top: -8px;
+  margin-right: 10px;
+  transition: opacity 0.12s ease-out;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.start-screen .sneakret-games:hover,
+.start-screen .sneakret-games:focus-visible {
+  opacity: 1;
+  outline: none;
+}
+
+.app-title-wrap {
+  margin-bottom: 0;
 }
 
 .app-title {
@@ -843,9 +870,35 @@ input[type="range"]::-webkit-slider-thumb {
   gap: 0.5rem;
 }
 
+.game-header-logo .title-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+}
+
 .game-header-logo .app-title {
   height: 2.5rem;
-  margin: -0.25rem 0;
+  margin: -0.5rem 0 0;
+}
+
+.game-header-logo .sneakret-games {
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  color: var(--color-text-muted);
+  opacity: 0.6;
+  text-decoration: none;
+  margin-top: -6px;
+  margin-right: 10px;
+  transition: opacity 0.12s ease-out;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.game-header-logo .sneakret-games:hover,
+.game-header-logo .sneakret-games:focus-visible {
+  opacity: 1;
+  outline: none;
 }
 
 .game-header-mode {

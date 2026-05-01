@@ -69,9 +69,12 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
 
   return (
     <div className="screen start-screen">
-      <h1 className="app-title-wrap" aria-label="Doodlebloom">
-        <DoodlebloomLogo />
-      </h1>
+      <div className="title-block">
+        <h1 className="app-title-wrap" aria-label="Doodlebloom">
+          <DoodlebloomLogo />
+        </h1>
+        <a className="sneakret-games" href="https://sneakret.com/games/">sneakret games</a>
+      </div>
 
       <div className="start-columns">
         {/* Left: stock images + preview */}

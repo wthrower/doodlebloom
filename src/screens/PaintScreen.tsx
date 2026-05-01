@@ -367,7 +367,12 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
         <button className="btn btn-ghost btn-icon btn-small" onClick={actions.resetProgress} title="Reset progress" aria-label="Reset progress">
           <RotateCcw size={18} />
         </button>
-        <div className="game-header-logo"><DoodlebloomLogo /></div>
+        <div className="game-header-logo">
+          <div className="title-block">
+            <DoodlebloomLogo />
+            <a className="sneakret-games" href="https://sneakret.com/games/">sneakret games</a>
+          </div>
+        </div>
         <div className="game-header-mini">
           <DoodlebloomMini />
           <div className="mini-progress-stack" style={{ cursor: 'pointer' }} onMouseDown={hintDown} onMouseUp={hintUp} onMouseLeave={hintUp} onTouchStart={(e) => { e.preventDefault(); hintDown() }} onTouchEnd={(e) => { e.preventDefault(); hintUp() }} onTouchCancel={hintUp}>

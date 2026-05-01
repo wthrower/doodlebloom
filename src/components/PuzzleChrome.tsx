@@ -20,7 +20,10 @@ export function GameHeader({ onBack, isFullscreen, onToggleFullscreen, moves, mo
         <ArrowLeft size={18} />
       </button>
       <div className="game-header-logo">
-        <DoodlebloomLogo />
+        <div className="title-block">
+          <DoodlebloomLogo />
+          <a className="sneakret-games" href="https://sneakret.com/games/">sneakret games</a>
+        </div>
         {modeLabel && <span className="game-header-mode">{modeLabel}</span>}
       </div>
       <div className="game-header-mini">
