@@ -54,10 +54,7 @@ export interface GameActions {
 
 export function useGame(): [GameState, GameActions] {
   const [state, setState] = useState<GameState>(() => DEFAULT_STATE)
-  // This API key is not leaked, because it is only pulled from the local environment when debugging on localhost.
-  const [apiKey, setApiKeyState] = useState<string>(() =>
-    loadApiKey() || (import.meta.env.VITE_OPENAI_API_KEY as string) || ''
-  )
+  const [apiKey, setApiKeyState] = useState<string>(() => loadApiKey() || '')
   const [processingStage, setProcessingStage] = useState<string | null>(null)
   const [pipelineError, setPipelineError] = useState<string | null>(null)
   const [paletteSpread, setPaletteSpread] = useState(false)
