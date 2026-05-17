@@ -245,7 +245,7 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                   </div>
                 )}
               </div>
-              <button className="btn btn-primary btn-large play-btn" onClick={() => onPlay(selectedMode, puzzleSize)}>
+              <button className="btn btn-primary btn-large btn-spacebar play-btn" onClick={() => onPlay(selectedMode, puzzleSize)}>
                 Play!
               </button>
             </>

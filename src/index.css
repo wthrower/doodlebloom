@@ -344,7 +344,7 @@ input[type="range"]::-webkit-slider-thumb {
 .btn::after {
   content: '';
   position: absolute;
-  inset: 6px;
+  inset: var(--btn-inset, 6px);
   border-radius: 12%;
   border: 1px solid rgba(255,255,255,0.06);
   background-clip: padding-box;
@@ -417,6 +417,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .btn-large {
+  --btn-inset: 8px;
   width: 100%;
   padding: 0.875rem 1.25rem;
   font-size: 1.0625rem;
@@ -425,7 +426,7 @@ input[type="range"]::-webkit-slider-thumb {
 /* Spacebar: subtly convex face, steeper walls.
    Dome catches light top-left, slopes away bottom-right. */
 .btn-spacebar::after {
-  inset: 4px;
+  inset: var(--btn-inset, 6px);
   border: none;
   box-shadow: none;
   filter: blur(0.3px);
@@ -459,7 +460,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* Square-ish icon buttons: restore wall width */
 .btn-icon::after {
-  inset: 6px;
+  inset: var(--btn-inset, 6px);
 }
 
 /* ── Setup inline generate row ── */
