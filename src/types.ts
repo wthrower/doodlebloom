@@ -1,6 +1,8 @@
 export type Screen = 'start' | 'generating' | 'preview' | 'playing' | 'complete' | 'jigswap' | 'slide'
 
 export type GameMode = 'paint' | 'jigswap' | 'slide'
+export type DetailLevel = 'high' | 'medium' | 'low'
+export const DETAIL_MIN_REGION_PIXELS: Record<DetailLevel, number> = { high: 200, medium: 1200, low: 2800 }
 
 export interface PaletteColor {
   r: number
@@ -30,6 +32,7 @@ export interface GameState {
   screen: Screen
   prompt: string
   colorCount: number
+  detailLevel: DetailLevel
   gameMode: GameMode
   sessionId: string | null
   palette: PaletteColor[]
@@ -46,16 +49,29 @@ export interface GameState {
   rawPalette?: PaletteColor[]
 }
 
-export const DEFAULT_STATE: GameState = {
-  screen: 'start',
+export interface GamePreferences {
+  prompt: string
+  colorCount: number
+  detailLevel: DetailLevel
+  gameMode: GameMode
+  showOutline: boolean
+}
+
+export const DEFAULT_PREFERENCES: GamePreferences = {
   prompt: '',
   colorCount: 16,
+  detailLevel: 'high',
   gameMode: 'paint',
+  showOutline: false,
+}
+
+export const DEFAULT_STATE: GameState = {
+  screen: 'start',
+  ...DEFAULT_PREFERENCES,
   sessionId: null,
   palette: [],
   regions: [],
   playerColors: {},
-  showOutline: false,
   canvasWidth: 512,
   canvasHeight: 512,
 }

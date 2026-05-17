@@ -160,7 +160,7 @@ export function traceRegions(
 
 /** Phase 2: Absorb regions below MIN_REGION_PIXELS into best adjacent neighbor.
  *  Mutates regionMap and regionMeta in place. */
-export function mergeRegions(state: RegionIntermediate, palette: PaletteColor[]): void {
+export function mergeRegions(state: RegionIntermediate, palette: PaletteColor[], minRegionPixels = MIN_REGION_PIXELS): void {
   const { regionMap, regionMeta, width, height } = state
   const pixels = width * height
 
@@ -177,7 +177,7 @@ export function mergeRegions(state: RegionIntermediate, palette: PaletteColor[])
   }
 
   const heap = new MinHeap<RegionMeta>(regionMeta.values(), r => r.pixelCount)
-  while (!heap.empty() && heap.min().pixelCount < MIN_REGION_PIXELS) {
+  while (!heap.empty() && heap.min().pixelCount < minRegionPixels) {
     const s = heap.pop()
     if (find(s.id) !== s.id) continue
     if (s.adjIds.size === 0) continue

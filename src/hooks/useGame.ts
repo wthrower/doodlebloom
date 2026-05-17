@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DEFAULT_STATE } from '../types'
-import type { GameState, PaletteColor, Screen } from '../types'
+import type { GameState, GamePreferences, PaletteColor, Screen } from '../types'
+import { DETAIL_MIN_REGION_PIXELS, DEFAULT_PREFERENCES } from '../types'
 import {
   loadGameState,
   saveGameState,
@@ -19,12 +20,20 @@ import { buildRegions, fuseSameColorRegions } from '../game/regions'
 import type { PipelineMessage } from '../game/pipeline.worker'
 import { spreadPalette } from '../game/paletteColor'
 
+/** Extract user preferences from a (possibly stale) saved state, falling back to defaults. */
+function pickPrefs(saved: Partial<GameState>): GamePreferences {
+  return Object.fromEntries(
+    Object.keys(DEFAULT_PREFERENCES).map(k => [k, saved[k as keyof GamePreferences] ?? DEFAULT_PREFERENCES[k as keyof GamePreferences]])
+  ) as GamePreferences
+}
+
 /** Scale image so its shorter side = this many pixels. */
 const CANVAS_SHORT = 1024
 
 export interface GameActions {
   setPrompt: (p: string) => void
   setColorCount: (n: number) => void
+  setDetailLevel: (d: GameState['detailLevel']) => void
   setShowOutline: (v: boolean) => void
   setGameMode: (m: GameState['gameMode']) => void
   setApiKey: (k: string) => void
@@ -82,7 +91,7 @@ export function useGame(): [GameState, GameActions] {
     }
     if (!saved) return
     if (!saved.sessionId) {
-      setState(prev => ({ ...prev, prompt: saved!.prompt, colorCount: saved!.colorCount, showOutline: saved!.showOutline ?? false }))
+      setState(prev => ({ ...prev, ...pickPrefs(saved!) }))
       return
     }
 
@@ -132,6 +141,7 @@ export function useGame(): [GameState, GameActions] {
 
   const setPrompt = useCallback((prompt: string) => update({ prompt }), [update])
   const setColorCount = useCallback((colorCount: number) => update({ colorCount }), [update])
+  const setDetailLevel = useCallback((detailLevel: GameState['detailLevel']) => update({ detailLevel }), [update])
   const setShowOutline = useCallback((showOutline: boolean) => update({ showOutline }), [update])
   const setGameMode = useCallback((gameMode: GameState['gameMode']) => update({ gameMode }), [update])
   const goTo = useCallback((screen: Screen) => update({ screen }), [update])
@@ -141,9 +151,11 @@ export function useGame(): [GameState, GameActions] {
     saveApiKey(k)
   }, [])
 
-  // Use a ref to avoid stale closure on colorCount
+  // Use refs to avoid stale closures in processImage
   const colorCountRef = useRef(state.colorCount)
   useEffect(() => { colorCountRef.current = state.colorCount }, [state.colorCount])
+  const detailLevelRef = useRef(state.detailLevel)
+  useEffect(() => { detailLevelRef.current = state.detailLevel }, [state.detailLevel])
 
   const restoreStashedSession = useCallback(async () => {
     const prev = prevSessionRef.current
@@ -239,7 +251,8 @@ export function useGame(): [GameState, GameActions] {
           worker.terminate()
           reject(new Error(e.message || 'Worker error'))
         }
-        worker.postMessage({ imageData, colorCount: colorCountRef.current })
+        const minRegionPixels = DETAIL_MIN_REGION_PIXELS[detailLevelRef.current]
+        worker.postMessage({ imageData, colorCount: colorCountRef.current, minRegionPixels })
       })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Image processing failed'
@@ -278,11 +291,10 @@ export function useGame(): [GameState, GameActions] {
   }, [])
 
   const resetPuzzle = useCallback(async () => {
-    const { sessionId, prompt, colorCount, showOutline } = state
     // Stash in-progress session for potential restore if the user picks the same image
     // Don't stash completed games -- those shouldn't be resumable
-    if (sessionId && state.screen === 'playing') {
-      const blob = await loadImage(sessionId)
+    if (state.sessionId && state.screen === 'playing') {
+      const blob = await loadImage(state.sessionId)
       prevSessionRef.current = blob ? { state: { ...state }, blobSize: blob.size } : null
       setHasPrevSession(!!prevSessionRef.current)
     } else {
@@ -293,7 +305,7 @@ export function useGame(): [GameState, GameActions] {
     regionMapRef.current = null
     originalImageDataRef.current = null
     // Don't wipe IDB — processImage will restore or clean up
-    const next = { ...DEFAULT_STATE, prompt, colorCount, showOutline }
+    const next = { ...DEFAULT_STATE, ...pickPrefs(state) }
     saveGameState(next)
     setState(next)
   }, [state])
@@ -309,6 +321,7 @@ export function useGame(): [GameState, GameActions] {
   const actions: GameActions = {
     setPrompt,
     setColorCount,
+    setDetailLevel,
     setShowOutline,
     setGameMode,
     setApiKey,

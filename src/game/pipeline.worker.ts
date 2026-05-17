@@ -12,6 +12,7 @@ const MAX_REGIONS = 500
 export interface PipelineInput {
   imageData: ImageData
   colorCount: number
+  minRegionPixels: number
 }
 
 export interface PipelineResult {
@@ -33,7 +34,7 @@ function post(stage: string) {
 }
 
 self.onmessage = (e: MessageEvent<PipelineInput>) => {
-  const { imageData, colorCount } = e.data
+  const { imageData, colorCount, minRegionPixels } = e.data
   try {
     post('palette')
     const rawPalette = analyzeColors(imageData, colorCount)
@@ -48,7 +49,7 @@ self.onmessage = (e: MessageEvent<PipelineInput>) => {
     const regionState = traceRegions(indexMap, cw, ch)
 
     post('merge')
-    mergeRegions(regionState, rawPalette)
+    mergeRegions(regionState, rawPalette, minRegionPixels)
 
     post('measure')
     const { regions: rawRegions, regionMap } = finalizeRegions(regionState, rawPalette)

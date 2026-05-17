@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import type { GameState } from '../types'
+import type { GameState, DetailLevel } from '../types'
 import type { GameActions } from '../hooks/useGame'
 import type { GalleryEntry } from '../game/storage'
 import { SIZE_PRESETS, shuffleArray, type JigswapConfig } from '../game/jigswap'
@@ -168,17 +168,30 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
               </div>
               <div className="mode-settings">
                 {selectedMode === 'paint' && (
-                  <div className="form-group color-count-inline">
-                    <label htmlFor="colorCount">Colors: <strong>{state.colorCount}</strong></label>
-                    <input
-                      id="colorCount"
-                      type="range"
-                      min={4}
-                      max={32}
-                      value={state.colorCount}
-                      onChange={e => actions.setColorCount(Number(e.target.value))}
-                    />
-                  </div>
+                  <>
+                    <div className="form-group color-count-inline">
+                      <label htmlFor="colorCount">Colors: <strong>{state.colorCount}</strong></label>
+                      <input
+                        id="colorCount"
+                        type="range"
+                        min={4}
+                        max={32}
+                        value={state.colorCount}
+                        onChange={e => actions.setColorCount(Number(e.target.value))}
+                      />
+                    </div>
+                    <div className="form-group color-count-inline">
+                      <label htmlFor="detailLevel">Detail: <strong>{state.detailLevel}</strong></label>
+                      <input
+                        id="detailLevel"
+                        type="range"
+                        min={0}
+                        max={2}
+                        value={state.detailLevel === 'low' ? 0 : state.detailLevel === 'medium' ? 1 : 2}
+                        onChange={e => actions.setDetailLevel((['low', 'medium', 'high'] as const)[Number(e.target.value)] as DetailLevel)}
+                      />
+                    </div>
+                  </>
                 )}
                 {(selectedMode === 'jigswap' || selectedMode === 'slide') && (
                   <div className="puzzle-size-picker">
