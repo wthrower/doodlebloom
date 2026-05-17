@@ -95,13 +95,6 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
 
   return (
     <div className="screen start-screen">
-      <div className="title-block">
-        <h1 className="app-title-wrap" aria-label="Doodlebloom">
-          <DoodlebloomLogo />
-        </h1>
-        <a className="sneakret-games" href="https://sneakret.com/games/">sneakret games</a>
-      </div>
-
       <div className="start-columns">
         {/* Left: stock images + preview */}
         <div className="start-left">
@@ -190,8 +183,14 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
           )}
         </div>
 
-        {/* Right: mode buttons + generate */}
+        {/* Right: logo + mode buttons + generate */}
         <div className="start-right">
+          <div className="title-block">
+            <h1 className="app-title-wrap" aria-label="Doodlebloom">
+              <DoodlebloomLogo />
+            </h1>
+            <a className="sneakret-games" href="https://sneakret.com/games/">sneakret games</a>
+          </div>
           {previewUrl && !isGenerating && (
             <>
               <div className="mode-toggle">
