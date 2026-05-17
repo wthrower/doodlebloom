@@ -310,6 +310,7 @@ export function useGame(): [GameState, GameActions] {
     setPrompt,
     setColorCount,
     setShowOutline,
+    setGameMode,
     setApiKey,
     processingStage,
     pipelineError,
