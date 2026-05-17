@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { GameState, DetailLevel } from '../types'
 import type { GameActions } from '../hooks/useGame'
 import type { GalleryEntry } from '../game/storage'
@@ -43,7 +43,19 @@ export function StartScreen({ state, actions, isGenerating, previewUrl, selected
   const [selectedMode, setSelectedMode] = useState<GameMode>('paint')
   const [puzzleSize, setPuzzleSize] = useState<JigswapConfig>(SIZE_PRESETS[1])
   const [imageSearch, setImageSearch] = useState('')
+  const searchRef = useRef<HTMLInputElement>(null)
   const stripRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key.length !== 1 || !(/[a-z]/i).test(e.key)) return
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'TEXTAREA' || tag === 'INPUT') return
+      searchRef.current?.focus()
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [])
   const dragRef = useRef<{ startX: number; scrollLeft: number; dragging: boolean } | null>(null)
 
   const filteredStock = useMemo(() => {
@@ -98,6 +110,7 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
               <label className="stock-label">Pick an image</label>
               <div className="stock-search-wrap">
                 <input
+                  ref={searchRef}
                   type="text"
                   className="stock-search"
                   placeholder="Search..."
