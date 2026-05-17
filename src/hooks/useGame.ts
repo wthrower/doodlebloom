@@ -24,7 +24,7 @@ import { spreadPalette } from '../game/paletteColor'
 function pickPrefs(saved: Partial<GameState>): GamePreferences {
   return Object.fromEntries(
     Object.keys(DEFAULT_PREFERENCES).map(k => [k, saved[k as keyof GamePreferences] ?? DEFAULT_PREFERENCES[k as keyof GamePreferences]])
-  ) as GamePreferences
+  ) as unknown as GamePreferences
 }
 
 /** Scale image so its shorter side = this many pixels. */
