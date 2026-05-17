@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DEFAULT_STATE } from '../types'
 import type { GameState, GamePreferences, PaletteColor, Screen } from '../types'
-import { DETAIL_MIN_REGION_PIXELS, DEFAULT_PREFERENCES } from '../types'
+import { DETAIL_SETTINGS, DEFAULT_PREFERENCES } from '../types'
 import {
   loadGameState,
   saveGameState,
@@ -251,8 +251,8 @@ export function useGame(): [GameState, GameActions] {
           worker.terminate()
           reject(new Error(e.message || 'Worker error'))
         }
-        const minRegionPixels = DETAIL_MIN_REGION_PIXELS[detailLevelRef.current]
-        worker.postMessage({ imageData, colorCount: colorCountRef.current, minRegionPixels })
+        const { minRegionPixels, maxRegions } = DETAIL_SETTINGS[detailLevelRef.current]
+        worker.postMessage({ imageData, colorCount: colorCountRef.current, minRegionPixels, maxRegions })
       })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Image processing failed'

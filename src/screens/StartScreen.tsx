@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { GameState, DetailLevel } from '../types'
 import type { GameActions } from '../hooks/useGame'
 import type { GalleryEntry } from '../game/storage'
 import { SIZE_PRESETS, shuffleArray, type JigswapConfig } from '../game/jigswap'
+import { Search } from 'lucide-react'
 import { DoodlebloomLogo } from '../components/DoodlebloomLogo'
 import { ScrollChevrons } from '../components/ScrollChevrons'
 
@@ -41,8 +42,21 @@ export function StartScreen({ state, actions, isGenerating, previewUrl, selected
   const [showKeyInput, setShowKeyInput] = useState(false)
   const [selectedMode, setSelectedMode] = useState<GameMode>('paint')
   const [puzzleSize, setPuzzleSize] = useState<JigswapConfig>(SIZE_PRESETS[1])
+  const [imageSearch, setImageSearch] = useState('')
   const stripRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ startX: number; scrollLeft: number; dragging: boolean } | null>(null)
+
+  const filteredStock = useMemo(() => {
+    if (!imageSearch) return STOCK_IMAGES
+    const q = imageSearch.toLowerCase()
+    return STOCK_IMAGES.filter(s => s.label.toLowerCase().includes(q))
+  }, [imageSearch])
+
+  const filteredGallery = useMemo(() => {
+    if (!imageSearch) return galleryEntries
+    const q = imageSearch.toLowerCase()
+    return galleryEntries.filter(e => e.prompt.toLowerCase().includes(q))
+  }, [imageSearch, galleryEntries])
 
   const onStripMouseDown = (e: React.MouseEvent) => {
     const el = stripRef.current
@@ -80,7 +94,19 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
         {/* Left: stock images + preview */}
         <div className="start-left">
           <div className="stock-section">
-            <label className="stock-label">Pick an image</label>
+            <div className="stock-header">
+              <label className="stock-label">Pick an image</label>
+              <div className="stock-search-wrap">
+                <input
+                  type="text"
+                  className="stock-search"
+                  placeholder="Search..."
+                  value={imageSearch}
+                  onChange={e => setImageSearch(e.target.value)}
+                />
+                <Search size={14} className="stock-search-icon" />
+              </div>
+            </div>
             <div className="scroll-chevron-wrap">
               <ScrollChevrons scrollRef={stripRef} />
               <div
@@ -91,7 +117,7 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                 onMouseUp={onStripMouseUp}
                 onMouseLeave={onStripMouseUp}
               >
-                {galleryEntries.map(entry => {
+                {filteredGallery.map(entry => {
                   const thumbUrl = galleryThumbs.get(entry.id)
                   if (!thumbUrl) return null
                   return (
@@ -120,7 +146,7 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                     </div>
                   )
                 })}
-                {STOCK_IMAGES.map(({ file, label, thumbUrl }) => {
+                {filteredStock.map(({ file, label, thumbUrl }) => {
                   const url = `${BASE}images/${file}.png`
                   const isSelected = selectedStockUrl === url
                   return (

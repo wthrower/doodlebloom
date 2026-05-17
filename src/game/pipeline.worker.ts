@@ -6,13 +6,11 @@ import {
 import { recomputePalette, spreadPalette } from './paletteColor'
 import type { PaletteColor, Region } from '../types'
 
-/** Maximum number of regions in the final puzzle. */
-const MAX_REGIONS = 500
-
 export interface PipelineInput {
   imageData: ImageData
   colorCount: number
   minRegionPixels: number
+  maxRegions: number
 }
 
 export interface PipelineResult {
@@ -34,7 +32,7 @@ function post(stage: string) {
 }
 
 self.onmessage = (e: MessageEvent<PipelineInput>) => {
-  const { imageData, colorCount, minRegionPixels } = e.data
+  const { imageData, colorCount, minRegionPixels, maxRegions } = e.data
   try {
     post('palette')
     const rawPalette = analyzeColors(imageData, colorCount)
@@ -66,7 +64,7 @@ self.onmessage = (e: MessageEvent<PipelineInput>) => {
       mergeToTarget(palette, regions, colorCount)
     }
     regions = fuseSameColorRegions(regions, regionMap, cw)
-    regions = capRegions(regions, regionMap, cw, palette, MAX_REGIONS)
+    regions = capRegions(regions, regionMap, cw, palette, maxRegions)
     regions = fuseSameColorRegions(regions, regionMap, cw)
 
     // Compact: remove palette colors with no surviving regions

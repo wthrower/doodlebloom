@@ -2,7 +2,11 @@ export type Screen = 'start' | 'generating' | 'preview' | 'playing' | 'complete'
 
 export type GameMode = 'paint' | 'jigswap' | 'slide'
 export type DetailLevel = 'high' | 'medium' | 'low'
-export const DETAIL_MIN_REGION_PIXELS: Record<DetailLevel, number> = { high: 200, medium: 1200, low: 2800 }
+export const DETAIL_SETTINGS: Record<DetailLevel, { minRegionPixels: number; maxRegions: number }> = {
+  high: { minRegionPixels: 200, maxRegions: 500 },
+  medium: { minRegionPixels: 1200, maxRegions: 250 },
+  low: { minRegionPixels: 2800, maxRegions: 100 },
+}
 
 export interface PaletteColor {
   r: number
