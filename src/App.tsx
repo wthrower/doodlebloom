@@ -23,7 +23,7 @@ import { JigswapScreen } from './screens/JigswapScreen'
 import { SlideScreen } from './screens/SlideScreen'
 import { ProcessingScreen } from './screens/ProcessingScreen'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { saveImage, loadImage, loadSelectedStockUrl, saveSelectedStockUrl, hasSavedPuzzle, hasSavedPaint, loadPuzzleImage, saveToGallery, loadGalleryImage, loadGalleryIndex, loadGalleryThumbnails, deleteGalleryEntry } from './game/storage'
+import { saveImage, loadImage, loadSelectedStockUrl, saveSelectedStockUrl, hasSavedPuzzle, loadPuzzleImage, saveToGallery, loadGalleryImage, loadGalleryIndex, loadGalleryThumbnails, deleteGalleryEntry } from './game/storage'
 import type { GalleryEntry } from './game/storage'
 
 const PREVIEW_KEY = '__preview__'
@@ -52,7 +52,7 @@ export default function App() {
   // Per-mode resume state
   const jigswap = usePuzzleModeState()
   const slide = usePuzzleModeState()
-  const [paintHasSaved, setPaintHasSaved] = useState(false)
+  const [showResumeChoice, setShowResumeChoice] = useState(false)
 
   // Restore preview image from IDB on mount
   useEffect(() => {
@@ -63,8 +63,6 @@ export default function App() {
     })
   }, [])
 
-  // Detect if paint was auto-restored on mount (hasSavedPaint reads localStorage synchronously)
-  const [paintAutoRestored, setPaintAutoRestored] = useState(() => hasSavedPaint())
 
   const getImageSize = useCallback((): '1024x1536' => '1024x1536', [])
 
@@ -113,17 +111,25 @@ export default function App() {
     setGalleryThumbs(prev => new Map(prev).set(id, url))
   }, [])
 
+  const startFreshPaint = useCallback(async () => {
+    if (!previewBlobRef.current) return
+    actions.clearStash()
+    await maybeSaveToGallery()
+    await actions.processImage(previewBlobRef.current!)
+  }, [actions, maybeSaveToGallery])
+
+  const resumePaint = useCallback(async () => {
+    await actions.restoreStashedSession()
+  }, [actions])
+
   const handlePlay = useCallback(async (mode: GameMode, _puzzleSize: JigswapConfig) => {
     if (mode === 'paint') {
       if (!previewBlobRef.current) return
-      await maybeSaveToGallery()
       if (actions.hasPrevSession) {
-        await actions.restoreStashedSession()
-        setPaintHasSaved(true)
-      } else {
-        setPaintHasSaved(false)
-        await actions.processImage(previewBlobRef.current!)
+        setShowResumeChoice(true)
+        return
       }
+      await startFreshPaint()
       return
     }
 
@@ -141,7 +147,7 @@ export default function App() {
     await maybeSaveToGallery()
     modeState.setImage(previewBlobRef.current, false)
     actions.goTo(mode)
-  }, [previewUrl, actions, jigswap, slide, maybeSaveToGallery])
+  }, [previewUrl, actions, jigswap, slide, maybeSaveToGallery, startFreshPaint])
 
   const handleSelectStock = useCallback(async (imageUrl: string) => {
     try {
@@ -207,6 +213,17 @@ export default function App() {
           onDeleteGallery={handleDeleteGallery}
         />
       )}
+      {showResumeChoice && (
+        <div className="resume-overlay">
+          <div className="resume-dialog">
+            <p>Resume previous game?</p>
+            <div className="resume-actions">
+              <button className="btn btn-secondary" onClick={() => { setShowResumeChoice(false); startFreshPaint() }}>Start New</button>
+              <button className="btn btn-primary" onClick={() => { setShowResumeChoice(false); resumePaint() }}>Resume</button>
+            </div>
+          </div>
+        </div>
+      )}
       <ErrorBoundary onReset={() => actions.goTo('start')}>
       {(state.screen === 'playing' || state.screen === 'complete') && actions.processingStage === null && (
         <PaintScreen
@@ -215,18 +232,6 @@ export default function App() {
           onNewPuzzle={() => actions.resetPuzzle()}
           isFullscreen={isFullscreen}
           onToggleFullscreen={toggleFullscreen}
-          hasSaved={paintHasSaved || paintAutoRestored}
-          onStartFresh={async () => {
-            const sameImage = previewBlobRef.current?.size === actions.prevSessionBlobSize
-            actions.clearStash()
-            setPaintHasSaved(false)
-            setPaintAutoRestored(false)
-            if (sameImage) {
-              actions.resetProgress()
-            } else if (previewBlobRef.current) {
-              await actions.processImage(previewBlobRef.current)
-            }
-          }}
         />
       )}
       {state.screen === 'jigswap' && jigswap.imageUrl && jigswap.blob && (
