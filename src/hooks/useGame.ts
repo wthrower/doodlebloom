@@ -26,6 +26,7 @@ export interface GameActions {
   setPrompt: (p: string) => void
   setColorCount: (n: number) => void
   setShowOutline: (v: boolean) => void
+  setGameMode: (m: GameState['gameMode']) => void
   setApiKey: (k: string) => void
   apiKey: string
   goTo: (screen: Screen) => void
@@ -132,6 +133,7 @@ export function useGame(): [GameState, GameActions] {
   const setPrompt = useCallback((prompt: string) => update({ prompt }), [update])
   const setColorCount = useCallback((colorCount: number) => update({ colorCount }), [update])
   const setShowOutline = useCallback((showOutline: boolean) => update({ showOutline }), [update])
+  const setGameMode = useCallback((gameMode: GameState['gameMode']) => update({ gameMode }), [update])
   const goTo = useCallback((screen: Screen) => update({ screen }), [update])
 
   const setApiKey = useCallback((k: string) => {

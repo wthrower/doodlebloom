@@ -58,11 +58,8 @@ self.onmessage = (e: MessageEvent<PipelineInput>) => {
 
     post('finish')
 
-    // Compact: remove palette colors with no surviving regions
-    const usedIndices = [...new Set(seamedRegions.map(r => r.colorIndex))].sort((a, b) => a - b)
-    const compactRemap = new Map(usedIndices.map((old, i) => [old, i]))
-    let palette: PaletteColor[] = usedIndices.map(i => rawPalette[i])
-    let regions: Region[] = seamedRegions.map(r => ({ ...r, colorIndex: compactRemap.get(r.colorIndex)! }))
+    let palette: PaletteColor[] = [...rawPalette]
+    let regions: Region[] = [...seamedRegions]
 
     if (palette.length > colorCount) {
       mergeToTarget(palette, regions, colorCount)
@@ -70,6 +67,13 @@ self.onmessage = (e: MessageEvent<PipelineInput>) => {
     regions = fuseSameColorRegions(regions, regionMap, cw)
     regions = capRegions(regions, regionMap, cw, palette, MAX_REGIONS)
     regions = fuseSameColorRegions(regions, regionMap, cw)
+
+    // Compact: remove palette colors with no surviving regions
+    const usedIndices = [...new Set(regions.map(r => r.colorIndex))].sort((a, b) => a - b)
+    const compactRemap = new Map(usedIndices.map((old, i) => [old, i]))
+    palette = usedIndices.map(i => palette[i])
+    regions = regions.map(r => ({ ...r, colorIndex: compactRemap.get(r.colorIndex)! }))
+
     relabelRegions(regions, regionMap, cw)
 
     // Recompute palette: most saturated pixel near the average, then spread apart

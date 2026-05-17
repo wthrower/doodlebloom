@@ -1,5 +1,7 @@
 export type Screen = 'start' | 'generating' | 'preview' | 'playing' | 'complete' | 'jigswap' | 'slide'
 
+export type GameMode = 'paint' | 'jigswap' | 'slide'
+
 export interface PaletteColor {
   r: number
   g: number
@@ -28,6 +30,7 @@ export interface GameState {
   screen: Screen
   prompt: string
   colorCount: number
+  gameMode: GameMode
   sessionId: string | null
   palette: PaletteColor[]
   regions: Region[]
@@ -47,6 +50,7 @@ export const DEFAULT_STATE: GameState = {
   screen: 'start',
   prompt: '',
   colorCount: 16,
+  gameMode: 'paint',
   sessionId: null,
   palette: [],
   regions: [],
