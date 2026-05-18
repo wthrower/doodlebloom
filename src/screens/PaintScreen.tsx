@@ -403,7 +403,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
         </div>
         {state.screen !== 'complete' && (
           <button
-            className="btn btn-ghost btn-icon btn-small"
+            className={`btn btn-ghost btn-icon btn-small${showHint ? ' hint-active' : ''}`}
             onMouseDown={hintDown}
             onMouseUp={hintUp}
             onMouseLeave={hintUp}

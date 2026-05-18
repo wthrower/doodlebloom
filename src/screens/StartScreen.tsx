@@ -224,9 +224,9 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                         id="detailLevel"
                         type="range"
                         min={0}
-                        max={2}
-                        value={state.detailLevel === 'low' ? 0 : state.detailLevel === 'medium' ? 1 : 2}
-                        onChange={e => actions.setDetailLevel((['low', 'medium', 'high'] as const)[Number(e.target.value)] as DetailLevel)}
+                        max={4}
+                        value={(['very low', 'low', 'medium', 'high', 'very high'] as const).indexOf(state.detailLevel)}
+                        onChange={e => actions.setDetailLevel((['very low', 'low', 'medium', 'high', 'very high'] as const)[Number(e.target.value)])}
                       />
                     </div>
                   </>

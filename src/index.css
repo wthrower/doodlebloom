@@ -463,6 +463,11 @@ input[type="range"]::-webkit-slider-thumb {
   inset: var(--btn-inset, 6px);
 }
 
+.hint-active {
+  --btn-bg: var(--color-accent);
+  color: #fff;
+}
+
 /* ── Setup inline generate row ── */
 .start-generate-row {
   display: flex;
