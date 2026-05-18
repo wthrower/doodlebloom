@@ -95,10 +95,10 @@ export function renderPuzzle(
       buf[i * 4 + 2] = stripe ? 229 : 240
       buf[i * 4 + 3] = 255
     } else {
-      // Unfilled: white
-      buf[i * 4] = 255
-      buf[i * 4 + 1] = 255
-      buf[i * 4 + 2] = 255
+      // Unfilled: muted green
+      buf[i * 4] = 200
+      buf[i * 4 + 1] = 220
+      buf[i * 4 + 2] = 200
       buf[i * 4 + 3] = 255
     }
   }
