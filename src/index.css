@@ -685,6 +685,24 @@ input.stock-search {
   align-items: center;
   gap: 0.25rem;
   transition: border-color 0.15s;
+  position: relative;
+}
+
+.completed-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  background: #2e7d32;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  z-index: 2;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  pointer-events: none;
 }
 
 .stock-thumb-btn:hover {

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { GameState, DetailLevel } from '../types'
 import type { GameActions } from '../hooks/useGame'
-import type { GalleryEntry } from '../game/storage'
+import type { GalleryEntry, CompletedMap } from '../game/storage'
 import { SIZE_PRESETS, type JigswapConfig } from '../game/jigswap'
-import { Search } from 'lucide-react'
+import { Check, Search } from 'lucide-react'
 import { DoodlebloomLogo } from '../components/DoodlebloomLogo'
 import { ScrollChevrons } from '../components/ScrollChevrons'
 
@@ -33,12 +33,13 @@ interface Props {
   galleryThumbs: Map<string, string>
   onSelectGallery: (entry: GalleryEntry) => void
   onDeleteGallery: (id: string) => void
+  completedImages: CompletedMap
 }
 
-export function StartScreen({ state, actions, isGenerating, previewUrl, selectedStockUrl, onGenerate, onCancel, onPlay, onSelectStock, galleryEntries, galleryThumbs, onSelectGallery, onDeleteGallery }: Props) {
+export function StartScreen({ state, actions, isGenerating, previewUrl, selectedStockUrl, onGenerate, onCancel, onPlay, onSelectStock, galleryEntries, galleryThumbs, onSelectGallery, onDeleteGallery, completedImages }: Props) {
   const [showKey, setShowKey] = useState(false)
   const [showKeyInput, setShowKeyInput] = useState(false)
-  const [selectedMode, setSelectedMode] = useState<GameMode>('paint')
+  const [selectedMode, setSelectedMode] = useState<GameMode>(state.gameMode)
   const [puzzleSize, setPuzzleSize] = useState<JigswapConfig>(SIZE_PRESETS[1])
   const [imageSearch, setImageSearch] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
@@ -128,6 +129,8 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                 onMouseLeave={onStripMouseUp}
               >
                 {allThumbs.map(item => {
+                  const imageId = item.kind === 'stock' ? item.file : `gallery:${item.entry.id}`
+                  const isCompleted = completedImages[imageId]?.includes(selectedMode) ?? false
                   if (item.kind === 'gallery') {
                     const { entry, thumbUrl } = item
                     return (
@@ -147,6 +150,7 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                         >
                           ×
                         </button>
+                        {isCompleted && <span className="completed-badge"><Check size={12} /></span>}
                         <img
                           src={thumbUrl}
                           alt={entry.prompt}
@@ -167,6 +171,7 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                       aria-label={label}
                       disabled={isGenerating}
                     >
+                      {isCompleted && <span className="completed-badge"><Check size={12} /></span>}
                       <img
                         src={thumbUrl}
                         alt={label}
@@ -202,7 +207,7 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                   <button
                     key={mode}
                     className={`mode-toggle-btn${selectedMode === mode ? ' selected' : ''}`}
-                    onClick={() => setSelectedMode(mode)}
+                    onClick={() => { setSelectedMode(mode); actions.setGameMode(mode) }}
                   >
                     {mode === 'paint' ? 'Paint' : mode === 'jigswap' ? 'JigSwap' : 'Slide'}
                   </button>

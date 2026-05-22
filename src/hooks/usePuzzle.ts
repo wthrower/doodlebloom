@@ -148,6 +148,7 @@ export interface PuzzleScreenProps {
   previewUrl: string
   previewBlob: Blob
   onBack: () => void
+  onComplete?: () => void
   isFullscreen: boolean
   onToggleFullscreen: () => void
 }
@@ -175,7 +176,10 @@ export function usePuzzleScreen(
   }, [mode, activeImageBlob])
 
   useEffect(() => {
-    if (won) clearPuzzleState(mode)
+    if (won) {
+      clearPuzzleState(mode)
+      props.onComplete?.()
+    }
   }, [mode, won])
 
   const containerRef = useRef<HTMLDivElement>(null)

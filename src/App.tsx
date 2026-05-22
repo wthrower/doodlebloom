@@ -23,8 +23,8 @@ import { JigswapScreen } from './screens/JigswapScreen'
 import { SlideScreen } from './screens/SlideScreen'
 import { ProcessingScreen } from './screens/ProcessingScreen'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { saveImage, loadImage, loadSelectedStockUrl, saveSelectedStockUrl, hasSavedPuzzle, loadPuzzleImage, saveToGallery, loadGalleryImage, loadGalleryIndex, loadGalleryThumbnails, deleteGalleryEntry } from './game/storage'
-import type { GalleryEntry } from './game/storage'
+import { saveImage, loadImage, loadSelectedStockUrl, saveSelectedStockUrl, hasSavedPuzzle, loadPuzzleImage, saveToGallery, loadGalleryImage, loadGalleryIndex, loadGalleryThumbnails, deleteGalleryEntry, loadCompletedImages, markImageCompleted } from './game/storage'
+import type { GalleryEntry, CompletedMap } from './game/storage'
 
 const PREVIEW_KEY = '__preview__'
 
@@ -49,6 +49,25 @@ export default function App() {
     loadGalleryThumbnails().then(setGalleryThumbs)
   }, [])
 
+  // Completion tracking
+  const currentImageIdRef = useRef<string | null>(null)
+  const [completedImages, setCompletedImages] = useState<CompletedMap>(() => loadCompletedImages())
+
+  const recordCompletion = useCallback((mode: string) => {
+    if (!currentImageIdRef.current) return
+    markImageCompleted(currentImageIdRef.current, mode)
+    setCompletedImages(loadCompletedImages())
+  }, [])
+
+  // Record paint mode completion
+  const prevScreenRef = useRef(state.screen)
+  useEffect(() => {
+    if (state.screen === 'complete' && prevScreenRef.current !== 'complete') {
+      recordCompletion('paint')
+    }
+    prevScreenRef.current = state.screen
+  }, [state.screen, recordCompletion])
+
   // Per-mode resume state
   const jigswap = usePuzzleModeState()
   const slide = usePuzzleModeState()
@@ -56,6 +75,10 @@ export default function App() {
 
   // Restore preview image from IDB on mount
   useEffect(() => {
+    if (selectedStockUrl) {
+      const fileMatch = selectedStockUrl.match(/images\/(.+)\.png$/)
+      currentImageIdRef.current = fileMatch ? fileMatch[1] : selectedStockUrl
+    }
     loadImage(PREVIEW_KEY).then(blob => {
       if (!blob) return
       previewBlobRef.current = blob
@@ -106,6 +129,7 @@ export default function App() {
     if (!previewIsGeneratedRef.current || !previewBlobRef.current) return
     previewIsGeneratedRef.current = false
     const id = await saveToGallery(previewPromptRef.current, previewBlobRef.current)
+    currentImageIdRef.current = `gallery:${id}`
     const url = URL.createObjectURL(previewBlobRef.current)
     setGalleryEntries(loadGalleryIndex())
     setGalleryThumbs(prev => new Map(prev).set(id, url))
@@ -155,6 +179,8 @@ export default function App() {
       setPreviewImage(blob)
       setSelectedStockUrl(imageUrl)
       saveSelectedStockUrl(imageUrl)
+      const fileMatch = imageUrl.match(/images\/(.+)\.png$/)
+      currentImageIdRef.current = fileMatch ? fileMatch[1] : imageUrl
       actions.goTo('start')
     } catch {
       setGenError('Failed to load image')
@@ -167,6 +193,7 @@ export default function App() {
     setPreviewImage(blob, entry.prompt)
     setSelectedStockUrl(null)
     saveSelectedStockUrl(null)
+    currentImageIdRef.current = `gallery:${entry.id}`
     actions.goTo('start')
   }, [setPreviewImage, actions])
 
@@ -211,6 +238,7 @@ export default function App() {
           galleryThumbs={galleryThumbs}
           onSelectGallery={handleSelectGallery}
           onDeleteGallery={handleDeleteGallery}
+          completedImages={completedImages}
         />
       )}
       {showResumeChoice && (
@@ -242,6 +270,7 @@ export default function App() {
           previewUrl={previewUrl ?? jigswap.imageUrl}
           previewBlob={previewBlobRef.current ?? jigswap.blob}
           onBack={() => actions.goTo('start')}
+          onComplete={() => recordCompletion('jigswap')}
           isFullscreen={isFullscreen}
           onToggleFullscreen={toggleFullscreen}
         />
@@ -254,6 +283,7 @@ export default function App() {
           previewUrl={previewUrl ?? slide.imageUrl}
           previewBlob={previewBlobRef.current ?? slide.blob}
           onBack={() => actions.goTo('start')}
+          onComplete={() => recordCompletion('slide')}
           isFullscreen={isFullscreen}
           onToggleFullscreen={toggleFullscreen}
         />
