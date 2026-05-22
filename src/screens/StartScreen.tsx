@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { GameState, DetailLevel } from '../types'
 import type { GameActions } from '../hooks/useGame'
 import type { GalleryEntry } from '../game/storage'
-import { SIZE_PRESETS, shuffleArray, type JigswapConfig } from '../game/jigswap'
+import { SIZE_PRESETS, type JigswapConfig } from '../game/jigswap'
 import { Search } from 'lucide-react'
 import { DoodlebloomLogo } from '../components/DoodlebloomLogo'
 import { ScrollChevrons } from '../components/ScrollChevrons'
@@ -13,13 +13,11 @@ const BASE = import.meta.env.BASE_URL
 
 // Auto-discover stock images from public/images/thumbs/
 const thumbModules = import.meta.glob('/public/images/thumbs/*.jpg', { eager: true, query: '?url', import: 'default' }) as Record<string, string>
-const STOCK_IMAGES = shuffleArray(
-  Object.entries(thumbModules).map(([path, thumbUrl]) => {
-    const file = path.replace('/public/images/thumbs/', '').replace('.jpg', '')
-    const label = file.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-    return { file, label, thumbUrl }
-  })
-)
+const STOCK_IMAGES = Object.entries(thumbModules).map(([path, thumbUrl]) => {
+  const file = path.replace('/public/images/thumbs/', '').replace('.jpg', '')
+  const label = file.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  return { file, label, thumbUrl }
+}).sort((a, b) => a.label.localeCompare(b.label))
 
 interface Props {
   state: GameState
@@ -58,17 +56,23 @@ export function StartScreen({ state, actions, isGenerating, previewUrl, selected
   }, [])
   const dragRef = useRef<{ startX: number; scrollLeft: number; dragging: boolean } | null>(null)
 
-  const filteredStock = useMemo(() => {
-    if (!imageSearch) return STOCK_IMAGES
-    const q = imageSearch.toLowerCase()
-    return STOCK_IMAGES.filter(s => s.label.toLowerCase().includes(q))
-  }, [imageSearch])
+  type ThumbItem =
+    | { kind: 'stock'; file: string; label: string; thumbUrl: string }
+    | { kind: 'gallery'; entry: GalleryEntry; thumbUrl: string }
 
-  const filteredGallery = useMemo(() => {
-    if (!imageSearch) return galleryEntries
+  const allThumbs = useMemo(() => {
+    const items: ThumbItem[] = []
+    for (const s of STOCK_IMAGES) items.push({ kind: 'stock', ...s })
+    for (const e of galleryEntries) {
+      const url = galleryThumbs.get(e.id)
+      if (url) items.push({ kind: 'gallery', entry: e, thumbUrl: url })
+    }
+    const sortKey = (t: ThumbItem) => t.kind === 'stock' ? t.label : t.entry.prompt
+    items.sort((a, b) => sortKey(a).localeCompare(sortKey(b)))
+    if (!imageSearch) return items
     const q = imageSearch.toLowerCase()
-    return galleryEntries.filter(e => e.prompt.toLowerCase().includes(q))
-  }, [imageSearch, galleryEntries])
+    return items.filter(t => sortKey(t).toLowerCase().includes(q))
+  }, [imageSearch, galleryEntries, galleryThumbs])
 
   const onStripMouseDown = (e: React.MouseEvent) => {
     const el = stripRef.current
@@ -123,36 +127,36 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                 onMouseUp={onStripMouseUp}
                 onMouseLeave={onStripMouseUp}
               >
-                {filteredGallery.map(entry => {
-                  const thumbUrl = galleryThumbs.get(entry.id)
-                  if (!thumbUrl) return null
-                  return (
-                    <div
-                      key={`gallery-${entry.id}`}
-                      className="stock-thumb-btn gallery-thumb-wrap"
-                      onClick={e => onStripClick(e, () => onSelectGallery(entry))}
-                      title={entry.prompt}
-                      role="button"
-                      tabIndex={0}
-                      aria-label={entry.prompt}
-                    >
-                      <button
-                        className="gallery-delete-btn"
-                        onClick={e => { e.stopPropagation(); onDeleteGallery(entry.id) }}
-                        aria-label="Delete image"
+                {allThumbs.map(item => {
+                  if (item.kind === 'gallery') {
+                    const { entry, thumbUrl } = item
+                    return (
+                      <div
+                        key={`gallery-${entry.id}`}
+                        className="stock-thumb-btn gallery-thumb-wrap"
+                        onClick={e => onStripClick(e, () => onSelectGallery(entry))}
+                        title={entry.prompt}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={entry.prompt}
                       >
-                        ×
-                      </button>
-                      <img
-                        src={thumbUrl}
-                        alt={entry.prompt}
-                        className="stock-thumb-img"
-                      />
-                      <span className="stock-thumb-label gallery-thumb-label">{entry.prompt}</span>
-                    </div>
-                  )
-                })}
-                {filteredStock.map(({ file, label, thumbUrl }) => {
+                        <button
+                          className="gallery-delete-btn"
+                          onClick={e => { e.stopPropagation(); onDeleteGallery(entry.id) }}
+                          aria-label="Delete image"
+                        >
+                          ×
+                        </button>
+                        <img
+                          src={thumbUrl}
+                          alt={entry.prompt}
+                          className="stock-thumb-img"
+                        />
+                        <span className="stock-thumb-label gallery-thumb-label">{entry.prompt}</span>
+                      </div>
+                    )
+                  }
+                  const { file, label, thumbUrl } = item
                   const url = `${BASE}images/${file}.png`
                   const isSelected = selectedStockUrl === url
                   return (
