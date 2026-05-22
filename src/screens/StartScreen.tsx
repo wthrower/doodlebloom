@@ -3,7 +3,7 @@ import type { GameState, DetailLevel } from '../types'
 import type { GameActions } from '../hooks/useGame'
 import type { GalleryEntry, CompletedMap } from '../game/storage'
 import { SIZE_PRESETS, type JigswapConfig } from '../game/jigswap'
-import { Check, Search } from 'lucide-react'
+import { Check, Search, User } from 'lucide-react'
 import { DoodlebloomLogo } from '../components/DoodlebloomLogo'
 import { ScrollChevrons } from '../components/ScrollChevrons'
 
@@ -151,6 +151,7 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                           ×
                         </button>
                         {isCompleted && <span className="completed-badge"><Check size={12} /></span>}
+                        <span className="gallery-user-badge"><User size={10} /></span>
                         <img
                           src={thumbUrl}
                           alt={entry.prompt}
