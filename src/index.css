@@ -611,6 +611,32 @@ input.stock-search {
   pointer-events: none;
 }
 
+.btn-hide-completed {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.btn-hide-completed:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+}
+
+.btn-hide-completed.active {
+  background: #2e7d32;
+  border-color: #2e7d32;
+  color: #fff;
+}
+
 .stock-strip {
   display: flex;
   gap: 0.5rem;

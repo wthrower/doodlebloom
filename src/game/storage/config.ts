@@ -1,6 +1,7 @@
 const LS_KEY_APIKEY = 'doodlebloom_apikey'
 const LS_KEY_STOCK_URL = 'doodlebloom_stock_url'
 const LS_KEY_COMPLETED = 'doodlebloom_completed'
+const LS_KEY_HIDE_COMPLETED = 'doodlebloom_hide_completed'
 
 export function loadApiKey(): string {
   return localStorage.getItem(LS_KEY_APIKEY) ?? ''
@@ -33,4 +34,12 @@ export function markImageCompleted(imageId: string, mode: string): void {
   if (!modes.includes(mode)) modes.push(mode)
   map[imageId] = modes
   localStorage.setItem(LS_KEY_COMPLETED, JSON.stringify(map))
+}
+
+export function loadHideCompleted(): boolean {
+  return localStorage.getItem(LS_KEY_HIDE_COMPLETED) === 'true'
+}
+
+export function saveHideCompleted(hide: boolean): void {
+  localStorage.setItem(LS_KEY_HIDE_COMPLETED, String(hide))
 }

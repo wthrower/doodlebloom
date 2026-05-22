@@ -1,4 +1,4 @@
-export { loadApiKey, saveApiKey, loadSelectedStockUrl, saveSelectedStockUrl, loadCompletedImages, markImageCompleted } from './config'
+export { loadApiKey, saveApiKey, loadSelectedStockUrl, saveSelectedStockUrl, loadCompletedImages, markImageCompleted, loadHideCompleted, saveHideCompleted } from './config'
 export type { CompletedMap } from './config'
 export { loadGameState, saveGameState, clearGameState, clearCorruptedState } from './gameState'
 export { saveRegionMap, loadRegionMap, saveImage, loadImage, deleteImage } from './images'

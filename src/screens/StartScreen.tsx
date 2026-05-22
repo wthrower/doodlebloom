@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { GameState, DetailLevel } from '../types'
 import type { GameActions } from '../hooks/useGame'
 import type { GalleryEntry, CompletedMap } from '../game/storage'
+import { loadHideCompleted, saveHideCompleted } from '../game/storage'
 import { SIZE_PRESETS, type JigswapConfig } from '../game/jigswap'
-import { Check, Search, User } from 'lucide-react'
+import { Check, Filter, Search, User } from 'lucide-react'
 import { DoodlebloomLogo } from '../components/DoodlebloomLogo'
 import { ScrollChevrons } from '../components/ScrollChevrons'
 
@@ -42,6 +43,7 @@ export function StartScreen({ state, actions, isGenerating, previewUrl, selected
   const [selectedMode, setSelectedMode] = useState<GameMode>(state.gameMode)
   const [puzzleSize, setPuzzleSize] = useState<JigswapConfig>(SIZE_PRESETS[1])
   const [imageSearch, setImageSearch] = useState('')
+  const [hideCompleted, setHideCompleted] = useState(() => loadHideCompleted())
   const searchRef = useRef<HTMLInputElement>(null)
   const stripRef = useRef<HTMLDivElement>(null)
 
@@ -69,11 +71,18 @@ export function StartScreen({ state, actions, isGenerating, previewUrl, selected
       if (url) items.push({ kind: 'gallery', entry: e, thumbUrl: url })
     }
     const sortKey = (t: ThumbItem) => t.kind === 'stock' ? t.label : t.entry.prompt
+    const imageId = (t: ThumbItem) => t.kind === 'stock' ? t.file : `gallery:${t.entry.id}`
     items.sort((a, b) => sortKey(a).localeCompare(sortKey(b)))
-    if (!imageSearch) return items
-    const q = imageSearch.toLowerCase()
-    return items.filter(t => sortKey(t).toLowerCase().includes(q))
-  }, [imageSearch, galleryEntries, galleryThumbs])
+    let filtered = items
+    if (hideCompleted) {
+      filtered = filtered.filter(t => !(completedImages[imageId(t)]?.includes(selectedMode)))
+    }
+    if (imageSearch) {
+      const q = imageSearch.toLowerCase()
+      filtered = filtered.filter(t => sortKey(t).toLowerCase().includes(q))
+    }
+    return filtered
+  }, [imageSearch, galleryEntries, galleryThumbs, hideCompleted, completedImages, selectedMode])
 
   const onStripMouseDown = (e: React.MouseEvent) => {
     const el = stripRef.current
@@ -117,6 +126,14 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                 />
                 <Search size={14} className="stock-search-icon" />
               </div>
+              <button
+                className={`btn-hide-completed${hideCompleted ? ' active' : ''}`}
+                onClick={() => { const next = !hideCompleted; setHideCompleted(next); saveHideCompleted(next) }}
+                title={hideCompleted ? 'Show completed' : 'Hide completed'}
+                aria-label={hideCompleted ? 'Show completed' : 'Hide completed'}
+              >
+                <Filter size={14} />
+              </button>
             </div>
             <div className="scroll-chevron-wrap">
               <ScrollChevrons scrollRef={stripRef} />
