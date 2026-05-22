@@ -401,22 +401,6 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
             <span className="progress-text">{filledCount}/{totalCount}</span>
           </div>
         </div>
-        {state.screen !== 'complete' && (
-          <button
-            className={`btn btn-ghost btn-icon btn-small${showHint ? ' hint-active' : ''}`}
-            onMouseDown={hintDown}
-            onMouseUp={hintUp}
-            onMouseLeave={hintUp}
-            onTouchStart={(e) => { e.preventDefault(); hintDown() }}
-            onTouchEnd={(e) => { e.preventDefault(); hintUp() }}
-            onTouchCancel={hintUp}
-            onContextMenu={(e) => e.preventDefault()}
-            title="Tap to flash, hold to highlight"
-            aria-label="Highlight regions"
-          >
-            <Lightbulb size={18} />
-          </button>
-        )}
         {panZoom.isZoomed && (
           <button
             className="btn btn-ghost btn-icon btn-small"
@@ -435,6 +419,22 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
             aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
           >
             {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+          </button>
+        )}
+        {state.screen !== 'complete' && (
+          <button
+            className={`btn btn-ghost btn-icon btn-small${showHint ? ' hint-active' : ''}`}
+            onMouseDown={hintDown}
+            onMouseUp={hintUp}
+            onMouseLeave={hintUp}
+            onTouchStart={(e) => { e.preventDefault(); hintDown() }}
+            onTouchEnd={(e) => { e.preventDefault(); hintUp() }}
+            onTouchCancel={hintUp}
+            onContextMenu={(e) => e.preventDefault()}
+            title="Tap to flash, hold to highlight"
+            aria-label="Highlight regions"
+          >
+            <Lightbulb size={18} />
           </button>
         )}
       </div>
