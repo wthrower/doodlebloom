@@ -110,8 +110,8 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
   return (
     <div className="screen start-screen">
       <div className="start-columns">
-        {/* Left: stock images + preview */}
-        <div className="start-left">
+        {/* Gallery: image thumbnails */}
+        <div className="start-gallery">
           <div className="stock-section">
             <div className="stock-header">
               <label className="stock-label">Pick an image</label>
@@ -202,16 +202,19 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
               </div>
             </div>
           </div>
+        </div>
 
+        {/* Preview: selected image */}
+        <div className="start-preview">
           {previewUrl && !isGenerating && (
-            <div className="preview-inline">
+            <div className="preview-inline" onClick={() => onPlay(selectedMode, puzzleSize)}>
               <img src={previewUrl} alt="Selected" className="preview-inline-img" />
             </div>
           )}
         </div>
 
-        {/* Right: logo + mode buttons + generate */}
-        <div className="start-right">
+        {/* Controls: logo + mode buttons + generate */}
+        <div className="start-controls">
           <div className="title-block">
             <h1 className="app-title-wrap" aria-label="Doodlebloom">
               <DoodlebloomLogo />

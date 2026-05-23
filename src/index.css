@@ -534,22 +534,32 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* ── Setup columns ── */
 .start-columns {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "controls"
+    "gallery"
+    "preview";
   flex: 1;
-  gap: 0;
 }
 
-.start-left {
+.start-gallery {
+  grid-area: gallery;
   display: flex;
   flex-direction: column;
-  order: 1;
+  min-width: 0;
 }
 
-.start-right {
+.start-preview {
+  grid-area: preview;
   display: flex;
   flex-direction: column;
-  order: 0;
+}
+
+.start-controls {
+  grid-area: controls;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ── Stock image browser ── */
@@ -1498,21 +1508,13 @@ input.stock-search {
   }
 
   .start-columns {
-    flex-direction: row;
-    align-items: flex-start;
-    gap: 2.5rem;
-  }
-
-  .start-left {
-    flex: 1;
-    min-width: 0;
-    order: 0;
-  }
-
-  .start-right {
-    width: 280px;
-    flex-shrink: 0;
-    order: 1;
+    grid-template-columns: 1fr 280px;
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "gallery controls"
+      "preview controls";
+    gap: 0 2.5rem;
+    align-items: start;
   }
 
   .start-shared-settings {
@@ -1604,6 +1606,91 @@ input.stock-search {
   .jigswap-screen > .game-header,
   .puzzle-screen > .game-header {
     grid-column: 1 / -1;
+  }
+}
+
+/* ── 1100px+: three-panel start screen ── */
+@media (min-width: 1100px) {
+  .start-screen {
+    max-width: none;
+    padding: 1rem 1.5rem 2rem;
+  }
+
+  .start-columns {
+    grid-template-columns: minmax(250px, 1fr) 1fr 280px;
+    grid-template-rows: 1fr;
+    grid-template-areas: "gallery preview controls";
+    gap: 0 1rem;
+    align-items: stretch;
+  }
+
+  .start-gallery {
+    overflow-y: auto;
+    max-height: calc(100vh - 100px);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+  }
+
+  .start-gallery::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .start-gallery::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .start-gallery::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 3px;
+  }
+
+  .start-gallery::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.25);
+  }
+
+  .start-gallery .stock-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    overflow-x: hidden;
+    overflow-y: visible;
+    cursor: default;
+    gap: 0.4rem;
+  }
+
+  .start-gallery .scroll-chevron {
+    display: none;
+  }
+
+  .start-gallery .stock-thumb-img {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 2 / 3;
+  }
+
+  .start-gallery .gallery-thumb-label {
+    max-width: 100%;
+  }
+
+  .start-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .start-preview .preview-inline {
+    margin-top: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+  }
+
+  .start-preview .preview-inline-img {
+    max-height: calc(100vh - 120px);
+    max-width: 100%;
+    width: auto;
+    object-fit: contain;
+    border-radius: var(--radius);
   }
 }
 
