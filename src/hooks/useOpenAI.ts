@@ -59,7 +59,7 @@ export function useOpenAI(): UseOpenAIResult {
       if (err instanceof Error && err.name === 'AbortError') return null
       const msg = err instanceof Error ? err.message : String(err)
       setError(msg)
-      return null
+      throw err
     } finally {
       setIsGenerating(false)
     }

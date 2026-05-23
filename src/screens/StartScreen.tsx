@@ -4,7 +4,7 @@ import type { GameActions } from '../hooks/useGame'
 import type { GalleryEntry, CompletedMap } from '../game/storage'
 import { loadHideCompleted, saveHideCompleted } from '../game/storage'
 import { SIZE_PRESETS, type JigswapConfig } from '../game/jigswap'
-import { Check, Filter, Search, User } from 'lucide-react'
+import { Check, Filter, Search, Trash2, User } from 'lucide-react'
 import { DoodlebloomLogo } from '../components/DoodlebloomLogo'
 import { ScrollChevrons } from '../components/ScrollChevrons'
 
@@ -40,6 +40,7 @@ interface Props {
 export function StartScreen({ state, actions, isGenerating, previewUrl, selectedStockUrl, onGenerate, onCancel, onPlay, onSelectStock, galleryEntries, galleryThumbs, onSelectGallery, onDeleteGallery, completedImages }: Props) {
   const [showKey, setShowKey] = useState(false)
   const [showKeyInput, setShowKeyInput] = useState(false)
+  const [showGenerate, setShowGenerate] = useState(false)
   const [selectedMode, setSelectedMode] = useState<GameMode>(state.gameMode)
   const [puzzleSize, setPuzzleSize] = useState<JigswapConfig>(SIZE_PRESETS[1])
   const [imageSearch, setImageSearch] = useState('')
@@ -161,11 +162,11 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                         aria-label={entry.prompt}
                       >
                         <button
-                          className="gallery-delete-btn"
+                          className={`gallery-delete-btn${isCompleted ? '' : ' no-badge'}`}
                           onClick={e => { e.stopPropagation(); onDeleteGallery(entry.id) }}
                           aria-label="Delete image"
                         >
-                          ×
+                          <Trash2 size={10} />
                         </button>
                         {isCompleted && <span className="completed-badge"><Check size={12} /></span>}
                         <span className="gallery-user-badge"><User size={10} /></span>
@@ -223,6 +224,7 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
           </div>
           {previewUrl && !isGenerating && (
             <>
+              <label className="mode-toggle-label">Game Mode</label>
               <div className="mode-toggle">
                 {(['paint', 'jigswap', 'slide'] as const).map(mode => (
                   <button
@@ -262,6 +264,8 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                   </>
                 )}
                 {(selectedMode === 'jigswap' || selectedMode === 'slide') && (
+                  <>
+                  <label className="mode-toggle-label">Grid Size</label>
                   <div className="puzzle-size-picker">
                     {SIZE_PRESETS.map(p => (
                       <button
@@ -273,6 +277,7 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                       </button>
                     ))}
                   </div>
+                  </>
                 )}
               </div>
               <button className="btn btn-primary btn-large btn-spacebar play-btn" onClick={() => onPlay(selectedMode, puzzleSize)}>
@@ -280,69 +285,75 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
               </button>
             </>
           )}
-          <div className="start-divider">or generate your own</div>
-
-          <div className="form-group">
-            <div className="prompt-label-row">
-              <label htmlFor="prompt">Prompt</label>
-              {state.prompt && <button className="btn-clear-prompt" type="button" onClick={() => actions.setPrompt('')} title="Clear prompt" aria-label="Clear prompt">×</button>}
-            </div>
-            <textarea
-              id="prompt"
-              rows={3}
-              placeholder={actions.apiKey ? "Enter a prompt like 'an adorable kitten staring at a ladybug'..." : 'Enter an OpenAI API key to enable AI image generation.'}
-              value={state.prompt}
-              onChange={e => actions.setPrompt(e.target.value)}
-              onFocus={e => setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 300)}
-              disabled={isGenerating || !actions.apiKey}
-            />
+          <div className="start-divider start-divider-toggle" onClick={() => setShowGenerate(v => !v)}>
+            <span>{showGenerate ? '▾' : '▸'} Generate Image (Advanced)</span>
           </div>
 
-          <div className="form-group">
-            <button
-              className="btn btn-ghost btn-small btn-spacebar api-key-toggle"
-              type="button"
-              onClick={() => setShowKeyInput(v => !v)}
-              disabled={isGenerating}
-            >
-              OpenAI API Key{actions.apiKey ? ' ✓' : ''}
-            </button>
-            {showKeyInput && (
-              <div className="input-row" style={{ marginTop: '0.4rem' }}>
-                <input
-                  id="apiKey"
-                  type={showKey ? 'text' : 'password'}
-                  placeholder="sk-..."
-                  value={actions.apiKey}
-                  onChange={e => actions.setApiKey(e.target.value)}
-                  autoComplete="off"
-                  disabled={isGenerating}
+          {showGenerate && (
+            <>
+              <div className="form-group">
+                <div className="prompt-label-row">
+                  <label htmlFor="prompt">Prompt</label>
+                  {state.prompt && <button className="btn-clear-prompt" type="button" onClick={() => actions.setPrompt('')} title="Clear prompt" aria-label="Clear prompt">×</button>}
+                </div>
+                <textarea
+                  id="prompt"
+                  rows={3}
+                  placeholder={actions.apiKey ? "Enter a prompt like 'an adorable kitten staring at a ladybug'..." : 'Enter an OpenAI API key to enable AI image generation.'}
+                  value={state.prompt}
+                  onChange={e => actions.setPrompt(e.target.value)}
+                  onFocus={e => setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 300)}
+                  disabled={isGenerating || !actions.apiKey}
                 />
-                <button
-                  className="btn-icon"
-                  type="button"
-                  onClick={() => setShowKey(v => !v)}
-                  aria-label={showKey ? 'Hide key' : 'Show key'}
-                >
-                  {showKey ? '🙈' : '👁'}
-                </button>
               </div>
-            )}
-          </div>
 
-          <div className="start-generate-row">
-            {isGenerating ? (
-              <>
-                <div className="spinner spinner-sm" />
-                <span className="generating-inline-text">Generating...</span>
-                <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-              </>
-            ) : (
-              <button className="btn btn-primary btn-large" onClick={onGenerate} disabled={!canGenerate}>
-                Generate
-              </button>
-            )}
-          </div>
+              <div className="form-group">
+                <button
+                  className="btn btn-ghost btn-small btn-spacebar api-key-toggle"
+                  type="button"
+                  onClick={() => setShowKeyInput(v => !v)}
+                  disabled={isGenerating}
+                >
+                  OpenAI API Key{actions.apiKey ? ' ✓' : ''}
+                </button>
+                {showKeyInput && (
+                  <div className="input-row" style={{ marginTop: '0.4rem' }}>
+                    <input
+                      id="apiKey"
+                      type={showKey ? 'text' : 'password'}
+                      placeholder="sk-..."
+                      value={actions.apiKey}
+                      onChange={e => actions.setApiKey(e.target.value)}
+                      autoComplete="off"
+                      disabled={isGenerating}
+                    />
+                    <button
+                      className="btn-icon"
+                      type="button"
+                      onClick={() => setShowKey(v => !v)}
+                      aria-label={showKey ? 'Hide key' : 'Show key'}
+                    >
+                      {showKey ? '🙈' : '👁'}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="start-generate-row">
+                {isGenerating ? (
+                  <>
+                    <div className="spinner spinner-sm" />
+                    <span className="generating-inline-text">Generating...</span>
+                    <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+                  </>
+                ) : (
+                  <button className="btn btn-primary btn-large" onClick={onGenerate} disabled={!canGenerate}>
+                    Generate
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

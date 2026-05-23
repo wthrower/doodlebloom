@@ -104,19 +104,35 @@ export default function App() {
     setSelectedStockUrl(null)
     saveSelectedStockUrl(null)
     actions.goTo('generating')
-    const blob = await generate(state.prompt, actions.apiKey, getImageSize())
+    let blob: Blob | null
+    try {
+      blob = await generate(state.prompt, actions.apiKey, getImageSize())
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      const detail = /connection|network|failed to fetch/i.test(msg)
+        ? 'check that your OpenAI API key is valid'
+        : msg
+      setGenError(`Image generation failed: ${detail}`)
+      actions.goTo('start')
+      return
+    }
     if (!blob) {
       actions.goTo('start')
       return
     }
     previewBlobRef.current = blob
-    previewIsGeneratedRef.current = true
-    previewPromptRef.current = state.prompt
+    previewIsGeneratedRef.current = false
     if (previewUrl) URL.revokeObjectURL(previewUrl)
     const url = URL.createObjectURL(blob)
     setPreviewUrl(url)
     saveImage(PREVIEW_KEY, blob).catch(() => undefined)
-    actions.goTo('preview')
+
+    const id = await saveToGallery(state.prompt, blob)
+    currentImageIdRef.current = `gallery:${id}`
+    setGalleryEntries(loadGalleryIndex())
+    setGalleryThumbs(prev => new Map(prev).set(id, URL.createObjectURL(blob)))
+
+    actions.goTo('start')
   }, [state.prompt, actions, generate, getImageSize, previewUrl])
 
   const handleCancel = useCallback(() => {
