@@ -240,7 +240,8 @@ export function usePanZoom({
     }
   }, [canvasWidth, setTransform])
 
-  const isZoomed = Math.abs(transformRef.current.scale - 1) > 0.05
+  const { scale, tx, ty } = transformRef.current
+  const isTransformed = Math.abs(scale - 1) > 0.05 || Math.abs(tx) > 1 || Math.abs(ty) > 1
 
-  return { transformRef, displaySizeRef, setTransform, screenToCanvas, isZoomed }
+  return { transformRef, displaySizeRef, setTransform, screenToCanvas, isTransformed }
 }

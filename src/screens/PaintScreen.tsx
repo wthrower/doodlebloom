@@ -401,7 +401,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
             <span className="progress-text">{filledCount}/{totalCount}</span>
           </div>
         </div>
-        {panZoom.isZoomed && (
+        {panZoom.isTransformed && (
           <button
             className="btn btn-ghost btn-icon btn-small"
             onClick={() => panZoom.setTransform({ scale: 1, tx: 0, ty: 0 })}
