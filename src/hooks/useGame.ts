@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DEFAULT_STATE } from '../types'
-import type { GameState, GamePreferences, PaletteColor, Screen } from '../types'
+import type { GameState, GamePreferences, Screen } from '../types'
 import { DETAIL_SETTINGS, DEFAULT_PREFERENCES } from '../types'
 import {
   loadGameState,
@@ -18,7 +18,6 @@ import {
 import { assignPixels } from '../game/quantize'
 import { buildRegions, fuseSameColorRegions } from '../game/regions'
 import type { PipelineMessage } from '../game/pipeline.worker'
-import { spreadPalette } from '../game/paletteColor'
 
 /** Extract user preferences from a (possibly stale) saved state, falling back to defaults. */
 function pickPrefs(saved: Partial<GameState>): GamePreferences {
@@ -50,7 +49,6 @@ export interface GameActions {
   /** Blob size of the stashed session, for matching against the current preview. */
   prevSessionBlobSize: number | null
   fillRegion: (regionId: number, colorIndex: number) => void
-  toggleSpreadPalette: () => void
   resetPuzzle: () => Promise<void>
   resetProgress: () => void
   getIndexMap: () => Uint8Array | null
@@ -67,8 +65,6 @@ export function useGame(): [GameState, GameActions] {
   const [apiKey, setApiKeyState] = useState<string>(() => loadApiKey() || '')
   const [processingStage, setProcessingStage] = useState<string | null>(null)
   const [pipelineError, setPipelineError] = useState<string | null>(null)
-  const [paletteSpread, setPaletteSpread] = useState(false)
-  const basePaletteRef = useRef<PaletteColor[] | null>(null)
   const indexMapRef = useRef<Uint8Array | null>(null)
   const regionMapRef = useRef<Int32Array | null>(null)
   const originalImageDataRef = useRef<ImageData | null>(null)
@@ -122,7 +118,6 @@ export function useGame(): [GameState, GameActions] {
         indexMapRef.current = indexMap
         regionMapRef.current = regionMap
         originalImageDataRef.current = imageData
-        basePaletteRef.current = saved!.palette
         setState(saved!)
       }).catch(resetCorrupted)
       return
@@ -175,7 +170,6 @@ export function useGame(): [GameState, GameActions] {
     indexMapRef.current = idxMap
     regionMapRef.current = storedRegionMap
     originalImageDataRef.current = imageData
-    basePaletteRef.current = prev.state.palette
     fuseSameColorRegions(prev.state.regions, storedRegionMap, cw)
     update(prev.state)
   }, [update])
@@ -224,11 +218,10 @@ export function useGame(): [GameState, GameActions] {
             reject(new Error(e.data.message))
           } else if (e.data.type === 'complete') {
             worker.terminate()
-            const { palette, basePalette, regions, indexMap, regionMap, rawPalette } = e.data.result
+            const { palette, regions, indexMap, regionMap, rawPalette } = e.data.result
 
             await saveRegionMap(sessionId, regionMap)
 
-            basePaletteRef.current = basePalette
             indexMapRef.current = indexMap
             regionMapRef.current = regionMap
             originalImageDataRef.current = imageData
@@ -271,21 +264,6 @@ export function useGame(): [GameState, GameActions] {
       const allCorrect = next.regions.every(r => next.playerColors[r.id] === r.colorIndex)
       if (allCorrect) next.screen = 'complete'
       saveGameState(next)
-      return next
-    })
-  }, [])
-
-  const toggleSpreadPalette = useCallback(() => {
-    const base = basePaletteRef.current
-    if (!base) return
-    setPaletteSpread(prev => {
-      const next = !prev
-      const palette = next ? spreadPalette(base) : base
-      setState(s => {
-        const updated = { ...s, palette }
-        saveGameState(updated)
-        return updated
-      })
       return next
     })
   }, [])
@@ -336,7 +314,6 @@ export function useGame(): [GameState, GameActions] {
     hasPrevSession,
     prevSessionBlobSize: prevSessionRef.current?.blobSize ?? null,
     fillRegion,
-    toggleSpreadPalette,
     resetPuzzle,
     resetProgress,
     getIndexMap: useCallback(() => indexMapRef.current, []),

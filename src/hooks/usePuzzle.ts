@@ -191,7 +191,7 @@ export function usePuzzleScreen(
   // Cheat key
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.key === 'w' || e.key === 'W') {
+      if (import.meta.env.DEV && (e.key === 'w' || e.key === 'W')) {
         const n = config.cols * config.rows
         setBoard(Array.from({ length: n }, (_, i) => i))
         setWon(true)

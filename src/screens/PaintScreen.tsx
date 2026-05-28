@@ -310,7 +310,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
   // --- Keyboard shortcuts ---
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.key === 'w' || e.key === 'W') {
+      if (import.meta.env.DEV && (e.key === 'w' || e.key === 'W')) {
         for (const r of regionsRef.current) fillRegionRef.current(r.id, r.colorIndex)
       }
       const numKey = e.key >= '0' && e.key <= '9'
@@ -320,8 +320,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
         const colorIdx = sortedPaletteRef.current[numKey - 1]
         setActiveColorIndex(colorIdx)
       }
-      if (e.key === '/') { e.preventDefault(); actions.toggleSpreadPalette() }
-      if (e.key === '\\') setOutlineMagenta(v => !v)
+      if (import.meta.env.DEV && e.key === '\\') setOutlineMagenta(v => !v)
     }
     window.addEventListener('keydown', down)
     return () => { window.removeEventListener('keydown', down) }
