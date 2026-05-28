@@ -1548,8 +1548,11 @@ input.stock-search {
     object-fit: contain;
   }
 
-  /* Game: canvas left, palette/win-footer as right sidebar */
+  /* Game: canvas left, palette/win-footer as right sidebar.
+     The sidebar is a fixed width so the canvas doesn't shift when the
+     palette is swapped for the win-footer on completion. */
   .game-screen {
+    --sidebar-w: 180px;
     display: grid;
     grid-template-rows: auto 1fr;
     grid-template-columns: 1fr auto;
@@ -1561,7 +1564,7 @@ input.stock-search {
 
   .palette-wrap {
     border-left: 1px solid var(--color-border);
-    width: 112px;
+    width: var(--sidebar-w);
     flex-shrink: 0;
   }
 
@@ -1589,7 +1592,7 @@ input.stock-search {
   .win-footer {
     border-top: none;
     border-left: 1px solid var(--color-border);
-    width: 180px;
+    width: var(--sidebar-w);
     flex-shrink: 0;
     overflow-y: auto;
   }
