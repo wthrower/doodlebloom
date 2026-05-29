@@ -1647,6 +1647,18 @@ input.stock-search {
     margin-top: 0;
   }
 
+  /* Keep the search header pinned while the thumbnails scroll under it.
+     Background masks the scrolling content; padding replaces margin so no
+     thumbnail sliver shows in the gap. */
+  .start-gallery .stock-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--color-bg);
+    margin-bottom: 0;
+    padding-bottom: 0.75rem;
+  }
+
   .start-gallery {
     overflow-y: auto;
     min-height: 0;
