@@ -75,6 +75,19 @@ self.onmessage = (e: MessageEvent<PipelineInput>) => {
 
     relabelRegions(regions, regionMap, cw)
 
+    // Reconcile pixel counts against the finalized regionMap. Upstream merge
+    // stages accumulate pixelCount incrementally and can drift from the actual
+    // pixels -- e.g. finalizeRegions snapshots counts before absorbing thin
+    // regions, and a "thin" (narrow) region can still hold many pixels. Counting
+    // straight from the final map guarantees pixelCount == on-screen area, which
+    // the paint UI relies on to auto-advance to the color with the most pixels.
+    const finalCounts = new Map<number, number>()
+    for (let i = 0; i < regionMap.length; i++) {
+      const rid = regionMap[i]
+      if (rid >= 0) finalCounts.set(rid, (finalCounts.get(rid) ?? 0) + 1)
+    }
+    for (const r of regions) r.pixelCount = finalCounts.get(r.id) ?? 0
+
     // Recompute palette: most saturated pixel near the average, then spread apart
     const basePalette = recomputePalette('saturated', regions, regionMap, imageData, palette.length)
     palette = spreadPalette(basePalette)
