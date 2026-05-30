@@ -85,6 +85,36 @@ export async function loadImage(sessionId: string): Promise<Blob | null> {
   })
 }
 
+/**
+ * Delete orphaned paint-session artifacts -- session image + region map blobs
+ * whose session is neither the current game nor the stashed game. Preview
+ * (`__preview__`), gallery (`gallery_*`), and puzzle-mode (`puzzle_image_*`)
+ * entries are managed elsewhere and always preserved. Run on startup to reclaim
+ * sessions stranded when a game is backed out of and then the page is reloaded.
+ */
+export async function collectOrphanedSessions(liveSessionIds: string[]): Promise<void> {
+  const live = new Set(liveSessionIds.filter(Boolean))
+  const db = await openDb()
+  const keys: string[] = await new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readonly')
+    const req = tx.objectStore(IDB_STORE).getAllKeys()
+    req.onsuccess = () => resolve(req.result as string[])
+    req.onerror = () => reject(req.error)
+  })
+  const isManaged = (k: string) =>
+    k === '__preview__' || k.startsWith('gallery_') || k.startsWith('puzzle_image_')
+  const sessionOf = (k: string) => k.replace(/_(regions|index)$/, '')
+  const orphans = keys.filter(k => !isManaged(k) && !live.has(sessionOf(k)))
+  if (orphans.length === 0) return
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite')
+    const store = tx.objectStore(IDB_STORE)
+    for (const k of orphans) store.delete(k)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+}
+
 export async function deleteImage(sessionId: string): Promise<void> {
   const db = await openDb()
   return new Promise<void>((resolve, reject) => {

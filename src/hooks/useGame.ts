@@ -6,9 +6,13 @@ import {
   loadGameState,
   saveGameState,
   clearGameState,
+  loadStashedPaint,
+  saveStashedPaint,
+  clearStashedPaint,
   saveImage,
   loadImage,
   deleteImage,
+  collectOrphanedSessions,
   saveRegionMap,
   loadRegionMap,
   loadApiKey,
@@ -126,6 +130,21 @@ export function useGame(): [GameState, GameActions] {
     setState({ ...saved, screen: 'start' })
   }, [])
 
+  // Rehydrate the resume offer for a paint game that was backed out of before a
+  // reload. The session image + region map persist in IDB keyed by sessionId.
+  useEffect(() => {
+    const stashed = loadStashedPaint()
+    if (stashed?.sessionId) {
+      prevSessionRef.current = { state: stashed, blobSize: 0 }
+      setHasPrevSession(true)
+    }
+    // Reclaim paint sessions stranded in IDB (e.g. backed out of, then reloaded).
+    // The current game and the stash are the only live paint sessions; puzzle-mode
+    // and gallery images are preserved.
+    const live = [loadGameState()?.sessionId, stashed?.sessionId].filter(Boolean) as string[]
+    collectOrphanedSessions(live).catch(() => undefined)
+  }, [])
+
   const update = useCallback((patch: Partial<GameState>) => {
     setState(prev => {
       const next = { ...prev, ...patch }
@@ -172,6 +191,10 @@ export function useGame(): [GameState, GameActions] {
     originalImageDataRef.current = imageData
     fuseSameColorRegions(prev.state.regions, storedRegionMap, cw)
     update(prev.state)
+    // The stashed game is now the active, persisted game again.
+    clearStashedPaint()
+    prevSessionRef.current = null
+    setHasPrevSession(false)
   }, [update])
 
   const clearStash = useCallback(() => {
@@ -180,6 +203,7 @@ export function useGame(): [GameState, GameActions] {
       clearGameState()
       deleteImage(prev.state.sessionId).catch(() => undefined)
     }
+    clearStashedPaint()
     prevSessionRef.current = null
     setHasPrevSession(false)
   }, [])
@@ -274,9 +298,13 @@ export function useGame(): [GameState, GameActions] {
     if (state.sessionId && state.screen === 'playing') {
       const blob = await loadImage(state.sessionId)
       prevSessionRef.current = blob ? { state: { ...state }, blobSize: blob.size } : null
+      // Persist the stash so the resume offer survives a page reload.
+      if (prevSessionRef.current) saveStashedPaint(state)
+      else clearStashedPaint()
       setHasPrevSession(!!prevSessionRef.current)
     } else {
       prevSessionRef.current = null
+      clearStashedPaint()
       setHasPrevSession(false)
     }
     indexMapRef.current = null
