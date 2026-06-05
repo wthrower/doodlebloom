@@ -273,8 +273,8 @@ export function finalizeRegions(
     const rid = regionMap[i]
     if (rid < 0) continue
     const d = dist[i]
-    const cur = regionMaxDist.get(rid) ?? 0
-    if (d > cur) regionMaxDist.set(rid, d)
+    const cur = regionMaxDist.get(rid)
+    if (cur === undefined || d > cur) regionMaxDist.set(rid, d)
   }
 
   const thinIds = new Set<number>()
