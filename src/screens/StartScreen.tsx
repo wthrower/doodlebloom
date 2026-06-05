@@ -13,9 +13,9 @@ export type GameMode = 'paint' | 'jigswap' | 'slide'
 const BASE = import.meta.env.BASE_URL
 
 // Auto-discover stock images from public/images/thumbs/
-const thumbModules = import.meta.glob('/public/images/thumbs/*.jpg', { eager: true, query: '?url', import: 'default' }) as Record<string, string>
+const thumbModules = import.meta.glob('/public/images/thumbs/*.webp', { eager: true, query: '?url', import: 'default' }) as Record<string, string>
 const STOCK_IMAGES = Object.entries(thumbModules).map(([path, thumbUrl]) => {
-  const file = path.replace('/public/images/thumbs/', '').replace('.jpg', '')
+  const file = path.replace('/public/images/thumbs/', '').replace('.webp', '')
   const label = file.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
   return { file, label, thumbUrl }
 }).sort((a, b) => a.label.localeCompare(b.label))
@@ -174,6 +174,7 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                           src={thumbUrl}
                           alt={entry.prompt}
                           className="stock-thumb-img"
+                          loading="lazy"
                         />
                         <span className="stock-thumb-label gallery-thumb-label">{entry.prompt}</span>
                       </div>
@@ -195,6 +196,7 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                         src={thumbUrl}
                         alt={label}
                         className="stock-thumb-img"
+                        loading="lazy"
                       />
                       <span className="stock-thumb-label">{label}</span>
                     </button>
