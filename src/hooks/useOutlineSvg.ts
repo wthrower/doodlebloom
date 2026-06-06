@@ -1,8 +1,119 @@
 import { useCallback, useEffect, useRef, type RefObject } from 'react'
 import { buildOutlineChains } from '../game/canvas'
-import type { OutlineBatch } from '../game/canvas'
+import type { OutlineBatch, OutlineChain } from '../game/canvas'
+import { rgbToLab } from '../game/colorDistance'
 import type { Region } from '../types'
 import type { Transform } from './usePanZoom'
+
+// Outline thickness tracks the local color difference across each boundary.
+// At every chain vertex we sample a small window, split it by region, and take
+// the Lab ΔE76 between the per-channel Lab medians of the two adjoining regions.
+// Tweakables:
+const SAMPLE_RADIUS = 3   // px half-size of the window sampled around each vertex
+const DELTA_FULL = 45     // Lab ΔE76 that maps to maximum line thickness
+const EDGE_GAMMA = 1.0    // thickness curve: >1 thins subtle edges and pops strong ones; <1 evens them out; 1 = linear
+const MIN_THICKNESS_FRAC = 0.1  // weak-edge min half-width as a fraction of maxHW (0..1); 1 = uniform, 0 = thin edges vanish
+const MAX_HW_PER_SCALE = 1.4    // strong-edge half-width per unit zoom; thickness is proportional to scale (no fixed-px cap)
+const PROBE_DEPTHS = [0.5, 1.5, 2.5]  // normal offsets used to identify each side's region
+
+/** k-th smallest of a[0..n) via in-place Hoare quickselect (mutates a). */
+function quickSelectF(a: Float64Array, n: number, k: number): number {
+  let lo = 0, hi = n - 1
+  while (lo < hi) {
+    const pivot = a[(lo + hi) >> 1]
+    let i = lo, j = hi
+    while (i <= j) {
+      while (a[i] < pivot) i++
+      while (a[j] > pivot) j--
+      if (i <= j) { const t = a[i]; a[i] = a[j]; a[j] = t; i++; j-- }
+    }
+    if (k <= j) hi = j
+    else if (k >= i) lo = i
+    else break
+  }
+  return a[k]
+}
+
+const medianF = (a: Float64Array, n: number) => quickSelectF(a, n, n >> 1)
+
+/**
+ * For each chain vertex, the Lab ΔE76 between the two regions it separates,
+ * sampled locally: a SAMPLE_RADIUS window split by regionMap, then the ΔE
+ * between each side's per-channel Lab median. Returns one Float32Array per chain.
+ *
+ * Lab is converted on the fly (only boundary-band pixels are touched, a small
+ * fraction of the image) and the whole thing runs once at chain-build, cached.
+ */
+function computeOutlineDeltas(
+  chains: OutlineChain[],
+  regionMap: Int32Array,
+  imgData: ImageData,
+  width: number,
+  height: number,
+): Float32Array[] {
+  const data = imgData.data
+  const R = SAMPLE_RADIUS
+  const cap = (2 * R + 1) * (2 * R + 1)
+  // per-side Lab scratch buffers, reused across all vertices
+  const La = new Float64Array(cap), Aa = new Float64Array(cap), Ba = new Float64Array(cap)
+  const Lb = new Float64Array(cap), Ab = new Float64Array(cap), Bb = new Float64Array(cap)
+
+  // Region on side `s` (±1) of grid point (gx, gy), probed along the normal.
+  const sideRegion = (gx: number, gy: number, nx: number, ny: number, s: number): number => {
+    for (const d of PROBE_DEPTHS) {
+      const px = Math.floor(gx + nx * d * s)
+      const py = Math.floor(gy + ny * d * s)
+      if (px >= 0 && py >= 0 && px < width && py < height) {
+        const rid = regionMap[py * width + px]
+        if (rid >= 0) return rid
+      }
+    }
+    return -1
+  }
+
+  const out: Float32Array[] = []
+  for (const pts of chains) {
+    const n = pts.length
+    const deltas = new Float32Array(n)
+    for (let i = 0; i < n; i++) {
+      const gx = pts[i][0], gy = pts[i][1]
+      // local unit normal from neighboring vertices
+      const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)]
+      let tx = b[0] - a[0], ty = b[1] - a[1]
+      const tl = Math.hypot(tx, ty) || 1
+      tx /= tl; ty /= tl
+      const nx = -ty, ny = tx
+
+      const ridA = sideRegion(gx, gy, nx, ny, 1)
+      const ridB = sideRegion(gx, gy, nx, ny, -1)
+      if (ridA < 0 || ridB < 0 || ridA === ridB) continue  // delta stays 0
+
+      const cx = Math.min(width - 1, Math.max(0, Math.floor(gx)))
+      const cy = Math.min(height - 1, Math.max(0, Math.floor(gy)))
+      let na = 0, nb = 0
+      for (let py = cy - R; py <= cy + R; py++) {
+        if (py < 0 || py >= height) continue
+        for (let px = cx - R; px <= cx + R; px++) {
+          if (px < 0 || px >= width) continue
+          const rid = regionMap[py * width + px]
+          if (rid !== ridA && rid !== ridB) continue
+          const o = (py * width + px) * 4
+          const [L, A, B] = rgbToLab(data[o], data[o + 1], data[o + 2])
+          if (rid === ridA) { La[na] = L; Aa[na] = A; Ba[na] = B; na++ }
+          else { Lb[nb] = L; Ab[nb] = A; Bb[nb] = B; nb++ }
+        }
+      }
+      if (na === 0 || nb === 0) continue
+
+      const dL = medianF(La, na) - medianF(Lb, nb)
+      const dA = medianF(Aa, na) - medianF(Ab, nb)
+      const dB = medianF(Ba, na) - medianF(Bb, nb)
+      deltas[i] = Math.sqrt(dL * dL + dA * dA + dB * dB)
+    }
+    out.push(deltas)
+  }
+  return out
+}
 
 export interface UseOutlineSvgOptions {
   outlineSvgRef: RefObject<SVGSVGElement | null>
@@ -24,6 +135,7 @@ export function useOutlineSvg({
   regions, canvasWidth, canvasHeight,
 }: UseOutlineSvgOptions) {
   const outlineChainsRef = useRef<OutlineBatch | null>(null)
+  const outlineDeltasRef = useRef<Float32Array[] | null>(null)
   const outlineRafRef = useRef(0)
 
   const updateOutlineSvg = useCallback(() => {
@@ -51,29 +163,12 @@ export function useOutlineSvg({
       const visMaxY = visMinY + (wrapH / pixelScale) + margin * 2
 
       const { chains, bboxes } = batch
-      const imgData = getOriginalImageData()
-      const imgW = canvasWidth
+      const deltas = outlineDeltasRef.current
 
-      // Sample contrast at a boundary-grid point (gx, gy) from the original image.
-      const sampleRadius = 4
-      const sampleContrast = (gx: number, gy: number): number => {
-        if (!imgData) return 0.5
-        let minL = 1, maxL = 0
-        for (let py = gy - sampleRadius; py <= gy + sampleRadius; py++) {
-          for (let px = gx - sampleRadius; px <= gx + sampleRadius; px++) {
-            if (px < 0 || py < 0 || px >= imgW || py >= imgData.height) continue
-            const i = (py * imgW + px) * 4
-            const d = imgData.data
-            const L = (0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2]) / 255
-            if (L < minL) minL = L
-            if (L > maxL) maxL = L
-          }
-        }
-        return maxL - minL
-      }
-
-      const minHW = 0.5
-      const maxHW = Math.min(3, Math.max(0.75, scale * 0.75))
+      // Thickness scales with zoom so line weight stays constant relative to the
+      // image content -- no fixed-px floor/ceiling that would freeze at high zoom.
+      const maxHW = scale * MAX_HW_PER_SCALE
+      const minHW = maxHW * MIN_THICKNESS_FRAC
       const shortSeg = 15
       const t = 0.5 // Catmull-Rom tension
 
@@ -109,7 +204,12 @@ export function useOutlineSvg({
 
         const sp = pts.map(([x, y]) => [ox + x * pixelScale, oy + y * pixelScale] as [number, number])
 
-        const hwCore = pts.map(([gx, gy]) => minHW + Math.max(0.5, sampleContrast(gx, gy)) * (maxHW - minHW))
+        const cd = deltas?.[ci]
+        const hwCore = pts.map((_, i) => {
+          const raw = Math.min(1, (cd ? cd[i] : 0) / DELTA_FULL)
+          const norm = Math.pow(raw, EDGE_GAMMA)
+          return minHW + norm * (maxHW - minHW)
+        })
         const hwSmooth = hwCore.map((_, i) => {
           let sum = 0, count = 0
           for (let j = Math.max(0, i - 6); j <= Math.min(n - 1, i + 6); j++) { sum += hwCore[j]; count++ }
@@ -126,7 +226,7 @@ export function useOutlineSvg({
         const taperFloor = 0.2
         const hw = hwSmooth.map((v, i) => {
           const taper = taperFloor + (1 - taperFloor) * Math.min(1, i / taperK) * Math.min(1, (n - 1 - i) / taperK)
-          return Math.max(0.75, v * taper)
+          return Math.max(minHW, v * taper)  // minHW is a hard floor: taper/corner-zeroing can't make hairlines
         })
 
         const spineSharp = (i: number): boolean => {
@@ -230,10 +330,19 @@ export function useOutlineSvg({
   // Rebuild outline chains when puzzle changes
   useEffect(() => {
     const rm = getRegionMap()
-    if (!rm || regions.length === 0) { outlineChainsRef.current = null; return }
-    outlineChainsRef.current = buildOutlineChains(rm, regions, canvasWidth, canvasHeight)
+    if (!rm || regions.length === 0) {
+      outlineChainsRef.current = null
+      outlineDeltasRef.current = null
+      return
+    }
+    const batch = buildOutlineChains(rm, regions, canvasWidth, canvasHeight)
+    outlineChainsRef.current = batch
+    const imgData = getOriginalImageData()
+    outlineDeltasRef.current = imgData
+      ? computeOutlineDeltas(batch.chains, rm, imgData, canvasWidth, canvasHeight)
+      : null
     updateOutlineSvg()
-  }, [regions, canvasWidth, canvasHeight, getRegionMap, updateOutlineSvg])
+  }, [regions, canvasWidth, canvasHeight, getRegionMap, getOriginalImageData, updateOutlineSvg])
 
   return { updateOutlineSvg }
 }
