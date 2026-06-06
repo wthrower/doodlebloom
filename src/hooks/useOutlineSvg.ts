@@ -12,8 +12,8 @@ import type { Transform } from './usePanZoom'
 const SAMPLE_RADIUS = 3   // px half-size of the window sampled around each vertex
 const DELTA_FULL = 45     // Lab ΔE76 that maps to maximum line thickness
 const EDGE_GAMMA = 1.0    // thickness curve: >1 thins subtle edges and pops strong ones; <1 evens them out; 1 = linear
-const MIN_THICKNESS_FRAC = 0.1  // weak-edge min half-width as a fraction of maxHW (0..1); 1 = uniform, 0 = thin edges vanish
-const MAX_HW_PER_SCALE = 1.4    // strong-edge half-width per unit zoom; thickness is proportional to scale (no fixed-px cap)
+const MIN_THICKNESS_FRAC = 0.14  // weak-edge min half-width as a fraction of maxHW (0..1); 1 = uniform, 0 = thin edges vanish
+const MAX_HW_PER_SCALE = 1.0    // strong-edge half-width per unit zoom; thickness is proportional to scale (no fixed-px cap)
 const PROBE_DEPTHS = [0.5, 1.5, 2.5]  // normal offsets used to identify each side's region
 
 /** k-th smallest of a[0..n) via in-place Hoare quickselect (mutates a). */
