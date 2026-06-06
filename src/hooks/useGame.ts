@@ -268,8 +268,8 @@ export function useGame(): [GameState, GameActions] {
           worker.terminate()
           reject(new Error(e.message || 'Worker error'))
         }
-        const { minRegionPixels, maxRegions } = DETAIL_SETTINGS[detailLevelRef.current]
-        worker.postMessage({ imageData, colorCount: colorCountRef.current, minRegionPixels, maxRegions })
+        const { minRegionPixels, maxRegions, smoothRadius } = DETAIL_SETTINGS[detailLevelRef.current]
+        worker.postMessage({ imageData, colorCount: colorCountRef.current, minRegionPixels, maxRegions, smoothRadius })
       })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Image processing failed'

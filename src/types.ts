@@ -2,12 +2,17 @@ export type Screen = 'start' | 'generating' | 'preview' | 'playing' | 'complete'
 
 export type GameMode = 'paint' | 'jigswap' | 'slide'
 export type DetailLevel = 'very high' | 'high' | 'medium' | 'low' | 'very low'
-export const DETAIL_SETTINGS: Record<DetailLevel, { minRegionPixels: number; maxRegions: number }> = {
-  'very high': { minRegionPixels: 100, maxRegions: 800 },
-  high: { minRegionPixels: 200, maxRegions: 500 },
-  medium: { minRegionPixels: 1200, maxRegions: 250 },
-  low: { minRegionPixels: 2800, maxRegions: 100 },
-  'very low': { minRegionPixels: 5000, maxRegions: 50 },
+export const DETAIL_SETTINGS: Record<DetailLevel, { minRegionPixels: number; maxRegions: number; smoothRadius: number }> = {
+  // smoothRadius (px window half-size): a pre-quantization edge-preserving median
+  // filter that strips sub-feature texture so coarser tiers don't fragment into
+  // noise regions. Median (not gaussian) keeps boundaries sharp -- it never
+  // invents intermediate colors, so it can't create sliver regions tracing former
+  // edges. Coarser detail -> larger window. 0 = no smoothing (most detailed tier).
+  'very high': { minRegionPixels: 100, maxRegions: 800, smoothRadius: 0 },
+  high: { minRegionPixels: 200, maxRegions: 500, smoothRadius: 1 },
+  medium: { minRegionPixels: 1200, maxRegions: 250, smoothRadius: 2 },
+  low: { minRegionPixels: 2800, maxRegions: 100, smoothRadius: 2 },
+  'very low': { minRegionPixels: 5000, maxRegions: 50, smoothRadius: 3 },
 }
 
 export interface PaletteColor {

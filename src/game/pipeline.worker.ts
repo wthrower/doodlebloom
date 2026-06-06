@@ -4,6 +4,7 @@ import {
   mergeGradientSeams, fuseSameColorRegions, relabelRegions, mergeToTarget, capRegions,
 } from './regions'
 import { recomputePalette, spreadPalette } from './paletteColor'
+import { medianFilterRGB } from './smooth'
 import type { PaletteColor, Region } from '../types'
 
 export interface PipelineInput {
@@ -11,6 +12,7 @@ export interface PipelineInput {
   colorCount: number
   minRegionPixels: number
   maxRegions: number
+  smoothRadius: number
 }
 
 export interface PipelineResult {
@@ -32,13 +34,18 @@ function post(stage: string) {
 }
 
 self.onmessage = (e: MessageEvent<PipelineInput>) => {
-  const { imageData, colorCount, minRegionPixels, maxRegions } = e.data
+  const { imageData, colorCount, minRegionPixels, maxRegions, smoothRadius } = e.data
   try {
+    // Smooth only the image that drives segmentation (quantize + assign). The crisp
+    // original is kept for gradient-seam contrast and palette recompute below, so
+    // painted colors stay vivid and the completion reveal stays sharp.
+    const segImage = smoothRadius > 0 ? medianFilterRGB(imageData, smoothRadius) : imageData
+
     post('palette')
-    const rawPalette = analyzeColors(imageData, colorCount)
+    const rawPalette = analyzeColors(segImage, colorCount)
 
     post('assign')
-    const indexMap = assignColors(rawPalette, imageData)
+    const indexMap = assignColors(rawPalette, segImage)
 
     const cw = imageData.width
     const ch = imageData.height
