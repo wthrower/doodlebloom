@@ -1,4 +1,4 @@
-import { colorDist, chromaDist, chroma } from './colorDistance'
+import { colorDist, chroma } from './colorDistance'
 import type { LabelPoint, PaletteColor, Region } from '../types'
 
 /** A region whose "inscribed circle" radius is smaller than this won't have
@@ -608,11 +608,8 @@ export function mergeGradientSeams(
     }
   }
 
-  // Union-find: merge pairs below threshold, guarded by chroma distance.
-  // Chroma distance (a*b* plane, ignoring lightness) distinguishes gradient
-  // bands (same hue, different brightness → low chroma dist) from real edges
-  // between different-colored regions (high chroma dist).
-  const MAX_SEAM_CHROMA = 40
+  // Union-find: merge pairs below threshold, guarded by full perceptual distance.
+  const MAX_SEAM_CD = 40
   const regionById = new Map(regions.map(r => [r.id, r]))
   const parent = new Map<number, number>()
   const find = (x: number): number => {
@@ -626,23 +623,18 @@ export function mergeGradientSeams(
     if (ca === cb) continue
     const ra = regionById.get(ca), rb = regionById.get(cb)
     if (!ra || !rb) continue
-    // Adaptive threshold: if regions have similar hue/chroma (gradient bands),
-    // allow higher luminance contrast. Otherwise use the strict threshold.
     let effectiveThreshold = threshold
     if (palette.length > 0) {
-      const cd = chromaDist(
+      const cd = colorDist(
         palette[ra.colorIndex].r, palette[ra.colorIndex].g, palette[ra.colorIndex].b,
         palette[rb.colorIndex].r, palette[rb.colorIndex].g, palette[rb.colorIndex].b
       )
-      if (cd > MAX_SEAM_CHROMA) continue
-      // Relax threshold for gradient bands: scale by how saturated both colors
-      // are (low chroma = gray, hue is meaningless → no relaxation) and how
-      // close they are in hue (low chroma dist → more relaxation).
+      if (cd > MAX_SEAM_CD) continue
       const pa = palette[ra.colorIndex], pb = palette[rb.colorIndex]
       const minC = Math.min(chroma(pa.r, pa.g, pa.b), chroma(pb.r, pb.g, pb.b))
-      const satFactor = Math.min(1, minC / 40)  // 0→0 at gray, 1 at chroma≥40
-      const hueFactor = Math.max(0, 1 - cd / MAX_SEAM_CHROMA)  // 1 at cd=0, 0 at cap
-      effectiveThreshold = threshold * (1 + 4 * satFactor * hueFactor)
+      const satFactor = Math.min(1, minC / 40)
+      const closeFactor = Math.max(0, 1 - cd / MAX_SEAM_CD)
+      effectiveThreshold = threshold * (1 + 4 * satFactor * closeFactor)
     }
     if (contrast >= effectiveThreshold) continue
     const [keep, drop] = ra.pixelCount >= rb.pixelCount ? [ca, cb] : [cb, ca]
