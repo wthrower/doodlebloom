@@ -15,7 +15,7 @@ export function analyzeColors(
 ): PaletteColor[] {
   const pixels = imageData.width * imageData.height
   const allPixels = buildPixelArray(imageData.data, pixels)
-  return mmcqPalette(allPixels, colorCount * 2)
+  return mmcqPalette(allPixels, Math.ceil(colorCount * 1.5))
 }
 
 /** Stage 2 of 2: assign each pixel to its nearest palette color, then refine palette. */
