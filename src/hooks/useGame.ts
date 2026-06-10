@@ -20,7 +20,7 @@ import {
   clearCorruptedState,
 } from '../game/storage'
 import { assignPixels } from '../game/quantize'
-import { buildRegions, fuseSameColorRegions } from '../game/regions'
+import { fuseSameColorRegions } from '../game/regions'
 import type { PipelineMessage } from '../game/pipeline.worker'
 
 /** Extract user preferences from a (possibly stale) saved state, falling back to defaults. */
@@ -100,7 +100,11 @@ export function useGame(): [GameState, GameActions] {
         loadImage(saved.sessionId),
         loadRegionMap(saved.sessionId),
       ]).then(async ([blob, storedRegionMap]) => {
-        if (!blob) { resetCorrupted(); return }
+        // Without the stored region map the session is unrecoverable: any
+        // main-thread rebuild (no median smoothing, no seam merge/cap, scan-
+        // order ids) produces geometry that can't match the saved regions and
+        // playerColors, so restoring would paint wrong areas. Start fresh.
+        if (!blob || !storedRegionMap) { resetCorrupted(); return }
 
         const img = await loadBlobAsImage(blob)
         const canvas = document.createElement('canvas')
@@ -112,15 +116,9 @@ export function useGame(): [GameState, GameActions] {
         const imageData = ctx.getImageData(0, 0, saved!.canvasWidth, saved!.canvasHeight)
 
         const indexMap = assignPixels(imageData.data, saved!.canvasWidth * saved!.canvasHeight, saved!.palette)
-        let regionMap = storedRegionMap
-        if (!regionMap) {
-          const built = buildRegions(indexMap, saved!.canvasWidth, saved!.canvasHeight, saved!.rawPalette ?? [])
-          regionMap = built.regionMap
-          fuseSameColorRegions(saved!.regions, regionMap, saved!.canvasWidth)
-        }
 
         indexMapRef.current = indexMap
-        regionMapRef.current = regionMap
+        regionMapRef.current = storedRegionMap
         originalImageDataRef.current = imageData
         setState(saved!)
       }).catch(resetCorrupted)
