@@ -23,63 +23,87 @@ export function medianFilterRGB(src: ImageData, radius: number): ImageData {
   const out = new ImageData(new Uint8ClampedArray(data), width, height)
   if (radius < 1) return out
 
+  // Huang's sliding-histogram median: per row, keep 256-bin histograms of the
+  // window and slide one column at a time (remove leaving column, add entering
+  // column), nudging the median pointer instead of re-sorting per pixel.
+  // Windows are edge-clamped (duplicated border pixels) so they are always
+  // full-size, and the median rank is win>>1 — identical output to a
+  // per-window sort.
   const outData = out.data
-  const win = (2 * radius + 1) * (2 * radius + 1)
-  const rArr = new Uint8Array(win)
-  const gArr = new Uint8Array(win)
-  const bArr = new Uint8Array(win)
-  const mid = win >> 1
+  const side = 2 * radius + 1
+  const mid = (side * side) >> 1
+  const histR = new Uint16Array(256)
+  const histG = new Uint16Array(256)
+  const histB = new Uint16Array(256)
+  const rowOff = new Int32Array(side)
+
+  const clampX = (x: number) => (x < 0 ? 0 : x >= width ? width - 1 : x)
 
   for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      let n = 0
-      for (let dy = -radius; dy <= radius; dy++) {
-        let sy = y + dy
-        if (sy < 0) sy = 0
-        else if (sy >= height) sy = height - 1
-        const row = sy * width
-        for (let dx = -radius; dx <= radius; dx++) {
-          let sx = x + dx
-          if (sx < 0) sx = 0
-          else if (sx >= width) sx = width - 1
-          const si = (row + sx) * 4
-          rArr[n] = data[si]
-          gArr[n] = data[si + 1]
-          bArr[n] = data[si + 2]
-          n++
-        }
+    for (let dy = -radius; dy <= radius; dy++) {
+      let sy = y + dy
+      if (sy < 0) sy = 0
+      else if (sy >= height) sy = height - 1
+      rowOff[dy + radius] = sy * width
+    }
+
+    // Build histograms for the window at x = 0.
+    histR.fill(0); histG.fill(0); histB.fill(0)
+    for (let dx = -radius; dx <= radius; dx++) {
+      const sx = clampX(dx)
+      for (let k = 0; k < side; k++) {
+        const si = (rowOff[k] + sx) * 4
+        histR[data[si]]++
+        histG[data[si + 1]]++
+        histB[data[si + 2]]++
       }
+    }
+
+    // Initial medians: smallest value whose cumulative count exceeds mid.
+    // ltX = number of window samples strictly below medX (Huang's invariant:
+    // ltX <= mid < ltX + histX[medX]).
+    let medR = 0, ltR = 0
+    while (ltR + histR[medR] <= mid) { ltR += histR[medR]; medR++ }
+    let medG = 0, ltG = 0
+    while (ltG + histG[medG] <= mid) { ltG += histG[medG]; medG++ }
+    let medB = 0, ltB = 0
+    while (ltB + histB[medB] <= mid) { ltB += histB[medB]; medB++ }
+
+    for (let x = 0; x < width; x++) {
       const di = (y * width + x) * 4
-      outData[di] = quickSelect(rArr, n, mid)
-      outData[di + 1] = quickSelect(gArr, n, mid)
-      outData[di + 2] = quickSelect(bArr, n, mid)
+      outData[di] = medR
+      outData[di + 1] = medG
+      outData[di + 2] = medB
       // alpha (di + 3) already carried over from the source copy
+      if (x === width - 1) break
+
+      // Slide right: drop column x-radius, add column x+1+radius (clamped).
+      const sxOut = clampX(x - radius)
+      const sxIn = clampX(x + 1 + radius)
+      for (let k = 0; k < side; k++) {
+        const ro = rowOff[k]
+        const so = (ro + sxOut) * 4
+        const si = (ro + sxIn) * 4
+        const rOut = data[so], rIn = data[si]
+        histR[rOut]--; if (rOut < medR) ltR--
+        histR[rIn]++;  if (rIn < medR) ltR++
+        const gOut = data[so + 1], gIn = data[si + 1]
+        histG[gOut]--; if (gOut < medG) ltG--
+        histG[gIn]++;  if (gIn < medG) ltG++
+        const bOut = data[so + 2], bIn = data[si + 2]
+        histB[bOut]--; if (bOut < medB) ltB--
+        histB[bIn]++;  if (bIn < medB) ltB++
+      }
+
+      // Restore the invariant by walking the median pointer.
+      while (ltR > mid) { medR--; ltR -= histR[medR] }
+      while (ltR + histR[medR] <= mid) { ltR += histR[medR]; medR++ }
+      while (ltG > mid) { medG--; ltG -= histG[medG] }
+      while (ltG + histG[medG] <= mid) { ltG += histG[medG]; medG++ }
+      while (ltB > mid) { medB--; ltB -= histB[medB] }
+      while (ltB + histB[medB] <= mid) { ltB += histB[medB]; medB++ }
     }
   }
 
   return out
-}
-
-/** In-place Hoare quickselect: returns the k-th smallest of a[0..n). Mutates a
- *  (fine -- the window buffers are refilled for every pixel). */
-function quickSelect(a: Uint8Array, n: number, k: number): number {
-  let lo = 0
-  let hi = n - 1
-  while (lo < hi) {
-    const pivot = a[(lo + hi) >> 1]
-    let i = lo
-    let j = hi
-    while (i <= j) {
-      while (a[i] < pivot) i++
-      while (a[j] > pivot) j--
-      if (i <= j) {
-        const t = a[i]; a[i] = a[j]; a[j] = t
-        i++; j--
-      }
-    }
-    if (k <= j) hi = j
-    else if (k >= i) lo = i
-    else break
-  }
-  return a[k]
 }
