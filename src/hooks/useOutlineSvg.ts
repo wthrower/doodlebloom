@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, type RefObject } from 'react'
 import { buildOutlineChains } from '../game/canvas'
 import type { OutlineBatch, OutlineChain } from '../game/canvas'
-import { rgbToLab } from '../game/colorDistance'
+import { labDist, rgbToLab } from '../game/colorDistance'
 import type { Region } from '../types'
 import type { Transform } from './usePanZoom'
 
@@ -133,10 +133,10 @@ function computeOutlineDeltas(
       }
       if (na === 0 || nb === 0) continue
 
-      const dL = medianF(La, na) - medianF(Lb, nb)
-      const dA = medianF(Aa, na) - medianF(Ab, nb)
-      const dB = medianF(Ba, na) - medianF(Bb, nb)
-      deltas[i] = Math.sqrt(dL * dL + dA * dA + dB * dB)
+      deltas[i] = labDist(
+        medianF(La, na), medianF(Aa, na), medianF(Ba, na),
+        medianF(Lb, nb), medianF(Ab, nb), medianF(Bb, nb),
+      )
       measured[i] = 1
     }
     out.push(deltas)

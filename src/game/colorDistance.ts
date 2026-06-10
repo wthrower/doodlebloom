@@ -16,21 +16,17 @@ export function rgbToLab(r: number, g: number, b: number): [number, number, numb
   return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)]
 }
 
+/** ΔE76 between two Lab colors given as scalar components. */
+export function labDist(L1: number, a1: number, b1: number, L2: number, a2: number, b2: number): number {
+  const dL = L1 - L2, da = a1 - a2, db = b1 - b2
+  return Math.sqrt(dL * dL + da * da + db * db)
+}
+
 /** ΔE76: perceptual distance between two sRGB colors (0–8-bit channels). */
 export function colorDist(r1: number, g1: number, b1: number, r2: number, g2: number, b2: number): number {
   const [L1, a1, b1_] = rgbToLab(r1, g1, b1)
   const [L2, a2, b2_] = rgbToLab(r2, g2, b2)
-  const dL = L1 - L2, da = a1 - a2, db = b1_ - b2_
-  return Math.sqrt(dL * dL + da * da + db * db)
-}
-
-/** Chroma distance: a*b* plane only, ignoring lightness.
- *  Low values mean similar hue/saturation (e.g. gradient bands). */
-export function chromaDist(r1: number, g1: number, b1: number, r2: number, g2: number, b2: number): number {
-  const [, a1, b1_] = rgbToLab(r1, g1, b1)
-  const [, a2, b2_] = rgbToLab(r2, g2, b2)
-  const da = a1 - a2, db = b1_ - b2_
-  return Math.sqrt(da * da + db * db)
+  return labDist(L1, a1, b1_, L2, a2, b2_)
 }
 
 /** Convert CIE L*a*b* back to sRGB (0–255, clamped). */

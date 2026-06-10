@@ -2,12 +2,6 @@ import quantize from 'quantize'
 import { rgbToLab } from './colorDistance'
 import type { PaletteColor } from '../types'
 
-export interface QuantizeResult {
-  palette: PaletteColor[]
-  /** flat array of palette indices, one per pixel, length = width * height */
-  indexMap: Uint8Array
-}
-
 /** Stage 1 of 2: MMCQ palette from raw pixel data. */
 export function analyzeColors(
   imageData: ImageData,
@@ -27,15 +21,6 @@ export function assignColors(
   const indexMap = assignPixels(imageData.data, pixels, palette)
   refinePalette(palette, indexMap, imageData)
   return indexMap
-}
-
-export function quantizeImage(
-  imageData: ImageData,
-  colorCount: number
-): QuantizeResult {
-  const palette = analyzeColors(imageData, colorCount)
-  const indexMap = assignColors(palette, imageData)
-  return { palette, indexMap }
 }
 
 function buildPixelArray(data: Uint8ClampedArray, pixels: number): [number, number, number][] {
