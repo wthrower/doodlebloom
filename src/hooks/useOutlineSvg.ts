@@ -12,8 +12,10 @@ import type { Transform } from './usePanZoom'
 const SAMPLE_RADIUS = 3   // px half-size of the window sampled around each vertex
 const DELTA_FULL = 45     // Lab ΔE76 that maps to maximum line thickness
 const EDGE_GAMMA = 1.0    // thickness curve: >1 thins subtle edges and pops strong ones; <1 evens them out; 1 = linear
+// Weak (low-ΔE) edges rendering near-invisible is deliberate: it de-emphasizes
+// gradient-banding seams while keeping real edges prominent. Don't add a floor.
 const MIN_THICKNESS_FRAC = 0.14  // weak-edge min half-width as a fraction of maxHW (0..1); 1 = uniform, 0 = thin edges vanish
-const MAX_HW_PER_SCALE = 1.0    // strong-edge half-width per unit zoom; thickness is proportional to scale (no fixed-px cap)
+const MAX_HW_PER_SCALE = 2.0    // strong-edge half-width in image px; thickness is proportional to pixelScale (no fixed-px cap)
 const PROBE_DEPTHS = [0.5, 1.5, 2.5]  // normal offsets used to identify each side's region
 
 /** k-th smallest of a[0..n) via in-place Hoare quickselect (mutates a). */
@@ -35,6 +37,30 @@ function quickSelectF(a: Float64Array, n: number, k: number): number {
 }
 
 const medianF = (a: Float64Array, n: number) => quickSelectF(a, n, n >> 1)
+
+/** Fill unmeasured vertices with the nearest measured delta along the chain.
+ *  Returns false if the chain has no measured vertex at all. */
+function fillNearestMeasured(d: Float32Array, m: Uint8Array): boolean {
+  const n = d.length
+  let any = false
+  const fv = new Float32Array(n)
+  const fd = new Int32Array(n)
+  let v = 0, dist = -1
+  for (let i = 0; i < n; i++) {
+    if (m[i]) { any = true; v = d[i]; dist = 0 } else if (dist >= 0) dist++
+    fv[i] = v; fd[i] = dist
+  }
+  if (!any) return false
+  v = 0; dist = -1
+  for (let i = n - 1; i >= 0; i--) {
+    if (m[i]) { v = d[i]; dist = 0 }
+    else {
+      if (dist >= 0) dist++
+      d[i] = dist >= 0 && (fd[i] < 0 || dist < fd[i]) ? v : fv[i]
+    }
+  }
+  return true
+}
 
 /**
  * For each chain vertex, the Lab ΔE76 between the two regions it separates,
@@ -72,9 +98,11 @@ function computeOutlineDeltas(
   }
 
   const out: Float32Array[] = []
+  const measuredAll: Uint8Array[] = []
   for (const pts of chains) {
     const n = pts.length
     const deltas = new Float32Array(n)
+    const measured = new Uint8Array(n)
     for (let i = 0; i < n; i++) {
       const gx = pts[i][0], gy = pts[i][1]
       // local unit normal from neighboring vertices
@@ -86,7 +114,7 @@ function computeOutlineDeltas(
 
       const ridA = sideRegion(gx, gy, nx, ny, 1)
       const ridB = sideRegion(gx, gy, nx, ny, -1)
-      if (ridA < 0 || ridB < 0 || ridA === ridB) continue  // delta stays 0
+      if (ridA < 0 || ridB < 0 || ridA === ridB) continue  // unmeasurable, filled below
 
       const cx = Math.min(width - 1, Math.max(0, Math.floor(gx)))
       const cy = Math.min(height - 1, Math.max(0, Math.floor(gy)))
@@ -109,8 +137,18 @@ function computeOutlineDeltas(
       const dA = medianF(Aa, na) - medianF(Ab, nb)
       const dB = medianF(Ba, na) - medianF(Bb, nb)
       deltas[i] = Math.sqrt(dL * dL + dA * dA + dB * dB)
+      measured[i] = 1
     }
     out.push(deltas)
+    measuredAll.push(measured)
+  }
+
+  // Unmeasurable vertices (out-of-bounds probes near the image border,
+  // junction corners) inherit the nearest measured delta along their chain
+  // instead of tapering to hairline. Chains with no measured vertex at all
+  // (the rectangular image-border runs) keep delta 0 — hairline is fine there.
+  for (let c = 0; c < chains.length; c++) {
+    fillNearestMeasured(out[c], measuredAll[c])
   }
   return out
 }
@@ -155,8 +193,10 @@ export function useOutlineSvg({
       const wrapW = wrap.clientWidth
       const wrapH = wrap.clientHeight
 
-      // Visible canvas bounds (with small margin for curves that extend slightly outside bbox)
-      const margin = 3
+      // Visible canvas bounds, with margin for curves that extend slightly
+      // outside the bbox plus the stroke's own extent (maxHW image px, up to
+      // 3x at miter corners) so thick strokes don't pop at viewport edges.
+      const margin = 3 + MAX_HW_PER_SCALE * 3
       const visMinX = (-ox / pixelScale) - margin
       const visMinY = (-oy / pixelScale) - margin
       const visMaxX = visMinX + (wrapW / pixelScale) + margin * 2
@@ -165,9 +205,11 @@ export function useOutlineSvg({
       const { chains, bboxes } = batch
       const deltas = outlineDeltasRef.current
 
-      // Thickness scales with zoom so line weight stays constant relative to the
-      // image content -- no fixed-px floor/ceiling that would freeze at high zoom.
-      const maxHW = scale * MAX_HW_PER_SCALE
+      // Thickness scales with content magnification (pixelScale, not the bare
+      // gesture scale) so line weight stays constant relative to the image
+      // content across viewport sizes -- no fixed-px floor/ceiling that would
+      // freeze at high zoom.
+      const maxHW = pixelScale * MAX_HW_PER_SCALE
       const minHW = maxHW * MIN_THICKNESS_FRAC
       const shortSeg = 15
       const t = 0.5 // Catmull-Rom tension
