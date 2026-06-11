@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { GameState, DetailLevel } from '../types'
 import type { GameActions } from '../hooks/useGame'
 import type { GalleryEntry, CompletedMap } from '../game/storage'
-import { loadHideCompleted, saveHideCompleted } from '../game/storage'
+import { loadHideCompleted, saveHideCompleted, loadPuzzleSize } from '../game/storage'
 import { SIZE_PRESETS, type JigswapConfig } from '../game/jigswap'
 import { Check, Filter, Search, Trash2, User } from 'lucide-react'
 import { DoodlebloomLogo } from '../components/DoodlebloomLogo'
@@ -41,8 +41,13 @@ export function StartScreen({ state, actions, isGenerating, previewUrl, selected
   const [showKey, setShowKey] = useState(false)
   const [showKeyInput, setShowKeyInput] = useState(false)
   const [showGenerate, setShowGenerate] = useState(false)
-  const [selectedMode, setSelectedMode] = useState<GameMode>(state.gameMode)
-  const [puzzleSize, setPuzzleSize] = useState<JigswapConfig>(SIZE_PRESETS[1])
+  // The persisted gameMode is the single source of truth; a local copy would
+  // capture the pre-restore default and miss the value loaded on mount.
+  const selectedMode = state.gameMode
+  const [puzzleSize, setPuzzleSize] = useState<JigswapConfig>(() => {
+    const saved = loadPuzzleSize()
+    return SIZE_PRESETS.find(p => p.cols === saved?.cols && p.rows === saved?.rows) ?? SIZE_PRESETS[1]
+  })
   const [imageSearch, setImageSearch] = useState('')
   const [hideCompleted, setHideCompleted] = useState(() => loadHideCompleted())
   const searchRef = useRef<HTMLInputElement>(null)
@@ -232,7 +237,7 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                   <button
                     key={mode}
                     className={`mode-toggle-btn${selectedMode === mode ? ' selected' : ''}`}
-                    onClick={() => { setSelectedMode(mode); actions.setGameMode(mode) }}
+                    onClick={() => actions.setGameMode(mode)}
                   >
                     {mode === 'paint' ? 'Paint' : mode === 'jigswap' ? 'JigSwap' : 'Slide'}
                   </button>

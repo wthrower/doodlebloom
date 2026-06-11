@@ -2,6 +2,7 @@ const LS_KEY_APIKEY = 'doodlebloom_apikey'
 const LS_KEY_STOCK_URL = 'doodlebloom_stock_url'
 const LS_KEY_COMPLETED = 'doodlebloom_completed'
 const LS_KEY_HIDE_COMPLETED = 'doodlebloom_hide_completed'
+const LS_KEY_PUZZLE_SIZE = 'doodlebloom_puzzle_size'
 
 export function loadApiKey(): string {
   return localStorage.getItem(LS_KEY_APIKEY) ?? ''
@@ -34,6 +35,17 @@ export function markImageCompleted(imageId: string, mode: string): void {
   if (!modes.includes(mode)) modes.push(mode)
   map[imageId] = modes
   localStorage.setItem(LS_KEY_COMPLETED, JSON.stringify(map))
+}
+
+/** Last-played puzzle board size, so the start screen picker remembers it. */
+export function loadPuzzleSize(): { cols: number; rows: number } | null {
+  const raw = localStorage.getItem(LS_KEY_PUZZLE_SIZE)
+  if (!raw) return null
+  try { return JSON.parse(raw) } catch { return null }
+}
+
+export function savePuzzleSize(size: { cols: number; rows: number }): void {
+  localStorage.setItem(LS_KEY_PUZZLE_SIZE, JSON.stringify(size))
 }
 
 export function loadHideCompleted(): boolean {

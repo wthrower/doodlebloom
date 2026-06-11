@@ -162,7 +162,7 @@ export default function App() {
     await actions.restoreStashedSession()
   }, [actions])
 
-  const handlePlay = useCallback(async (mode: GameMode, _puzzleSize: JigswapConfig) => {
+  const handlePlay = useCallback(async (mode: GameMode, puzzleSize: JigswapConfig) => {
     if (mode === 'paint') {
       if (!previewBlobRef.current) return
       if (actions.hasPrevSession) {
@@ -178,14 +178,14 @@ export default function App() {
     if (hasSavedPuzzle(mode)) {
       const savedBlob = await loadPuzzleImage(mode)
       if (savedBlob) {
-        modeState.setImage(savedBlob, true)
+        modeState.setImage(savedBlob, true, puzzleSize)
         actions.goTo(mode)
         return
       }
     }
     if (!previewUrl || !previewBlobRef.current) return
     await maybeSaveToGallery()
-    modeState.setImage(previewBlobRef.current, false)
+    modeState.setImage(previewBlobRef.current, false, puzzleSize)
     actions.goTo(mode)
   }, [previewUrl, actions, jigswap, slide, maybeSaveToGallery, startFreshPaint])
 
@@ -283,6 +283,7 @@ export default function App() {
           imageUrl={jigswap.imageUrl}
           imageBlob={jigswap.blob}
           hasSaved={jigswap.hasSaved}
+          freshConfig={jigswap.config}
           previewUrl={previewUrl ?? jigswap.imageUrl}
           previewBlob={previewBlobRef.current ?? jigswap.blob}
           onBack={() => actions.goTo('start')}
@@ -296,6 +297,7 @@ export default function App() {
           imageUrl={slide.imageUrl}
           imageBlob={slide.blob}
           hasSaved={slide.hasSaved}
+          freshConfig={slide.config}
           previewUrl={previewUrl ?? slide.imageUrl}
           previewBlob={previewBlobRef.current ?? slide.blob}
           onBack={() => actions.goTo('start')}

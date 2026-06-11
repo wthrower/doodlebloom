@@ -15,7 +15,7 @@ import {
 
 export function SlideScreen(props: PuzzleScreenProps) {
   const p = usePuzzleScreen('slide', 'doodlebloom_slide', createBoard, 'doodlebloom-slide.png', props)
-  const { config, board, won, moves, setBoard, setMoves, setWon, image, containerRef, gridLayout, confetti, startNewPuzzle } = p
+  const { config, board, won, moves, setBoard, setMoves, setWon, image, containerRef, gridLayout, confetti } = p
 
   // Drag state
   const [dragPositions, setDragPositions] = useState<number[] | null>(null)
@@ -77,12 +77,6 @@ export function SlideScreen(props: PuzzleScreenProps) {
     window.addEventListener('keydown', down)
     return () => window.removeEventListener('keydown', down)
   }, [config, emptyPos, won, doSlide])
-
-  const handleStartNew = useCallback((preset: typeof config) => {
-    startNewPuzzle(preset)
-    setDragPositions(null)
-    setDragAxis(null)
-  }, [startNewPuzzle])
 
   const handlePointerDown = useCallback((e: React.PointerEvent, cellIndex: number) => {
     if (won) return

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { SIZE_PRESETS, type JigswapConfig } from '../game/jigswap'
-import { clearPuzzleState, savePuzzleImage } from '../game/storage'
+import { type JigswapConfig } from '../game/jigswap'
+import { clearPuzzleState, savePuzzleImage, savePuzzleSize } from '../game/storage'
 import { useConfetti } from './useConfetti'
 
 export type PuzzleConfig = JigswapConfig
@@ -112,10 +112,11 @@ export function usePuzzleState(
   storageKey: string,
   createBoard: (cols: number, rows: number) => number[],
   resumeSaved: boolean,
+  freshConfig: PuzzleConfig,
 ) {
-  const saved = useRef(resumeSaved ? loadState(storageKey) : null).current
-  const [config, setConfig] = useState<PuzzleConfig>(saved?.config ?? SIZE_PRESETS[1])
-  const [board, setBoard] = useState<number[]>(() => saved?.board ?? createBoard(SIZE_PRESETS[1].cols, SIZE_PRESETS[1].rows))
+  const [saved] = useState(() => resumeSaved ? loadState(storageKey) : null)
+  const [config, setConfig] = useState<PuzzleConfig>(saved?.config ?? freshConfig)
+  const [board, setBoard] = useState<number[]>(() => saved?.board ?? createBoard(freshConfig.cols, freshConfig.rows))
   const [won, setWon] = useState(saved?.won ?? false)
   const [moves, setMoves] = useState(saved?.moves ?? 0)
 
@@ -145,6 +146,8 @@ export interface PuzzleScreenProps {
   imageUrl: string
   imageBlob: Blob
   hasSaved: boolean
+  /** Board size chosen on the start screen; used for fresh boards (a resumed save keeps its own config). */
+  freshConfig: PuzzleConfig
   previewUrl: string
   previewBlob: Blob
   onBack: () => void
@@ -167,13 +170,18 @@ export function usePuzzleScreen(
   const [showResumePrompt, setShowResumePrompt] = useState(hasSaved)
   const [activeImageUrl, setActiveImageUrl] = useState(initialImageUrl)
   const [activeImageBlob, setActiveImageBlob] = useState(initialImageBlob)
-  const puzzle = usePuzzleState(storageKey, createBoard, resumeSaved)
+  const puzzle = usePuzzleState(storageKey, createBoard, resumeSaved, props.freshConfig)
   const { config, board, won, setBoard, setWon, startNewPuzzle } = puzzle
   const image = useImage(activeImageUrl)
 
   useEffect(() => {
     savePuzzleImage(mode, activeImageBlob).catch(() => undefined)
   }, [mode, activeImageBlob])
+
+  // Remember the played size so the start screen picker reflects it on return.
+  useEffect(() => {
+    savePuzzleSize(config)
+  }, [config])
 
   useEffect(() => {
     if (won) {
@@ -210,9 +218,9 @@ export function usePuzzleScreen(
     clearPuzzleStorage(storageKey)
     setActiveImageUrl(previewUrl)
     setActiveImageBlob(previewBlob)
-    startNewPuzzle(config)
+    startNewPuzzle(props.freshConfig)
     setShowResumePrompt(false)
-  }, [storageKey, startNewPuzzle, config, previewUrl, previewBlob])
+  }, [storageKey, startNewPuzzle, props.freshConfig, previewUrl, previewBlob])
 
   const ready = !!image && !!gridLayout
 

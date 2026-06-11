@@ -15,7 +15,7 @@ import {
 
 export function JigswapScreen(props: PuzzleScreenProps) {
   const p = usePuzzleScreen('jigswap', 'doodlebloom_jigswap', createBoard, 'doodlebloom-jigswap.png', props)
-  const { config, board, won, moves, setBoard, setMoves, setWon, image, containerRef, gridLayout, confetti, startNewPuzzle } = p
+  const { config, board, won, moves, setBoard, setMoves, setWon, image, containerRef, gridLayout, confetti } = p
 
   // Drag state
   const [dragGroup, setDragGroup] = useState<Set<number> | null>(null)
@@ -26,13 +26,6 @@ export function JigswapScreen(props: PuzzleScreenProps) {
 
   const groups = useMemo(() => buildGroups(board, config.cols, config.rows), [board, config])
   const hiddenBorders = useMemo(() => getHiddenBorders(board, config.cols, config.rows), [board, config])
-
-  const handleStartNew = useCallback((preset: typeof config) => {
-    startNewPuzzle(preset)
-    setDragGroup(null)
-    setDragCell(null)
-    setDropTargetCells(null)
-  }, [startNewPuzzle])
 
   const handlePointerDown = useCallback((e: React.PointerEvent, cellIndex: number) => {
     if (won) return

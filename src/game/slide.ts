@@ -33,7 +33,7 @@ export function isSolved(board: number[]): boolean {
 }
 
 /** Check if a board configuration is solvable. */
-export function isSolvable(board: number[], _cols: number, _rows: number): boolean {
+export function isSolvable(board: number[], cols: number, rows: number): boolean {
   const n = board.length
   const emptyVal = n - 1
 
@@ -46,9 +46,15 @@ export function isSolvable(board: number[], _cols: number, _rows: number): boole
     }
   }
 
+  // Odd width: inversion parity alone is conserved.
+  if (cols % 2 === 1) return inversions % 2 === 0
+
+  // Even width: (inversions + empty row) parity is conserved, so it must
+  // match the solved state, where inversions = 0 and the empty cell sits
+  // on the bottom row.
   const emptyPos = board.indexOf(emptyVal)
-  const emptyRow = Math.floor(emptyPos / _cols) + 1 // 1-based row from top
-  return (inversions + emptyRow) % 2 === 0
+  const emptyRow = Math.floor(emptyPos / cols) + 1 // 1-based row from top
+  return (inversions + emptyRow) % 2 === rows % 2
 }
 
 /** Find the index of the empty cell. */
