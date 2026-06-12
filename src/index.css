@@ -1304,17 +1304,54 @@ input.stock-search {
 }
 
 .resume-dialog {
-  background: var(--color-surface);
+  position: relative;
+  /* Raised plinth carrying the keycap buttons: lit from the same top-left
+     direction as .btn's wall lighting */
+  background:
+    linear-gradient(135deg,
+      rgba(255,255,255,0.50) 0%,
+      rgba(255,255,255,0.12) 35%,
+      transparent 60%,
+      rgba(0,0,0,0.06) 100%
+    ),
+    var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  padding: 1.5rem 1.25rem;
+  /* Extra top padding keeps content clear of the absolute-positioned close 'x' */
+  padding: 2.75rem 1.25rem 1.5rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 1rem;
   max-width: 300px;
   width: 90%;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  box-shadow:
+    /* Contact, mid, and ambient shadows — floating above the board */
+    0 1px 2px rgba(0,0,0,0.22),
+    0 6px 14px rgba(0,0,0,0.24),
+    0 28px 56px rgba(0,0,0,0.45);
+}
+
+/* Beveled edge: lit chamfer top-left, shaded chamfer bottom-right,
+   matching the keycap light direction */
+.resume-dialog::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 2px 2px 3px rgba(255,255,255,0.55),
+    inset 3px 3px 6px rgba(255,255,255,0.20),
+    inset -2px -2px 3px rgba(0,0,0,0.16),
+    inset -3px -3px 6px rgba(0,0,0,0.08);
+}
+
+/* Close 'x' pinned to a modal dialog's top-right corner */
+.modal-close {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
 }
 
 .resume-dialog p {

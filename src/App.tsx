@@ -23,6 +23,7 @@ import { JigswapScreen } from './screens/JigswapScreen'
 import { SlideScreen } from './screens/SlideScreen'
 import { ProcessingScreen } from './screens/ProcessingScreen'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { ResumeDialog } from './components/PuzzleChrome'
 import { saveImage, loadImage, loadSelectedStockUrl, saveSelectedStockUrl, hasSavedPuzzle, loadPuzzleImage, saveToGallery, loadGalleryImage, loadGalleryIndex, loadGalleryThumbnails, deleteGalleryEntry, loadCompletedImages, markImageCompleted } from './game/storage'
 import type { GalleryEntry, CompletedMap } from './game/storage'
 
@@ -258,15 +259,11 @@ export default function App() {
         />
       )}
       {showResumeChoice && (
-        <div className="resume-overlay">
-          <div className="resume-dialog">
-            <p>Resume previous game?</p>
-            <div className="resume-actions">
-              <button className="btn btn-secondary" onClick={() => { setShowResumeChoice(false); startFreshPaint() }}>Start New</button>
-              <button className="btn btn-primary" onClick={() => { setShowResumeChoice(false); resumePaint() }}>Resume</button>
-            </div>
-          </div>
-        </div>
+        <ResumeDialog
+          onStartFresh={() => { setShowResumeChoice(false); startFreshPaint() }}
+          onResume={() => { setShowResumeChoice(false); resumePaint() }}
+          onClose={() => setShowResumeChoice(false)}
+        />
       )}
       <ErrorBoundary onReset={() => actions.goTo('start')}>
       {(state.screen === 'playing' || state.screen === 'complete') && actions.processingStage === null && (

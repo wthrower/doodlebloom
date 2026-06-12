@@ -1,5 +1,6 @@
+import { useEffect } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { ArrowLeft, Download, Maximize2, Minimize2 } from 'lucide-react'
+import { ArrowLeft, Download, Maximize2, Minimize2, X } from 'lucide-react'
 import { DoodlebloomLogo, DoodlebloomMini } from './DoodlebloomLogo'
 
 const IS_STANDALONE = typeof window !== 'undefined' &&
@@ -55,6 +56,41 @@ export function WinFooter({ moves, onBack, onDownload }: WinFooterProps) {
         <button className="btn btn-primary" onClick={onDownload}>
           <Download size={16} /> Download
         </button>
+      </div>
+    </div>
+  )
+}
+
+interface ResumeDialogProps {
+  onStartFresh: () => void
+  onResume: () => void
+  /** Dismiss without choosing (Esc / the X button). */
+  onClose: () => void
+}
+
+export function ResumeDialog({ onStartFresh, onResume, onClose }: ResumeDialogProps) {
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', down)
+    return () => window.removeEventListener('keydown', down)
+  }, [onClose])
+
+  return (
+    <div className="resume-overlay">
+      <div className="resume-dialog">
+        <button className="btn btn-ghost btn-icon btn-small modal-close" onClick={onClose} title="Close" aria-label="Close">
+          <X size={16} />
+        </button>
+        <p>You have a game in progress.</p>
+        <div className="resume-actions">
+          <button className="btn btn-secondary" onClick={onStartFresh}>Start New</button>
+          <button className="btn btn-primary" onClick={onResume}>Resume</button>
+        </div>
       </div>
     </div>
   )
@@ -116,15 +152,8 @@ export function PuzzleScreenShell({
       {won && <WinFooter moves={moves} onBack={onBack} onDownload={onDownload} />}
 
       {showResumePrompt && (
-        <div className="resume-overlay">
-          <div className="resume-dialog">
-            <p>Resume previous game?</p>
-            <div className="resume-actions">
-              <button className="btn btn-secondary" onClick={onStartFresh}>Start New</button>
-              <button className="btn btn-primary" onClick={onResume}>Resume</button>
-            </div>
-          </div>
-        </div>
+        // Closing without choosing keeps the loaded saved game — same as Resume.
+        <ResumeDialog onStartFresh={onStartFresh} onResume={onResume} onClose={onResume} />
       )}
 
       <div className="confetti-container" ref={confettiRef} />
