@@ -27,7 +27,6 @@ export function renderPuzzle(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  indexMap: Uint8Array,
   regionMap: Int32ArrayLike,
   regions: Region[],
   palette: PaletteColor[],

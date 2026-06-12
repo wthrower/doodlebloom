@@ -680,13 +680,26 @@ export function relabelRegions(regions: Region[], regionMap: Int32Array, width: 
   const queue: number[] = []
   const lobeQueue: number[] = []
 
+  // One pass bucketing pixel indices by region id, so each region's BFS seeds
+  // from its own pixel list instead of a full-image scan per region
+  // (O(regions × pixels) — the dominant cost of this function at high detail).
+  const pixelsByRegion = new Map<number, number[]>()
+  for (const r of regions) pixelsByRegion.set(r.id, [])
+  for (let i = 0; i < pixels; i++) {
+    const list = pixelsByRegion.get(regionMap[i])
+    if (list) list.push(i)
+  }
+
   for (const r of regions) {
     const rid = r.id
+    const regionPix = pixelsByRegion.get(rid)!
     queue.length = 0
 
-    // BFS distance-from-boundary (only touch region pixels)
-    for (let i = 0; i < pixels; i++) {
-      if (regionMap[i] !== rid) { dist[i] = -1; continue }
+    // BFS distance-from-boundary. dist/lobeId are shared across regions and
+    // only reset for this region's pixels, so neighbor tests must check
+    // membership via regionMap — a stale dist/lobeId value from an earlier
+    // region is meaningless here.
+    for (const i of regionPix) {
       const x = i % width, y = (i - x) / width
       const onBoundary =
         x === 0 || x === width - 1 || y === 0 || y === height - 1 ||
@@ -701,14 +714,14 @@ export function relabelRegions(regions: Region[], regionMap: Int32Array, width: 
       const i = queue[head++]
       const x = i % width, y = (i - x) / width
       const d = dist[i] + 1
-      for (const n of [
-        x > 0 ? i - 1 : -1,
-        x < width - 1 ? i + 1 : -1,
-        y > 0 ? i - width : -1,
-        y < height - 1 ? i + width : -1,
-      ]) {
-        if (n >= 0 && dist[n] === -2) { dist[n] = d; queue.push(n) }
-      }
+      let n = i - 1
+      if (x > 0 && regionMap[n] === rid && dist[n] === -2) { dist[n] = d; queue.push(n) }
+      n = i + 1
+      if (x < width - 1 && regionMap[n] === rid && dist[n] === -2) { dist[n] = d; queue.push(n) }
+      n = i - width
+      if (y > 0 && regionMap[n] === rid && dist[n] === -2) { dist[n] = d; queue.push(n) }
+      n = i + width
+      if (y < height - 1 && regionMap[n] === rid && dist[n] === -2) { dist[n] = d; queue.push(n) }
     }
 
     let maxDist = 0
@@ -729,16 +742,14 @@ export function relabelRegions(regions: Region[], regionMap: Int32Array, width: 
       while (lh < lobeQueue.length) {
         const pi = lobeQueue[lh++]
         const px = pi % width, py = (pi - px) / width
-        for (const n of [
-          px > 0 ? pi - 1 : -1,
-          px < width - 1 ? pi + 1 : -1,
-          py > 0 ? pi - width : -1,
-          py < height - 1 ? pi + width : -1,
-        ]) {
-          if (n >= 0 && dist[n] >= threshold && lobeId[n] < 0) {
-            lobeId[n] = id; lobeQueue.push(n)
-          }
-        }
+        let n = pi - 1
+        if (px > 0 && regionMap[n] === rid && dist[n] >= threshold && lobeId[n] < 0) { lobeId[n] = id; lobeQueue.push(n) }
+        n = pi + 1
+        if (px < width - 1 && regionMap[n] === rid && dist[n] >= threshold && lobeId[n] < 0) { lobeId[n] = id; lobeQueue.push(n) }
+        n = pi - width
+        if (py > 0 && regionMap[n] === rid && dist[n] >= threshold && lobeId[n] < 0) { lobeId[n] = id; lobeQueue.push(n) }
+        n = pi + width
+        if (py < height - 1 && regionMap[n] === rid && dist[n] >= threshold && lobeId[n] < 0) { lobeId[n] = id; lobeQueue.push(n) }
       }
     }
 

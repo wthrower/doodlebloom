@@ -19,7 +19,6 @@ import {
   saveApiKey,
   clearCorruptedState,
 } from '../game/storage'
-import { assignPixels } from '../game/quantize'
 import { fuseSameColorRegions } from '../game/regions'
 import type { PipelineMessage } from '../game/pipeline.worker'
 
@@ -55,7 +54,6 @@ export interface GameActions {
   fillRegion: (regionId: number, colorIndex: number) => void
   resetPuzzle: () => Promise<void>
   resetProgress: () => void
-  getIndexMap: () => Uint8Array | null
   getRegionMap: () => Int32Array | null
   getOriginalImageData: () => ImageData | null
   processingStage: string | null
@@ -69,7 +67,6 @@ export function useGame(): [GameState, GameActions] {
   const [apiKey, setApiKeyState] = useState<string>(() => loadApiKey() || '')
   const [processingStage, setProcessingStage] = useState<string | null>(null)
   const [pipelineError, setPipelineError] = useState<string | null>(null)
-  const indexMapRef = useRef<Uint8Array | null>(null)
   const regionMapRef = useRef<Int32Array | null>(null)
   const originalImageDataRef = useRef<ImageData | null>(null)
   const prevSessionRef = useRef<{ state: GameState; blobSize: number } | null>(null)
@@ -115,9 +112,6 @@ export function useGame(): [GameState, GameActions] {
         ctx.drawImage(img, 0, 0, saved!.canvasWidth, saved!.canvasHeight)
         const imageData = ctx.getImageData(0, 0, saved!.canvasWidth, saved!.canvasHeight)
 
-        const indexMap = assignPixels(imageData.data, saved!.canvasWidth * saved!.canvasHeight, saved!.palette)
-
-        indexMapRef.current = indexMap
         regionMapRef.current = storedRegionMap
         originalImageDataRef.current = imageData
         setState(saved!)
@@ -183,8 +177,6 @@ export function useGame(): [GameState, GameActions] {
     const ctx = canvas.getContext('2d')!
     ctx.drawImage(img, 0, 0, cw, ch)
     const imageData = ctx.getImageData(0, 0, cw, ch)
-    const idxMap = assignPixels(imageData.data, cw * ch, prev.state.palette)
-    indexMapRef.current = idxMap
     regionMapRef.current = storedRegionMap
     originalImageDataRef.current = imageData
     fuseSameColorRegions(prev.state.regions, storedRegionMap, cw)
@@ -240,11 +232,10 @@ export function useGame(): [GameState, GameActions] {
             reject(new Error(e.data.message))
           } else if (e.data.type === 'complete') {
             worker.terminate()
-            const { palette, regions, indexMap, regionMap, rawPalette } = e.data.result
+            const { palette, regions, regionMap, rawPalette } = e.data.result
 
             await saveRegionMap(sessionId, regionMap)
 
-            indexMapRef.current = indexMap
             regionMapRef.current = regionMap
             originalImageDataRef.current = imageData
 
@@ -305,7 +296,6 @@ export function useGame(): [GameState, GameActions] {
       clearStashedPaint()
       setHasPrevSession(false)
     }
-    indexMapRef.current = null
     regionMapRef.current = null
     originalImageDataRef.current = null
     // Don't wipe IDB — processImage will restore or clean up
@@ -342,7 +332,6 @@ export function useGame(): [GameState, GameActions] {
     fillRegion,
     resetPuzzle,
     resetProgress,
-    getIndexMap: useCallback(() => indexMapRef.current, []),
     getRegionMap: useCallback(() => regionMapRef.current, []),
     getOriginalImageData: useCallback(() => originalImageDataRef.current, []),
   }

@@ -19,7 +19,6 @@ export interface PipelineResult {
   palette: PaletteColor[]
   basePalette: PaletteColor[]
   regions: Region[]
-  indexMap: Uint8Array
   regionMap: Int32Array
   rawPalette: PaletteColor[]
 }
@@ -99,10 +98,10 @@ self.onmessage = (e: MessageEvent<PipelineInput>) => {
     const basePalette = recomputePalette('saturated', regions, regionMap, imageData, palette.length)
     palette = spreadPalette(basePalette)
 
-    const result: PipelineResult = { palette, basePalette, regions, indexMap, regionMap, rawPalette }
+    const result: PipelineResult = { palette, basePalette, regions, regionMap, rawPalette }
     self.postMessage(
       { type: 'complete', result } satisfies PipelineMessage,
-      { transfer: [indexMap.buffer, regionMap.buffer] },
+      { transfer: [regionMap.buffer] },
     )
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

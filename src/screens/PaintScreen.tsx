@@ -91,7 +91,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
 
   const [outlineMagenta, setOutlineMagenta] = useState(false)
   const { palette, regions, playerColors, canvasWidth, canvasHeight, showOutline, screen } = state
-  const { getIndexMap, getRegionMap, getOriginalImageData, fillRegion } = actions
+  const { getRegionMap, getOriginalImageData, fillRegion } = actions
   const prevScreenRef = useRef(screen)
   useEffect(() => {
     if (screen === 'complete' && prevScreenRef.current !== 'complete') confetti.fire()
@@ -291,16 +291,16 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
   // --- Render puzzle pixels ---
   useEffect(() => {
     const canvas = canvasRef.current
-    const im = getIndexMap(), rm = getRegionMap()
-    if (!canvas || !im || !rm) return
+    const rm = getRegionMap()
+    if (!canvas || !rm) return
     const ctx = canvas.getContext('2d')!
-    renderPuzzle(ctx, canvasWidth, canvasHeight, im, rm, regions, palette, {
+    renderPuzzle(ctx, canvasWidth, canvasHeight, rm, regions, palette, {
       playerColors,
       activeColorIndex,
       originalImageData: getOriginalImageData(),
       showHint,
     })
-  }, [playerColors, activeColorIndex, regions, palette, showOutline, screen, canvasWidth, canvasHeight, getIndexMap, getRegionMap, getOriginalImageData, showHint])
+  }, [playerColors, activeColorIndex, regions, palette, showOutline, screen, canvasWidth, canvasHeight, getRegionMap, getOriginalImageData, showHint])
 
   // Update number labels when fills, active color, or palette change
   useEffect(() => {
