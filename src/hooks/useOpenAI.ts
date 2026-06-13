@@ -29,20 +29,23 @@ export function useOpenAI(): UseOpenAIResult {
       const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
 
       const STYLE_SUFFIX = ' Photorealistic, sharp focus, natural colors. Crisp edges and clear boundaries between distinct color areas. No painterly brushwork, no soft blending or gradients, no watercolor or impressionist texture.'
-      const response = await client.images.generate({
-        model: 'gpt-image-1',
-        prompt: prompt + STYLE_SUFFIX,
-        n: 1,
-        size,
-        quality: 'medium',
-      })
+      const response = await client.images.generate(
+        {
+          model: 'gpt-image-2',
+          prompt: prompt + STYLE_SUFFIX,
+          n: 1,
+          size,
+          quality: 'medium',
+        },
+        { signal: abort.signal },
+      )
 
       if (abort.signal.aborted) return null
 
       const item = response.data?.[0]
       if (!item) throw new Error('No image returned')
 
-      // gpt-image-1 returns base64; fall back to URL for other models
+      // gpt-image-2 returns base64; fall back to URL for other models
       if (item.b64_json) {
         const binary = atob(item.b64_json)
         const bytes = new Uint8Array(binary.length)
@@ -56,7 +59,7 @@ export function useOpenAI(): UseOpenAIResult {
       if (!imgResponse.ok) throw new Error('Failed to fetch generated image')
       return imgResponse.blob()
     } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return null
+      if (err instanceof Error && (err.name === 'AbortError' || err.name === 'APIUserAbortError')) return null
       const msg = err instanceof Error ? err.message : String(err)
       setError(msg)
       throw err

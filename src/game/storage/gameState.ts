@@ -15,7 +15,12 @@ export function loadGameState(): GameState | null {
 }
 
 export function saveGameState(state: GameState): void {
-  localStorage.setItem(LS_KEY_STATE, JSON.stringify(state))
+  try {
+    localStorage.setItem(LS_KEY_STATE, JSON.stringify(state))
+  } catch {
+    // QuotaExceededError (or Safari private-mode). In-memory state is
+    // authoritative; persisted state becomes stale but the app stays up.
+  }
 }
 
 export function clearGameState(): void {
@@ -39,7 +44,12 @@ export function loadStashedPaint(): GameState | null {
 }
 
 export function saveStashedPaint(state: GameState): void {
-  localStorage.setItem(LS_KEY_STASH, JSON.stringify(state))
+  try {
+    localStorage.setItem(LS_KEY_STASH, JSON.stringify(state))
+  } catch {
+    // QuotaExceededError — stash is best-effort; resume offer simply
+    // won't survive a reload if persisting fails.
+  }
 }
 
 export function clearStashedPaint(): void {

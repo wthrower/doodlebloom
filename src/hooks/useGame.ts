@@ -190,7 +190,6 @@ export function useGame(): [GameState, GameActions] {
   const clearStash = useCallback(() => {
     const prev = prevSessionRef.current
     if (prev?.state.sessionId) {
-      clearGameState()
       deleteImage(prev.state.sessionId).catch(() => undefined)
     }
     clearStashedPaint()
@@ -234,7 +233,12 @@ export function useGame(): [GameState, GameActions] {
             worker.terminate()
             const { palette, regions, regionMap, rawPalette } = e.data.result
 
-            await saveRegionMap(sessionId, regionMap)
+            try {
+              await saveRegionMap(sessionId, regionMap)
+            } catch (err) {
+              reject(err instanceof Error ? err : new Error('Failed to save region map'))
+              return
+            }
 
             regionMapRef.current = regionMap
             originalImageDataRef.current = imageData
