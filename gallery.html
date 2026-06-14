@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Doodlebloom — Review Gallery</title>
+    <style>
+      :root {
+        --bg: #1a1a2e;
+        --bg-elev: #222240;
+        --ink: #e8e0f0;
+        --ink-dim: #9a90aa;
+        --accent: #d4a056;
+        --border: #2e2e4a;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0; padding: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: system-ui, -apple-system, sans-serif;
+        min-height: 100%;
+      }
+      header {
+        padding: 24px 32px;
+        border-bottom: 1px solid var(--border);
+      }
+      h1 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      .subtitle {
+        margin-top: 4px;
+        color: var(--ink-dim);
+        font-size: 13px;
+      }
+      h2 {
+        grid-column: 1 / -1;
+        margin: 16px 0 0;
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--accent);
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 8px;
+      }
+      main {
+        padding: 24px 32px 64px;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 20px;
+      }
+      .card {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      .img-wrap {
+        position: relative;
+        aspect-ratio: 2 / 3;
+        background-image:
+          linear-gradient(45deg, #1f1f1f 25%, transparent 25%),
+          linear-gradient(-45deg, #1f1f1f 25%, transparent 25%),
+          linear-gradient(45deg, transparent 75%, #1f1f1f 75%),
+          linear-gradient(-45deg, transparent 75%, #1f1f1f 75%);
+        background-size: 16px 16px;
+        background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+        background-color: #2a2a2a;
+      }
+      .img-wrap img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        z-index: 1;
+      }
+      .img-wrap .placeholder {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--ink-dim);
+        font-size: 13px;
+        padding: 12px;
+        text-align: center;
+        z-index: 0;
+      }
+      .meta {
+        padding: 12px 14px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .name {
+        font-weight: 600;
+        font-size: 14px;
+        color: var(--accent);
+      }
+      .desc {
+        font-size: 12px;
+        color: var(--ink-dim);
+        line-height: 1.4;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Doodlebloom — Mosaic &amp; Stained Glass Review</h1>
+      <div class="subtitle">20 new puzzle images for review. Cards auto-refresh as images land.</div>
+    </header>
+    <main>
+      <h2>Stained Glass</h2>
+
+      <div class="card">
+        <div class="img-wrap">
+          <div class="placeholder">Generating...</div>
+          <img src="public/images/stained_glass_peacock.png" alt="stained glass peacock">
+        </div>
+        <div class="meta">
+          <div class="name">stained_glass_peacock.png</div>
+          <div class="desc">Peacock with fanned tail, jewel-tone stained glass window</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <div class="placeholder">Generating...</div>
+          <img src="public/images/stained_glass_tree_of_life.png" alt="stained glass tree of life">
+        </div>
+        <div class="meta">
+          <div class="name">stained_glass_tree_of_life.png</div>
+          <div class="desc">Cathedral tree of life, deep roots and spreading branches</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <div class="placeholder">Generating...</div>
+          <img src="public/images/stained_glass_dragonfly.png" alt="stained glass dragonfly">
+        </div>
+        <div class="meta">
+          <div class="name">stained_glass_dragonfly.png</div>
+          <div class="desc">Art Nouveau dragonfly over water, iridescent wings</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <div class="placeholder">Generating...</div>
+          <img src="public/images/stained_glass_phoenix.png" alt="stained glass phoenix">
+        </div>
+        <div class="meta">
+          <div class="name">stained_glass_phoenix.png</div>
+          <div class="desc">Phoenix rising in fire palette, dramatic radiating lead lines</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <div class="placeholder">Generating...</div>
+          <img src="public/images/stained_glass_ocean.png" alt="stained glass ocean">
+        </div>
+        <div class="meta">
+          <div class="name">stained_glass_ocean.png</div>
+          <div class="desc">Ocean scene with waves, fish, and sunlight streaming through</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <div class="placeholder">Generating...</div>
+          <img src="public/images/stained_glass_angel.png" alt="stained glass angel">
+        </div>
+        <div class="meta">
+          <div class="name">stained_glass_angel.png</div>
+          <div class="desc">Traditional cathedral angel, robes and wings in warm golds</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <div class="placeholder">Generating...</div>
+          <img src="public/images/stained_glass_four_seasons.png" alt="stained glass four seasons">
+        </div>
+        <div class="meta">
+          <div class="name">stained_glass_four_seasons.png</div>
+          <div class="desc">Quartered window, each panel a different season</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <div class="placeholder">Generating...</div>
+          <img src="public/images/stained_glass_hummingbird.png" alt="stained glass hummingbird">
+        </div>
+        <div class="meta">
+          <div class="name">stained_glass_hummingbird.png</div>
+          <div class="desc">Hummingbird and trumpet vine, bright and intricate</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <div class="placeholder">Generating...</div>
+          <img src="public/images/stained_glass_lion.png" alt="stained glass lion">
+        </div>
+        <div class="meta">
+          <div class="name">stained_glass_lion.png</div>
+          <div class="desc">Regal lion portrait, mane as radiating lead lines</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <div class="placeholder">Generating...</div>
+          <img src="public/images/stained_glass_mushroom_forest.png" alt="stained glass mushroom forest">
+        </div>
+        <div class="meta">
+          <div class="name">stained_glass_mushroom_forest.png</div>
+          <div class="desc">Whimsical mushroom forest, Art Nouveau curves</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <img src="public/images/stained_glass_sea_turtle.png" alt="stained glass sea turtle">
+        </div>
+        <div class="meta">
+          <div class="name">stained_glass_sea_turtle.png</div>
+          <div class="desc">Sea turtle with shell scutes as bold glass panes, ocean blues and greens</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <img src="public/images/stained_glass_owl.png" alt="stained glass owl">
+        </div>
+        <div class="meta">
+          <div class="name">stained_glass_owl.png</div>
+          <div class="desc">Owl portrait with concentric amber eyes, warm earth tones</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <img src="public/images/stained_glass_pomegranate.png" alt="stained glass pomegranate">
+        </div>
+        <div class="meta">
+          <div class="name">stained_glass_pomegranate.png</div>
+          <div class="desc">Split-open pomegranate with jewel-like ruby seeds</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <img src="public/images/stained_glass_sunflower.png" alt="stained glass sunflower">
+        </div>
+        <div class="meta">
+          <div class="name">stained_glass_sunflower.png</div>
+          <div class="desc">Bold sunflower with radiating petals in vivid yellows and golds</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <img src="public/images/stained_glass_rooster.png" alt="stained glass rooster">
+        </div>
+        <div class="meta">
+          <div class="name">stained_glass_rooster.png</div>
+          <div class="desc">Proud rooster with vibrant tail in cobalt, emerald, and ruby</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <img src="public/images/stained_glass_cityscape.png" alt="stained glass cityscape">
+        </div>
+        <div class="meta">
+          <div class="name">stained_glass_cityscape.png</div>
+          <div class="desc">Domes and minarets at sunset, warm Mediterranean cityscape</div>
+        </div>
+      </div>
+
+
+
+      <div class="card">
+        <div class="img-wrap">
+          <img src="public/images/stained_glass_unicorn.png" alt="stained glass unicorn">
+        </div>
+        <div class="meta">
+          <div class="name">stained_glass_unicorn.png</div>
+          <div class="desc">Majestic unicorn in profile, flowing mane, wildflower meadow, twilight sky</div>
+        </div>
+      </div>
+
+      <h2>Cut Paper</h2>
+
+      <div class="card">
+        <div class="img-wrap">
+          <div class="placeholder">Generating...</div>
+          <img src="public/images/cut_paper_forest.png" alt="cut paper forest">
+        </div>
+        <div class="meta">
+          <div class="name">cut_paper_forest.png</div>
+          <div class="desc">Layered paper forest with deer silhouette, depth through overlapping layers</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <div class="placeholder">Generating...</div>
+          <img src="public/images/cut_paper_underwater.png" alt="cut paper underwater">
+        </div>
+        <div class="meta">
+          <div class="name">cut_paper_underwater.png</div>
+          <div class="desc">Layered paper coral, fish, jellyfish, and kelp in ocean colors</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <div class="placeholder">Generating...</div>
+          <img src="public/images/cut_paper_birds.png" alt="cut paper birds on branches">
+        </div>
+        <div class="meta">
+          <div class="name">cut_paper_birds.png</div>
+          <div class="desc">Papel picado style birds perched on branches with decorative foliage</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <div class="placeholder">Generating...</div>
+          <img src="public/images/cut_paper_balloons.png" alt="cut paper hot air balloons">
+        </div>
+        <div class="meta">
+          <div class="name">cut_paper_balloons.png</div>
+          <div class="desc">Hot air balloons floating over layered landscape, bright patterned paper</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <div class="placeholder">Generating...</div>
+          <img src="public/images/cut_paper_flowers.png" alt="cut paper flower garden">
+        </div>
+        <div class="meta">
+          <div class="name">cut_paper_flowers.png</div>
+          <div class="desc">Bold layered blooms with butterflies, vibrant colors</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <div class="placeholder">Generating...</div>
+          <img src="public/images/cut_paper_dragon.png" alt="cut paper dragon">
+        </div>
+        <div class="meta">
+          <div class="name">cut_paper_dragon.png</div>
+          <div class="desc">Chinese paper-cutting style dragon, red and gold</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <div class="placeholder">Generating...</div>
+          <img src="public/images/cut_paper_village.png" alt="cut paper village at night">
+        </div>
+        <div class="meta">
+          <div class="name">cut_paper_village.png</div>
+          <div class="desc">Houses silhouetted against starry sky, warm window glow</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <div class="placeholder">Generating...</div>
+          <img src="public/images/cut_paper_jungle.png" alt="cut paper jungle">
+        </div>
+        <div class="meta">
+          <div class="name">cut_paper_jungle.png</div>
+          <div class="desc">Tropical leaves with toucan, bold layered greens</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="img-wrap">
+          <div class="placeholder">Generating...</div>
+          <img src="public/images/cut_paper_parrot.png" alt="cut paper parrot">
+        </div>
+        <div class="meta">
+          <div class="name">cut_paper_parrot.png</div>
+          <div class="desc">Colorful parrot in layered cut paper, vivid plumage</div>
+        </div>
+      </div>
+    </main>
+    <script>
+      const POLL_MS = 3000
+      function retryBroken() {
+        for (const img of document.querySelectorAll('img')) {
+          if (img.complete && img.naturalWidth > 0) continue
+          const base = img.src.split('?')[0]
+          img.src = `${base}?t=${Date.now()}`
+        }
+      }
+      setInterval(retryBroken, POLL_MS)
+    </script>
+  </body>
+</html>
