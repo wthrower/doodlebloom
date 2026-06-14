@@ -5,6 +5,8 @@ import { useConfetti } from './useConfetti'
 
 export type PuzzleConfig = JigswapConfig
 
+const PUZZLE_STATE_PREFIX = 'doodlebloom_'
+
 interface PuzzleState {
   board: number[]
   config: PuzzleConfig
@@ -12,20 +14,16 @@ interface PuzzleState {
   won: boolean
 }
 
-function loadState(storageKey: string): PuzzleState | null {
+function loadState(mode: string): PuzzleState | null {
   try {
-    const raw = localStorage.getItem(storageKey)
+    const raw = localStorage.getItem(PUZZLE_STATE_PREFIX + mode)
     if (!raw) return null
     return JSON.parse(raw) as PuzzleState
   } catch { return null }
 }
 
-function saveState(storageKey: string, state: PuzzleState): void {
-  localStorage.setItem(storageKey, JSON.stringify(state))
-}
-
-export function clearPuzzleStorage(storageKey: string): void {
-  localStorage.removeItem(storageKey)
+function saveState(mode: string, state: PuzzleState): void {
+  localStorage.setItem(PUZZLE_STATE_PREFIX + mode, JSON.stringify(state))
 }
 
 /** Shared image loader. */
@@ -37,6 +35,7 @@ export function useImage(imageUrl: string) {
     img.crossOrigin = 'anonymous'
     img.onload = () => setImage(img)
     img.src = imageUrl
+    return () => { img.onload = null }
   }, [imageUrl])
 
   return image
@@ -109,20 +108,20 @@ export function useDownload(image: HTMLImageElement | null, filename: string) {
  * When resumeSaved is false, saved state is ignored and a fresh board is created.
  */
 export function usePuzzleState(
-  storageKey: string,
+  mode: PuzzleMode,
   createBoard: (cols: number, rows: number) => number[],
   resumeSaved: boolean,
   freshConfig: PuzzleConfig,
 ) {
-  const [saved] = useState(() => resumeSaved ? loadState(storageKey) : null)
+  const [saved] = useState(() => resumeSaved ? loadState(mode) : null)
   const [config, setConfig] = useState<PuzzleConfig>(saved?.config ?? freshConfig)
   const [board, setBoard] = useState<number[]>(() => saved?.board ?? createBoard(freshConfig.cols, freshConfig.rows))
   const [won, setWon] = useState(saved?.won ?? false)
   const [moves, setMoves] = useState(saved?.moves ?? 0)
 
   useEffect(() => {
-    saveState(storageKey, { board, config, moves, won })
-  }, [storageKey, board, config, moves, won])
+    saveState(mode, { board, config, moves, won })
+  }, [mode, board, config, moves, won])
 
   const startNewPuzzle = useCallback((preset: PuzzleConfig) => {
     setConfig(preset)
@@ -160,7 +159,6 @@ export type PuzzleMode = 'jigswap' | 'slide'
 
 export function usePuzzleScreen(
   mode: PuzzleMode,
-  storageKey: string,
   createBoard: (cols: number, rows: number) => number[],
   downloadFilename: string,
   props: PuzzleScreenProps,
@@ -170,7 +168,7 @@ export function usePuzzleScreen(
   const [showResumePrompt, setShowResumePrompt] = useState(hasSaved)
   const [activeImageUrl, setActiveImageUrl] = useState(initialImageUrl)
   const [activeImageBlob, setActiveImageBlob] = useState(initialImageBlob)
-  const puzzle = usePuzzleState(storageKey, createBoard, resumeSaved, props.freshConfig)
+  const puzzle = usePuzzleState(mode, createBoard, resumeSaved, props.freshConfig)
   const { config, board, won, setBoard, setWon, startNewPuzzle } = puzzle
   const image = useImage(activeImageUrl)
 
@@ -215,12 +213,12 @@ export function usePuzzleScreen(
   }, [])
 
   const handleStartFresh = useCallback(() => {
-    clearPuzzleStorage(storageKey)
+    clearPuzzleState(mode)
     setActiveImageUrl(previewUrl)
     setActiveImageBlob(previewBlob)
     startNewPuzzle(props.freshConfig)
     setShowResumePrompt(false)
-  }, [storageKey, startNewPuzzle, props.freshConfig, previewUrl, previewBlob])
+  }, [mode, startNewPuzzle, props.freshConfig, previewUrl, previewBlob])
 
   const ready = !!image && !!gridLayout
 

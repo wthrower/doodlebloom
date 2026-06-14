@@ -14,7 +14,7 @@ import {
 } from '../game/jigswap'
 
 export function JigswapScreen(props: PuzzleScreenProps) {
-  const p = usePuzzleScreen('jigswap', 'doodlebloom_jigswap', createBoard, 'doodlebloom-jigswap.png', props)
+  const p = usePuzzleScreen('jigswap', createBoard, 'doodlebloom-jigswap.png', props)
   const { config, board, won, moves, setBoard, setMoves, setWon, image, containerRef, gridLayout, confetti } = p
 
   // Drag state

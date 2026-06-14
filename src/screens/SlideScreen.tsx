@@ -14,7 +14,7 @@ import {
 } from '../game/slide'
 
 export function SlideScreen(props: PuzzleScreenProps) {
-  const p = usePuzzleScreen('slide', 'doodlebloom_slide', createBoard, 'doodlebloom-slide.png', props)
+  const p = usePuzzleScreen('slide', createBoard, 'doodlebloom-slide.png', props)
   const { config, board, won, moves, setBoard, setMoves, setWon, image, containerRef, gridLayout, confetti } = p
 
   // Drag state

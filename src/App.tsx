@@ -43,8 +43,6 @@ export default function App() {
   // Generated image gallery
   const [galleryEntries, setGalleryEntries] = useState<GalleryEntry[]>(() => loadGalleryIndex())
   const [galleryThumbs, setGalleryThumbs] = useState<Map<string, string>>(new Map())
-  const previewIsGeneratedRef = useRef(false)
-  const previewPromptRef = useRef('')
 
   useEffect(() => {
     loadGalleryThumbnails().then(setGalleryThumbs)
@@ -88,12 +86,9 @@ export default function App() {
   }, [])
 
 
-  const getImageSize = useCallback((): '1024x1536' => '1024x1536', [])
-
   /** Set a blob as the current preview image, handling URL lifecycle. */
   const setPreviewImage = useCallback((blob: Blob, prompt?: string) => {
     previewBlobRef.current = blob
-    previewIsGeneratedRef.current = false
     if (previewUrl) URL.revokeObjectURL(previewUrl)
     setPreviewUrl(URL.createObjectURL(blob))
     saveImage(PREVIEW_KEY, blob).catch(() => undefined)
@@ -107,7 +102,7 @@ export default function App() {
     actions.goTo('generating')
     let blob: Blob | null
     try {
-      blob = await generate(state.prompt, actions.apiKey, getImageSize())
+      blob = await generate(state.prompt, actions.apiKey)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       const detail = /connection|network|failed to fetch/i.test(msg)
@@ -121,12 +116,7 @@ export default function App() {
       actions.goTo('start')
       return
     }
-    previewBlobRef.current = blob
-    previewIsGeneratedRef.current = false
-    if (previewUrl) URL.revokeObjectURL(previewUrl)
-    const url = URL.createObjectURL(blob)
-    setPreviewUrl(url)
-    saveImage(PREVIEW_KEY, blob).catch(() => undefined)
+    setPreviewImage(blob)
 
     const id = await saveToGallery(state.prompt, blob)
     currentImageIdRef.current = `gallery:${id}`
@@ -134,30 +124,18 @@ export default function App() {
     setGalleryThumbs(prev => new Map(prev).set(id, URL.createObjectURL(blob)))
 
     actions.goTo('start')
-  }, [state.prompt, actions, generate, getImageSize, previewUrl])
+  }, [state.prompt, actions, generate, previewUrl])
 
   const handleCancel = useCallback(() => {
     cancelGenerate()
     actions.goTo('start')
   }, [cancelGenerate, actions])
 
-  /** If current preview is a fresh generation, save it to the gallery. */
-  const maybeSaveToGallery = useCallback(async () => {
-    if (!previewIsGeneratedRef.current || !previewBlobRef.current) return
-    previewIsGeneratedRef.current = false
-    const id = await saveToGallery(previewPromptRef.current, previewBlobRef.current)
-    currentImageIdRef.current = `gallery:${id}`
-    const url = URL.createObjectURL(previewBlobRef.current)
-    setGalleryEntries(loadGalleryIndex())
-    setGalleryThumbs(prev => new Map(prev).set(id, url))
-  }, [])
-
   const startFreshPaint = useCallback(async () => {
     if (!previewBlobRef.current) return
     actions.clearStash()
-    await maybeSaveToGallery()
     await actions.processImage(previewBlobRef.current!)
-  }, [actions, maybeSaveToGallery])
+  }, [actions])
 
   const resumePaint = useCallback(async () => {
     await actions.restoreStashedSession()
@@ -185,10 +163,9 @@ export default function App() {
       }
     }
     if (!previewUrl || !previewBlobRef.current) return
-    await maybeSaveToGallery()
     modeState.setImage(previewBlobRef.current, false, puzzleSize)
     actions.goTo(mode)
-  }, [previewUrl, actions, jigswap, slide, maybeSaveToGallery, startFreshPaint])
+  }, [previewUrl, actions, jigswap, slide, startFreshPaint])
 
   const handleSelectStock = useCallback(async (imageUrl: string) => {
     try {

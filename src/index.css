@@ -56,7 +56,7 @@ html, body {
 }
 
 /* Game screen needs fixed viewport height -- opt in explicitly */
-.game-screen, .preview-screen {
+.game-screen {
   height: 100vh;
   overflow: hidden;
   position: fixed;
@@ -101,11 +101,6 @@ html, body {
 .app-title {
   display: block;
   overflow: visible;
-}
-
-.app-subtitle {
-  color: var(--color-text-muted);
-  margin-bottom: 1.5rem;
 }
 
 .form-group {
@@ -184,13 +179,6 @@ input[type="range"]::-webkit-slider-thumb {
   cursor: pointer;
 }
 
-.range-labels {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-}
-
 .input-row {
   display: flex;
   gap: 0.5rem;
@@ -198,81 +186,6 @@ input[type="range"]::-webkit-slider-thumb {
 
 .input-row input {
   flex: 1;
-}
-
-.hint {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-}
-
-.radio-group {
-  display: flex;
-  gap: 1.5rem;
-}
-
-.radio-group label {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.875rem;
-  color: var(--color-text);
-  text-transform: none;
-  letter-spacing: normal;
-  cursor: pointer;
-}
-
-.radio-group input[type="radio"] {
-  accent-color: var(--color-accent);
-  cursor: pointer;
-}
-
-/* ── Pill toggle ── */
-.pill-toggle {
-  position: relative;
-  display: inline-flex;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  padding: 2px;
-  background: var(--color-surface2);
-  font-size: 0.8rem;
-}
-
-.pill-toggle-thumb {
-  position: absolute;
-  top: 2px;
-  bottom: 2px;
-  border-radius: 999px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  transition: left 0.18s ease;
-  pointer-events: none;
-}
-
-.pill-toggle {
-  cursor: pointer;
-  user-select: none;
-}
-
-.pill-toggle[aria-disabled="true"] {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.pill-toggle span {
-  position: relative;
-  z-index: 1;
-  flex: 1;
-  text-align: center;
-  padding: 0.2rem 0.65rem;
-  color: var(--color-text-muted);
-  font-size: 0.8rem;
-  white-space: nowrap;
-  border-radius: 999px;
-  transition: color 0.18s;
-}
-
-.pill-toggle span.active {
-  color: var(--color-text);
 }
 
 /* ── Buttons ── */
@@ -412,11 +325,6 @@ input[type="range"]::-webkit-slider-thumb {
   color: var(--color-text);
 }
 
-.btn-active {
-  background: var(--color-text-muted);
-  color: var(--color-bg);
-}
-
 .btn-large {
   --btn-inset: 8px;
   width: 100%;
@@ -496,12 +404,6 @@ input[type="range"]::-webkit-slider-thumb {
   white-space: nowrap;
 }
 
-.label-hint {
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: 0;
-}
-
 .color-count-inline input[type="range"] {
   width: 100%;
   margin: 0;
@@ -564,10 +466,6 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* ── Stock image browser ── */
 .stock-section {
-  margin-top: 1rem;
-}
-
-.start-shared-settings {
   margin-top: 1rem;
 }
 
@@ -839,13 +737,6 @@ input.stock-search {
 
 
 
-/* ── Generating screen (standalone, no longer used in main flow) ── */
-.generating-screen {
-  align-items: center;
-  justify-content: center;
-  gap: 1.5rem;
-}
-
 .spinner {
   width: 56px;
   height: 56px;
@@ -857,11 +748,6 @@ input.stock-search {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
-}
-
-.generating-text {
-  color: var(--color-text-muted);
-  font-size: 1.0625rem;
 }
 
 /* ── Processing screen ── */
@@ -927,36 +813,6 @@ input.stock-search {
   font-size: 0.8rem;
   color: var(--color-text-muted);
   font-style: italic;
-}
-
-/* ── Preview screen ── */
-.preview-screen {
-  padding: 0;
-  gap: 0;
-}
-
-.preview-image-wrap {
-  flex: 1;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #000;
-}
-
-.preview-image {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: block;
-}
-
-.preview-actions {
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  background: var(--color-bg);
 }
 
 /* ── Game screen ── */
@@ -1258,13 +1114,7 @@ input.stock-search {
   filter: drop-shadow(0 0 2px rgba(0,0,0,0.5));
 }
 
-/* ── Win reveal (in canvas-wrap) ── */
-.win-reveal-image {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: block;
-}
+
 
 .win-footer {
   display: flex;
@@ -1370,97 +1220,6 @@ input.stock-search {
   flex: 1;
 }
 
-/* ── Win overlay (over canvas) ── */
-.win-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(10, 30, 10, 0.72);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-  backdrop-filter: blur(2px);
-}
-
-.win-card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  padding: 1.5rem 1.25rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  max-width: 320px;
-  width: 90%;
-}
-
-.win-original {
-  width: 100%;
-  border-radius: var(--radius-sm);
-  display: block;
-}
-
-.win-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  width: 100%;
-}
-
-.win-actions .btn {
-  width: 100%;
-}
-
-/* ── Win screen (standalone, kept for reference) ── */
-.win-screen {
-  align-items: center;
-  justify-content: center;
-  gap: 1.25rem;
-  text-align: center;
-}
-
-.win-confetti {
-  position: relative;
-  height: 60px;
-  width: 100%;
-}
-
-.confetti-piece {
-  position: absolute;
-  font-size: 1.5rem;
-  animation: confetti-fall 2s ease-in-out infinite;
-  animation-delay: calc(var(--i) * 0.3s);
-  left: calc(var(--i) * 17% + 5%);
-}
-
-@keyframes confetti-fall {
-  0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
-  100% { transform: translateY(50px) rotate(180deg); opacity: 0; }
-}
-
-.win-title {
-  font-size: 2.5rem;
-  font-weight: 800;
-  color: var(--color-accent);
-}
-
-.win-subtitle {
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-  margin-bottom: 0.5rem;
-}
-
-.win-reveal {
-  width: 100%;
-}
-
-.win-image {
-  width: 100%;
-  border-radius: var(--radius);
-  display: block;
-}
-
 /* ── Fullscreen toggle ── */
 /* ── Error banner ── */
 .error-banner {
@@ -1562,10 +1321,6 @@ input.stock-search {
     align-items: start;
   }
 
-  .start-shared-settings {
-    margin-top: 0;
-  }
-
   .stock-section {
     margin-top: 1rem;
   }
@@ -1636,11 +1391,6 @@ input.stock-search {
 
   .win-footer-actions {
     flex-direction: column;
-  }
-
-  /* Pill-toggle fills full width in sidebar */
-  .win-footer-actions .pill-toggle {
-    width: 100%;
   }
 
   /* Puzzle screens (JigSwap, Slide): same grid as game-screen */
@@ -1923,48 +1673,6 @@ input.stock-search {
   top: 0; left: 0; bottom: 0;
   width: 2px;
   background: rgba(255, 255, 255, 0.35);
-}
-
-/* Win overlay */
-.jigswap-win-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  background: rgba(0, 0, 0, 0.45);
-  border-radius: 4px;
-  animation: jigswapFadeIn 0.5s ease;
-}
-
-.jigswap-win-overlay h2 {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #fff;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-}
-
-.jigswap-win-overlay p {
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 1rem;
-}
-
-.jigswap-win-overlay .btn-play {
-  background: var(--color-accent);
-  color: #fff;
-  border: none;
-  padding: 0.6rem 1.5rem;
-  border-radius: 6px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-@keyframes jigswapFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
 }
 
 /* ── Slide puzzle ── */

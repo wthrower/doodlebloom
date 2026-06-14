@@ -184,21 +184,6 @@ export function buildOutlineChains(
     }
   }
 
-  // Compute per-chain bounding boxes (used for viewport culling in updateOutlineSvg).
-  const bboxes = new Float32Array(rawChains.length * 4)
-  for (let i = 0; i < rawChains.length; i++) {
-    const c = rawChains[i]
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-    for (const [x, y] of c) {
-      if (x < minX) minX = x; if (x > maxX) maxX = x
-      if (y < minY) minY = y; if (y > maxY) maxY = y
-    }
-    bboxes[i * 4]     = minX
-    bboxes[i * 4 + 1] = minY
-    bboxes[i * 4 + 2] = maxX
-    bboxes[i * 4 + 3] = maxY
-  }
-
   const epsilon = 1.5
   const chains = rawChains.map(c => {
     const dp = dpSimplify(c, epsilon)
@@ -232,8 +217,7 @@ export function buildOutlineChains(
   return { chains, bboxes: simplifiedBboxes }
 }
 
-/** Douglas-Peucker polyline simplification (exported for zoom-adaptive use in callers). */
-export function dpSimplify(pts: [number, number][], epsilon: number): [number, number][] {
+function dpSimplify(pts: [number, number][], epsilon: number): [number, number][] {
   if (pts.length <= 2) return pts
   const [x1, y1] = pts[0]
   const [x2, y2] = pts[pts.length - 1]
@@ -258,7 +242,7 @@ export function dpSimplify(pts: [number, number][], epsilon: number): [number, n
 /** Collapse near-collinear runs that DP retains from pixel staircases.
  *  Tolerance scales with corridor length: longer straight runs absorb
  *  larger deviations that are visually insignificant at that scale. */
-export function mergeCollinear(
+function mergeCollinear(
   pts: [number, number][],
   epsilon: number,
   ratio = 0.035

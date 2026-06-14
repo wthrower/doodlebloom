@@ -214,24 +214,6 @@ export function useOutlineSvg({
       const shortSeg = 15
       const t = 0.5 // Catmull-Rom tension
 
-      // Catmull-Rom → cubic Bezier, clamping control vectors to chord length.
-      const crSeg = (arr: [number, number][], i: number): string => {
-        const p0 = arr[Math.max(0, i - 1)]
-        const p1 = arr[i]
-        const p2 = arr[i + 1]
-        const p3 = arr[Math.min(arr.length - 1, i + 2)]
-        let cp1x = p1[0] + (p2[0] - p0[0]) * t / 3
-        let cp1y = p1[1] + (p2[1] - p0[1]) * t / 3
-        let cp2x = p2[0] - (p3[0] - p1[0]) * t / 3
-        let cp2y = p2[1] - (p3[1] - p1[1]) * t / 3
-        const chord = Math.hypot(p2[0] - p1[0], p2[1] - p1[1])
-        const cv1 = Math.hypot(cp1x - p1[0], cp1y - p1[1])
-        const cv2 = Math.hypot(cp2x - p2[0], cp2y - p2[1])
-        if (cv1 > chord && cv1 > 0) { const s = chord / cv1; cp1x = p1[0] + (cp1x - p1[0]) * s; cp1y = p1[1] + (cp1y - p1[1]) * s }
-        if (cv2 > chord && cv2 > 0) { const s = chord / cv2; cp2x = p2[0] + (cp2x - p2[0]) * s; cp2y = p2[1] + (cp2y - p2[1]) * s }
-        return `C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`
-      }
-
       const polygons: string[] = []
 
       for (let ci = 0; ci < chains.length; ci++) {
@@ -270,16 +252,6 @@ export function useOutlineSvg({
           const taper = taperFloor + (1 - taperFloor) * Math.min(1, i / taperK) * Math.min(1, (n - 1 - i) / taperK)
           return Math.max(minHW, v * taper)  // minHW is a hard floor: taper/corner-zeroing can't make hairlines
         })
-
-        const spineSharp = (i: number): boolean => {
-          if (i <= 0 || i >= n - 1) return false
-          const dx1 = pts[i][0] - pts[i-1][0], dy1 = pts[i][1] - pts[i-1][1]
-          const dx2 = pts[i+1][0] - pts[i][0],  dy2 = pts[i+1][1] - pts[i][1]
-          const len = Math.hypot(dx1, dy1) * Math.hypot(dx2, dy2)
-          return len > 0 && (dx1*dx2 + dy1*dy2) / len <= 0.7
-        }
-        const sharpAt = new Uint8Array(n)
-        for (let i = 0; i < n; i++) if (spineSharp(i)) sharpAt[i] = 1
 
         // Build offset left/right sides with miter correction at corners.
         const left:  [number, number][] = []

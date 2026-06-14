@@ -1,30 +1,14 @@
-import { openDb } from './images'
-import { loadGameState } from './gameState'
+import { idbPut, idbGet } from './images'
 
 const PUZZLE_IMAGE_KEY_PREFIX = 'puzzle_image_'
 const PUZZLE_STATE_PREFIX = 'doodlebloom_'
-const IDB_STORE = 'images'
 
 export async function savePuzzleImage(mode: 'jigswap' | 'slide', blob: Blob): Promise<void> {
-  const db = await openDb()
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(IDB_STORE, 'readwrite')
-    const store = tx.objectStore(IDB_STORE)
-    const req = store.put(blob, PUZZLE_IMAGE_KEY_PREFIX + mode)
-    req.onsuccess = () => resolve()
-    req.onerror = () => reject(req.error)
-  })
+  await idbPut(PUZZLE_IMAGE_KEY_PREFIX + mode, blob)
 }
 
 export async function loadPuzzleImage(mode: 'jigswap' | 'slide'): Promise<Blob | null> {
-  const db = await openDb()
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(IDB_STORE, 'readonly')
-    const store = tx.objectStore(IDB_STORE)
-    const req = store.get(PUZZLE_IMAGE_KEY_PREFIX + mode)
-    req.onsuccess = () => resolve((req.result as Blob) ?? null)
-    req.onerror = () => reject(req.error)
-  })
+  return idbGet<Blob>(PUZZLE_IMAGE_KEY_PREFIX + mode)
 }
 
 export function hasSavedPuzzle(mode: 'jigswap' | 'slide'): boolean {
@@ -34,11 +18,6 @@ export function hasSavedPuzzle(mode: 'jigswap' | 'slide'): boolean {
     const saved = JSON.parse(raw)
     return saved.won === false
   } catch { return false }
-}
-
-export function hasSavedPaint(): boolean {
-  const state = loadGameState()
-  return state !== null && state.screen === 'playing'
 }
 
 export function clearPuzzleState(mode: 'jigswap' | 'slide'): void {

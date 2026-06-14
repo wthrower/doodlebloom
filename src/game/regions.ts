@@ -83,20 +83,6 @@ class MinHeap<T> {
   }
 }
 
-/** Debug snapshot of the region map at a pipeline stage. */
-export interface RegionSnapshot {
-  label: string
-  regionMap: Int32Array
-  colorOf: Map<number, number>  // regionId → colorIndex
-}
-
-/** Capture a snapshot of current region state for debug visualization. */
-export function snapshotRegions(label: string, state: RegionIntermediate): RegionSnapshot {
-  const colorOf = new Map<number, number>()
-  for (const [id, meta] of state.regionMeta) colorOf.set(id, meta.colorIndex)
-  return { label, regionMap: state.regionMap.slice(), colorOf }
-}
-
 /** Opaque intermediate state passed between pipeline phases. */
 export interface RegionIntermediate {
   regionMap: Int32Array
@@ -507,17 +493,6 @@ export function finalizeRegions(
   }
 
   return { regions, regionMap }
-}
-
-export function buildRegions(
-  indexMap: Uint8Array,
-  width: number,
-  height: number,
-  palette: PaletteColor[] = []
-): { regions: Region[]; regionMap: Int32Array } {
-  const state = traceRegions(indexMap, width, height)
-  mergeRegions(state, palette)
-  return finalizeRegions(state, palette)
 }
 
 /** Merge adjacent regions that now share the same colorIndex (e.g. after a

@@ -55,8 +55,6 @@ export interface GameState {
   /** canvas dimensions used when building regions */
   canvasWidth: number
   canvasHeight: number
-  /** Raw (pre-compaction) palette stored so session restore can call buildRegions
-   *  with the same palette, producing an identical deterministic merge. */
   rawPalette?: PaletteColor[]
 }
 

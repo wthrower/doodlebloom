@@ -29,6 +29,35 @@ function pickPrefs(saved: Partial<GameState>): GamePreferences {
   ) as unknown as GamePreferences
 }
 
+async function loadBlobAsImage(blob: Blob): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => { URL.revokeObjectURL(img.src); resolve(img) }
+    img.onerror = reject
+    img.src = URL.createObjectURL(blob)
+  })
+}
+
+/** Load image + region map from IDB and decode the image into canvas pixel data. */
+async function rehydrateSession(
+  sessionId: string,
+  canvasWidth: number,
+  canvasHeight: number,
+): Promise<{ regionMap: Int32Array; imageData: ImageData } | null> {
+  const [blob, regionMap] = await Promise.all([
+    loadImage(sessionId),
+    loadRegionMap(sessionId),
+  ])
+  if (!blob || !regionMap) return null
+  const img = await loadBlobAsImage(blob)
+  const canvas = document.createElement('canvas')
+  canvas.width = canvasWidth
+  canvas.height = canvasHeight
+  const ctx = canvas.getContext('2d')!
+  ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight)
+  return { regionMap, imageData: ctx.getImageData(0, 0, canvasWidth, canvasHeight) }
+}
+
 /** Scale image so its shorter side = this many pixels. */
 const CANVAS_SHORT = 1024
 
@@ -49,8 +78,6 @@ export interface GameActions {
   clearStash: () => void
   /** True if there's a stashed in-progress session. */
   hasPrevSession: boolean
-  /** Blob size of the stashed session, for matching against the current preview. */
-  prevSessionBlobSize: number | null
   fillRegion: (regionId: number, colorIndex: number) => void
   resetPuzzle: () => Promise<void>
   resetProgress: () => void
@@ -93,29 +120,14 @@ export function useGame(): [GameState, GameActions] {
     }
 
     if (saved.screen === 'playing' || saved.screen === 'complete') {
-      Promise.all([
-        loadImage(saved.sessionId),
-        loadRegionMap(saved.sessionId),
-      ]).then(async ([blob, storedRegionMap]) => {
-        // Without the stored region map the session is unrecoverable: any
-        // main-thread rebuild (no median smoothing, no seam merge/cap, scan-
-        // order ids) produces geometry that can't match the saved regions and
-        // playerColors, so restoring would paint wrong areas. Start fresh.
-        if (!blob || !storedRegionMap) { resetCorrupted(); return }
-
-        const img = await loadBlobAsImage(blob)
-        const canvas = document.createElement('canvas')
-        canvas.width = saved!.canvasWidth
-        canvas.height = saved!.canvasHeight
-        const ctx = canvas.getContext('2d')!
-
-        ctx.drawImage(img, 0, 0, saved!.canvasWidth, saved!.canvasHeight)
-        const imageData = ctx.getImageData(0, 0, saved!.canvasWidth, saved!.canvasHeight)
-
-        regionMapRef.current = storedRegionMap
-        originalImageDataRef.current = imageData
-        setState(saved!)
-      }).catch(resetCorrupted)
+      rehydrateSession(saved.sessionId, saved.canvasWidth, saved.canvasHeight)
+        .then(result => {
+          if (!result) { resetCorrupted(); return }
+          regionMapRef.current = result.regionMap
+          originalImageDataRef.current = result.imageData
+          setState(saved!)
+        })
+        .catch(resetCorrupted)
       return
     }
 
@@ -166,22 +178,13 @@ export function useGame(): [GameState, GameActions] {
   const restoreStashedSession = useCallback(async () => {
     const prev = prevSessionRef.current
     if (!prev?.state.sessionId) return
-    const storedBlob = await loadImage(prev.state.sessionId)
-    if (!storedBlob) return
-    const storedRegionMap = await loadRegionMap(prev.state.sessionId)
-    if (!storedRegionMap) return
-    const img = await loadBlobAsImage(storedBlob)
     const { canvasWidth: cw, canvasHeight: ch } = prev.state
-    const canvas = document.createElement('canvas')
-    canvas.width = cw; canvas.height = ch
-    const ctx = canvas.getContext('2d')!
-    ctx.drawImage(img, 0, 0, cw, ch)
-    const imageData = ctx.getImageData(0, 0, cw, ch)
-    regionMapRef.current = storedRegionMap
-    originalImageDataRef.current = imageData
-    fuseSameColorRegions(prev.state.regions, storedRegionMap, cw)
+    const result = await rehydrateSession(prev.state.sessionId, cw, ch)
+    if (!result) return
+    regionMapRef.current = result.regionMap
+    originalImageDataRef.current = result.imageData
+    fuseSameColorRegions(prev.state.regions, result.regionMap, cw)
     update(prev.state)
-    // The stashed game is now the active, persisted game again.
     clearStashedPaint()
     prevSessionRef.current = null
     setHasPrevSession(false)
@@ -332,7 +335,6 @@ export function useGame(): [GameState, GameActions] {
     restoreStashedSession,
     clearStash,
     hasPrevSession,
-    prevSessionBlobSize: prevSessionRef.current?.blobSize ?? null,
     fillRegion,
     resetPuzzle,
     resetProgress,
@@ -343,14 +345,5 @@ export function useGame(): [GameState, GameActions] {
   return [state, actions]
 }
 
-function loadBlobAsImage(blob: Blob): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(blob)
-    const img = new Image()
-    img.onload = () => { URL.revokeObjectURL(url); resolve(img) }
-    img.onerror = reject
-    img.src = url
-  })
-}
 
 
