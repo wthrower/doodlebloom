@@ -991,6 +991,12 @@ input.stock-search {
   display: block;
 }
 
+.reveal-overlay {
+  position: absolute;
+  pointer-events: none;
+  z-index: 5;
+}
+
 .outline-svg {
   position: absolute;
   top: 0;

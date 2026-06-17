@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, Lightbulb, Maximize2, Minimize2, RotateCcw, ScanSearch } from 'lucide-react'
+import { ArrowLeft, Eye, Lightbulb, Maximize2, Minimize2, RotateCcw, ScanSearch } from 'lucide-react'
 import type { GameState } from '../types'
 import type { GameActions } from '../hooks/useGame'
 import { DoodlebloomLogo, DoodlebloomMini } from '../components/DoodlebloomLogo'
@@ -41,6 +41,8 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     return dominant
   })
   const [showHint, setShowHint] = useState(false)
+  const [showReveal, setShowReveal] = useState(false)
+  const revealImgRef = useRef<HTMLImageElement>(null)
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hintHeldRef = useRef(false)
 
@@ -92,6 +94,19 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
   const [outlineMagenta, setOutlineMagenta] = useState(false)
   const { palette, regions, playerColors, canvasWidth, canvasHeight, showOutline, screen } = state
   const { getRegionMap, getOriginalImageData, fillRegion } = actions
+
+  const [revealUrl, setRevealUrl] = useState<string | null>(null)
+  useEffect(() => {
+    const imgData = getOriginalImageData()
+    if (!imgData) return
+    const c = document.createElement('canvas')
+    c.width = imgData.width; c.height = imgData.height
+    c.getContext('2d')!.putImageData(imgData, 0, 0)
+    c.toBlob(blob => {
+      if (blob) setRevealUrl(prev => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(blob) })
+    })
+  }, [getOriginalImageData])
+
   const prevScreenRef = useRef(screen)
   useEffect(() => {
     if (screen === 'complete' && prevScreenRef.current !== 'complete') confetti.fire()
@@ -179,7 +194,17 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
   }, [canvasWidth])
 
   // --- Wire callback refs (read at event time, not setup time) ---
-  onTransformChangeRef.current = () => { updateOutlineSvg(); updateNumbersSvg() }
+  onTransformChangeRef.current = () => {
+    updateOutlineSvg(); updateNumbersSvg()
+    const img = revealImgRef.current
+    const canvas = canvasRef.current
+    if (img && canvas) {
+      img.style.width = canvas.style.width
+      img.style.height = canvas.style.height
+      img.style.transform = canvas.style.transform
+      img.style.transformOrigin = canvas.style.transformOrigin
+    }
+  }
 
   onTapRef.current = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current
@@ -422,6 +447,22 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
         )}
         {state.screen !== 'complete' && (
           <button
+            className={`btn btn-ghost btn-icon btn-small${showReveal ? ' hint-active' : ''}`}
+            onMouseDown={() => setShowReveal(true)}
+            onMouseUp={() => setShowReveal(false)}
+            onMouseLeave={() => setShowReveal(false)}
+            onTouchStart={(e) => { e.preventDefault(); setShowReveal(true) }}
+            onTouchEnd={(e) => { e.preventDefault(); setShowReveal(false) }}
+            onTouchCancel={() => setShowReveal(false)}
+            onContextMenu={(e) => e.preventDefault()}
+            title="Hold to reveal original"
+            aria-label="Reveal original image"
+          >
+            <Eye size={18} />
+          </button>
+        )}
+        {state.screen !== 'complete' && (
+          <button
             className={`btn btn-ghost btn-icon btn-small${showHint ? ' hint-active' : ''}`}
             onMouseDown={hintDown}
             onMouseUp={hintUp}
@@ -457,6 +498,16 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
         >
           <path fill={outlineMagenta ? 'rgba(255,0,255,0.85)' : 'rgba(0,0,0,0.75)'} stroke="none" />
         </svg>
+        {revealUrl && (
+          <img
+            ref={revealImgRef}
+            src={revealUrl}
+            alt=""
+            className="reveal-overlay"
+            style={{ display: showReveal ? 'block' : 'none' }}
+            draggable={false}
+          />
+        )}
       </div>
 
       {state.screen === 'complete' ? (
