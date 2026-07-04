@@ -114,6 +114,18 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     })
   }, [getOriginalImageData])
 
+  useEffect(() => {
+    if (!revealUrl) return
+    const img = revealImgRef.current
+    const canvas = canvasRef.current
+    if (img && canvas) {
+      img.style.width = canvas.style.width
+      img.style.height = canvas.style.height
+      img.style.transform = canvas.style.transform
+      img.style.transformOrigin = canvas.style.transformOrigin
+    }
+  }, [revealUrl])
+
   const prevScreenRef = useRef(screen)
   useEffect(() => {
     if (screen === 'complete' && prevScreenRef.current !== 'complete') confetti.fire()
