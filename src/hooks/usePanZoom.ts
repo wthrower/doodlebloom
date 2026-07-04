@@ -24,11 +24,13 @@ export interface UsePanZoomOptions {
   onPointerMoveRef?: RefObject<((clientX: number, clientY: number) => void) | null>
   /** Called after every transform change (zoom, pan, resize). Stored in a ref. */
   onTransformChangeRef?: RefObject<(() => void) | null>
+  /** Called on wheel without zoom modifier (user might be trying to zoom). */
+  onUnmodifiedWheelRef?: RefObject<(() => void) | null>
 }
 
 export function usePanZoom({
   canvasRef, wrapRef, canvasWidth, canvasHeight,
-  onTapRef, onPointerMoveRef, onTransformChangeRef,
+  onTapRef, onPointerMoveRef, onTransformChangeRef, onUnmodifiedWheelRef,
 }: UsePanZoomOptions) {
   const transformRef = useRef<Transform>({ scale: 1, tx: 0, ty: 0 })
   const displaySizeRef = useRef(0)
@@ -123,8 +125,9 @@ export function usePanZoom({
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const { tx, ty, scale } = transformRef.current
-      if (e.ctrlKey) {
-        const factor = Math.exp(-e.deltaY * 0.01)
+      if (e.ctrlKey || e.metaKey) {
+        const raw = -e.deltaY * 0.01
+        const factor = Math.exp(Math.max(-0.15, Math.min(0.15, raw)))
         const newScale = clampScale(scale * factor)
         const r = wrap.getBoundingClientRect()
         const wx = e.clientX - r.left - canvas.offsetLeft
@@ -133,6 +136,7 @@ export function usePanZoom({
         const ly = (wy - ty) / scale
         setTransform(clampTransform({ scale: newScale, tx: wx - lx * newScale, ty: wy - ly * newScale }))
       } else {
+        onUnmodifiedWheelRef?.current?.()
         setTransform(clampTransform({ scale, tx: tx - e.deltaX, ty: ty - e.deltaY }))
       }
     }

@@ -31,6 +31,10 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
   const outlineSvgRef = useRef<SVGSVGElement>(null)
   const numbersSvgRef = useRef<SVGSVGElement>(null)
   const numbersRafRef = useRef(0)
+  const [zoomHint, setZoomHint] = useState(false)
+  const zoomHintShownRef = useRef(false)
+  const zoomHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const [activeColorIndex, setActiveColorIndex] = useState<number | null>(() => {
     const rs = state.regions
     if (rs.length === 0) return null
@@ -88,7 +92,10 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
   }, [cancelFlash, flashHint])
 
   useEffect(() => {
-    return () => { if (hintTimerRef.current) clearTimeout(hintTimerRef.current) }
+    return () => {
+      if (hintTimerRef.current) clearTimeout(hintTimerRef.current)
+      if (zoomHintTimerRef.current) clearTimeout(zoomHintTimerRef.current)
+    }
   }, [])
 
   const [outlineMagenta, setOutlineMagenta] = useState(false)
@@ -138,11 +145,17 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
   const onTransformChangeRef = useRef<(() => void) | null>(null)
   const onTapRef = useRef<(clientX: number, clientY: number) => void>(() => {})
   const onPointerMoveRef = useRef<((clientX: number, clientY: number) => void) | null>(null)
+  const onUnmodifiedWheelRef = useRef<(() => void) | null>(() => {
+    if (zoomHintShownRef.current) return
+    zoomHintShownRef.current = true
+    setZoomHint(true)
+    zoomHintTimerRef.current = setTimeout(() => setZoomHint(false), 3000)
+  })
 
   // --- Pan/zoom hook (called first -- refs are wired after) ---
   const panZoom = usePanZoom({
     canvasRef, wrapRef, canvasWidth, canvasHeight,
-    onTapRef, onPointerMoveRef, onTransformChangeRef,
+    onTapRef, onPointerMoveRef, onTransformChangeRef, onUnmodifiedWheelRef,
   })
 
   // --- Outline SVG hook (uses panZoom refs) ---
@@ -498,6 +511,11 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
         >
           <path fill={outlineMagenta ? 'rgba(255,0,255,0.85)' : 'rgba(0,0,0,0.75)'} stroke="none" />
         </svg>
+        {zoomHint && (
+          <div className="zoom-hint">
+            {/Mac|iPhone|iPad|iPod/.test(navigator.platform) ? '⌘' : 'Ctrl'} + scroll to zoom
+          </div>
+        )}
         {revealUrl && (
           <img
             ref={revealImgRef}

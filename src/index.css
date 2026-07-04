@@ -997,6 +997,26 @@ input.stock-search {
   z-index: 5;
 }
 
+.zoom-hint {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  pointer-events: none;
+  z-index: 10;
+  animation: zoom-hint-fade 3s ease-in-out;
+}
+
+@keyframes zoom-hint-fade {
+  0%, 70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 .outline-svg {
   position: absolute;
   top: 0;
