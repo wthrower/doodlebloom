@@ -103,6 +103,37 @@ export function createDSU() {
   return { find, union }
 }
 
+/** Indexes of the 4-connected neighbors of pixel i (left, right, up, down),
+ *  with -1 past an image edge. Not used in the unrolled BFS hot loops
+ *  (relabelRegions), where avoiding the per-pixel array matters. */
+export function neighbors4(i: number, width: number, pixels: number): [number, number, number, number] {
+  const x = i % width
+  return [
+    x > 0 ? i - 1 : -1,
+    x < width - 1 ? i + 1 : -1,
+    i >= width ? i - width : -1,
+    i + width < pixels ? i + width : -1,
+  ]
+}
+
+/** Canonicalize a region list through a DSU find after merging: each absorbed
+ *  region folds its pixelCount into the survivor, which keeps the larger
+ *  labelRadius (and that radius's centroid). */
+export function rebuildRegions(regions: Region[], find: (id: number) => number): Region[] {
+  const merged = new Map<number, Region>()
+  for (const r of regions) {
+    const canon = find(r.id)
+    const m = merged.get(canon)
+    if (!m) {
+      merged.set(canon, { ...r, id: canon })
+    } else {
+      m.pixelCount += r.pixelCount
+      if (r.labelRadius > m.labelRadius) { m.labelRadius = r.labelRadius; m.centroid = r.centroid }
+    }
+  }
+  return [...merged.values()]
+}
+
 /** Opaque intermediate state passed between pipeline phases. */
 export interface RegionIntermediate {
   regionMap: Int32Array
@@ -224,14 +255,7 @@ export function finalizeRegions(
   for (let i = 0; i < pixels; i++) {
     const rid = regionMap[i]
     if (rid < 0) { dist[i] = 0; continue }
-    const x = i % width, y = Math.floor(i / width)
-    const ns = [
-      x > 0 ? i - 1 : -1,
-      x < width - 1 ? i + 1 : -1,
-      y > 0 ? i - width : -1,
-      y < height - 1 ? i + width : -1,
-    ]
-    for (const n of ns) {
+    for (const n of neighbors4(i, width, pixels)) {
       if (n < 0 || regionMap[n] !== rid) { dist[i] = 0; bfsQueue.push(i); break }
     }
   }
@@ -240,14 +264,7 @@ export function finalizeRegions(
   while (head < bfsQueue.length) {
     const i = bfsQueue[head++]
     const rid = regionMap[i]
-    const x = i % width, y = Math.floor(i / width)
-    const ns = [
-      x > 0 ? i - 1 : -1,
-      x < width - 1 ? i + 1 : -1,
-      y > 0 ? i - width : -1,
-      y < height - 1 ? i + width : -1,
-    ]
-    for (const n of ns) {
+    for (const n of neighbors4(i, width, pixels)) {
       if (n >= 0 && regionMap[n] === rid && dist[n] < 0) {
         dist[n] = dist[i] + 1
         bfsQueue.push(n)
@@ -297,15 +314,8 @@ export function finalizeRegions(
     for (let i = 0; i < pixels; i++) {
       const rid = regionMap[i]
       if (!thinIds.has(rid)) continue
-      const x = i % width
-      const neighbors = [
-        x > 0 ? i - 1 : -1,
-        x < width - 1 ? i + 1 : -1,
-        i >= width ? i - width : -1,
-        i + width < pixels ? i + width : -1,
-      ]
       const adj = thinAdj.get(rid)!
-      for (const n of neighbors) {
+      for (const n of neighbors4(i, width, pixels)) {
         if (n >= 0 && regionMap[n] !== rid && regionMap[n] >= 0) adj.add(regionMap[n])
       }
     }
@@ -322,12 +332,7 @@ export function finalizeRegions(
       const border: number[] = []
       for (let i = 0; i < pixels; i++) {
         if (regionMap[i] !== tid) continue
-        const x = i % width
-        const ns = [
-          x > 0 ? i - 1 : -1, x < width - 1 ? i + 1 : -1,
-          i >= width ? i - width : -1, i + width < pixels ? i + width : -1,
-        ]
-        for (const n of ns) {
+        for (const n of neighbors4(i, width, pixels)) {
           if (n >= 0 && regionMap[n] !== tid) { border.push(i); break }
         }
       }
@@ -340,11 +345,7 @@ export function finalizeRegions(
         const i = queue[head++]
         const d = dist.get(i)!
         if (d >= MAX_SEARCH_DIST) continue
-        const x = i % width
-        for (const n of [
-          x > 0 ? i - 1 : -1, x < width - 1 ? i + 1 : -1,
-          i >= width ? i - width : -1, i + width < pixels ? i + width : -1,
-        ]) {
+        for (const n of neighbors4(i, width, pixels)) {
           if (n < 0 || dist.has(n)) continue
           dist.set(n, d + 1)
           const nrid = regionMap[n]
@@ -436,8 +437,7 @@ export function finalizeRegions(
       for (let i = 0; i < pixels; i++) {
         const rid = regionMap[i]
         if (!stillThin.has(rid)) continue
-        const x = i % width
-        for (const n of [x > 0 ? i - 1 : -1, x < width - 1 ? i + 1 : -1, i >= width ? i - width : -1, i + width < pixels ? i + width : -1]) {
+        for (const n of neighbors4(i, width, pixels)) {
           if (n >= 0 && regionMap[n] !== rid && regionMap[n] >= 0) stNeighbors.get(rid)!.add(regionMap[n])
         }
       }
@@ -519,19 +519,7 @@ export function fuseSameColorRegions(
     if (regionMap[i] >= 0) regionMap[i] = find(regionMap[i])
   }
 
-  const merged = new Map<number, Region>()
-  for (const r of regions) {
-    const canon = find(r.id)
-    if (!merged.has(canon)) {
-      merged.set(canon, { ...r, id: canon })
-    } else {
-      const m = merged.get(canon)!
-      m.pixelCount += r.pixelCount
-      if (r.labelRadius > m.labelRadius) { m.labelRadius = r.labelRadius; m.centroid = r.centroid }
-    }
-  }
-
-  return [...merged.values()]
+  return rebuildRegions(regions, find)
 }
 
 /** Merge adjacent region pairs whose shared boundary has low average luminance
@@ -598,18 +586,7 @@ export function mergeGradientSeams(
     if (regionMap[i] >= 0) regionMap[i] = find(regionMap[i])
   }
 
-  // Rebuild region list
-  const merged = new Map<number, Region>()
-  for (const r of regions) {
-    const canon = find(r.id)
-    if (!merged.has(canon)) merged.set(canon, { ...r, id: canon })
-    else {
-      const m = merged.get(canon)!
-      m.pixelCount += r.pixelCount
-      if (r.labelRadius > m.labelRadius) { m.labelRadius = r.labelRadius; m.centroid = r.centroid }
-    }
-  }
-  return [...merged.values()]
+  return rebuildRegions(regions, find)
 }
 
 /** Minimum inscribed-circle radius for a lobe to get its own label. */

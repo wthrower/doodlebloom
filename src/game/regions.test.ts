@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { createDSU, fuseSameColorRegions } from './regions'
+import { createDSU, fuseSameColorRegions, neighbors4, rebuildRegions } from './regions'
 import type { Region } from '../types'
 
 describe('createDSU', () => {
@@ -26,6 +26,49 @@ describe('createDSU', () => {
     expect(find(1)).toBe(0)
     expect(find(3)).toBe(2)
     expect(find(0)).not.toBe(find(2))
+  })
+})
+
+describe('neighbors4', () => {
+  // 3x3 grid, indexes 0..8
+  const W = 3, PX = 9
+
+  it('returns left, right, up, down for an interior pixel', () => {
+    expect(neighbors4(4, W, PX)).toEqual([3, 5, 1, 7])
+  })
+
+  it('marks off-image neighbors with -1 at corners', () => {
+    expect(neighbors4(0, W, PX)).toEqual([-1, 1, -1, 3])
+    expect(neighbors4(8, W, PX)).toEqual([7, -1, 5, -1])
+  })
+
+  it('marks off-image neighbors with -1 on edges', () => {
+    expect(neighbors4(3, W, PX)).toEqual([-1, 4, 0, 6])
+    expect(neighbors4(5, W, PX)).toEqual([4, -1, 2, 8])
+  })
+})
+
+describe('rebuildRegions', () => {
+  it('folds absorbed regions into their canonical survivor', () => {
+    const { find, union } = createDSU()
+    union(1, 0)
+    union(2, 0)
+    const regions = [
+      makeRegion(0, 0, 10, 3),
+      makeRegion(1, 0, 5, 8),
+      makeRegion(2, 1, 2, 1),
+      makeRegion(3, 2, 7, 4),
+    ]
+
+    const rebuilt = rebuildRegions(regions, find)
+
+    expect(rebuilt).toHaveLength(2)
+    const canon = rebuilt.find(r => r.id === 0)!
+    expect(canon.pixelCount).toBe(17)
+    // Largest labelRadius among the merged partners wins, with its centroid.
+    expect(canon.labelRadius).toBe(8)
+    expect(canon.centroid).toEqual({ x: 1, y: 0 })
+    expect(rebuilt.find(r => r.id === 3)).toMatchObject({ pixelCount: 7 })
   })
 })
 
