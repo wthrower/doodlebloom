@@ -17,92 +17,236 @@ export interface OutlineBatch {
   bboxes: Float32Array    // [minX, minY, maxX, maxY] × chains.length, packed
 }
 
+export interface PuzzleRenderer {
+  /** Repaint to match opts. Diffs against the previous call and rewrites only
+   *  the regions whose appearance changed, pushing just their bounding rect. */
+  render(opts: RenderOptions): void
+  /** Draw a brief "wrong color" flash on a region. */
+  flashRegion(regionId: number): void
+}
+
 /**
- * Draw the puzzle onto ctx.
- * - Unfilled regions: light gray fill + dark outline
- * - Filled regions: palette color (flat) or original pixels (photo)
- * - Numbers at centroids for unfilled regions
+ * Create a renderer for one puzzle. Owns a persistent pixel buffer plus
+ * per-region pixel-index lists and bounding boxes (built once here), so a
+ * normal fill rewrites a few hundred pixels instead of allocating and
+ * repainting the full ~1.5MP canvas on every tap.
+ *
+ * Region appearance rules:
+ * - Unfilled: white (pale diagonal stripes when hinting the active color)
+ * - Filled: flat palette color; original image pixels once the whole color
+ *   group is complete
+ * - Pixels not in any kept region: settled gray background, painted once.
+ *
+ * Recreate the renderer when regionMap/regions/palette/dimensions change.
  */
-export function renderPuzzle(
+export function createPuzzleRenderer(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
   regionMap: Int32ArrayLike,
   regions: Region[],
   palette: PaletteColor[],
-  opts: RenderOptions
-): void {
-  const { playerColors, activeColorIndex, originalImageData } = opts
-
-  // Build pixel buffer
+): PuzzleRenderer {
+  const pixels = width * height
   const imageData = ctx.createImageData(width, height)
   const buf = imageData.data
 
-  const regionById = new Map(regions.map(r => [r.id, r]))
-
-  // Pre-compute which colors are fully completed (all regions filled correctly)
-  const colorComplete = new Set<number>()
-  if (originalImageData) {
-    const colorRegions = new Map<number, Region[]>()
-    for (const r of regions) {
-      let list = colorRegions.get(r.colorIndex)
-      if (!list) { list = []; colorRegions.set(r.colorIndex, list) }
-      list.push(r)
-    }
-    for (const [colorIdx, list] of colorRegions) {
-      if (list.every(r => playerColors[r.id] === colorIdx)) {
-        colorComplete.add(colorIdx)
-      }
-    }
+  const regionsByColor = new Map<number, Region[]>()
+  for (const r of regions) {
+    let list = regionsByColor.get(r.colorIndex)
+    if (!list) { list = []; regionsByColor.set(r.colorIndex, list) }
+    list.push(r)
   }
 
-  for (let i = 0; i < width * height; i++) {
-    const regionId = regionMap[i]
-    const region = regionId >= 0 ? regionById.get(regionId) : undefined
-
-    if (!region) {
-      // Unmerged tiny fragment too small to promote -- paint gray as settled background.
+  // Per-region pixel lists and bounding boxes: count, allocate, fill.
+  const keptIds = new Set(regions.map(r => r.id))
+  const counts = new Map<number, number>()
+  for (let i = 0; i < pixels; i++) {
+    const id = regionMap[i]
+    if (keptIds.has(id)) counts.set(id, (counts.get(id) ?? 0) + 1)
+  }
+  const regionPixels = new Map<number, Int32Array>()
+  const cursor = new Map<number, number>()
+  for (const [id, n] of counts) { regionPixels.set(id, new Int32Array(n)); cursor.set(id, 0) }
+  const bboxes = new Map<number, { minX: number; minY: number; maxX: number; maxY: number }>()
+  for (let i = 0; i < pixels; i++) {
+    const id = regionMap[i]
+    const arr = regionPixels.get(id)
+    if (!arr) {
+      // Unmerged tiny fragment too small to promote -- settled gray background.
       buf[i * 4] = 160
       buf[i * 4 + 1] = 160
       buf[i * 4 + 2] = 160
       buf[i * 4 + 3] = 255
       continue
     }
-
-    const filledColorIdx = playerColors[region.id]
-    if (filledColorIdx !== undefined) {
-      if (colorComplete.has(region.colorIndex) && originalImageData) {
-        // Color fully completed -- reveal original image
-        buf[i * 4] = originalImageData.data[i * 4]
-        buf[i * 4 + 1] = originalImageData.data[i * 4 + 1]
-        buf[i * 4 + 2] = originalImageData.data[i * 4 + 2]
-        buf[i * 4 + 3] = 255
-      } else {
-        // Still in progress -- flat fill
-        const c = palette[filledColorIdx]
-        buf[i * 4] = c.r
-        buf[i * 4 + 1] = c.g
-        buf[i * 4 + 2] = c.b
-        buf[i * 4 + 3] = 255
-      }
-    } else if (opts.showHint && activeColorIndex !== null && region.colorIndex === activeColorIndex) {
-      // Unfilled, active color: pale pink/green diagonal stripes (hint mode)
-      const px = i % width, py = (i / width) | 0
-      const stripe = ((px + py) >> 2) & 1  // 4px diagonal stripes
-      buf[i * 4]     = stripe ? 253 : 210
-      buf[i * 4 + 1] = stripe ? 205 : 185
-      buf[i * 4 + 2] = stripe ? 229 : 240
-      buf[i * 4 + 3] = 255
-    } else {
-      // Unfilled: white
-      buf[i * 4] = 255
-      buf[i * 4 + 1] = 255
-      buf[i * 4 + 2] = 255
-      buf[i * 4 + 3] = 255
+    const k = cursor.get(id)!
+    arr[k] = i
+    cursor.set(id, k + 1)
+    const x = i % width, y = (i / width) | 0
+    let b = bboxes.get(id)
+    if (!b) { b = { minX: x, minY: y, maxX: x, maxY: y }; bboxes.set(id, b) }
+    else {
+      if (x < b.minX) b.minX = x
+      if (x > b.maxX) b.maxX = x
+      if (y < b.minY) b.minY = y
+      if (y > b.maxY) b.maxY = y
     }
   }
 
-  ctx.putImageData(imageData, 0, 0)
+  /** Colors whose every region is filled correctly (reveal originals). */
+  const computeColorComplete = (opts: RenderOptions): Set<number> => {
+    const complete = new Set<number>()
+    if (!opts.originalImageData) return complete
+    for (const [colorIdx, list] of regionsByColor) {
+      if (list.every(r => opts.playerColors[r.id] === colorIdx)) complete.add(colorIdx)
+    }
+    return complete
+  }
+
+  const paintRegion = (region: Region, opts: RenderOptions, colorComplete: Set<number>): void => {
+    const arr = regionPixels.get(region.id)
+    if (!arr) return
+    const filledColorIdx = opts.playerColors[region.id]
+    if (filledColorIdx !== undefined) {
+      if (colorComplete.has(region.colorIndex) && opts.originalImageData) {
+        // Color fully completed -- reveal original image
+        const src = opts.originalImageData.data
+        for (let k = 0; k < arr.length; k++) {
+          const i = arr[k]
+          buf[i * 4] = src[i * 4]
+          buf[i * 4 + 1] = src[i * 4 + 1]
+          buf[i * 4 + 2] = src[i * 4 + 2]
+          buf[i * 4 + 3] = 255
+        }
+      } else {
+        // Still in progress -- flat fill
+        const c = palette[filledColorIdx]
+        for (let k = 0; k < arr.length; k++) {
+          const i = arr[k]
+          buf[i * 4] = c.r
+          buf[i * 4 + 1] = c.g
+          buf[i * 4 + 2] = c.b
+          buf[i * 4 + 3] = 255
+        }
+      }
+    } else if (opts.showHint && opts.activeColorIndex !== null && region.colorIndex === opts.activeColorIndex) {
+      // Unfilled, active color: pale pink/green diagonal stripes (hint mode)
+      for (let k = 0; k < arr.length; k++) {
+        const i = arr[k]
+        const px = i % width, py = (i / width) | 0
+        const stripe = ((px + py) >> 2) & 1  // 4px diagonal stripes
+        buf[i * 4]     = stripe ? 253 : 210
+        buf[i * 4 + 1] = stripe ? 205 : 185
+        buf[i * 4 + 2] = stripe ? 229 : 240
+        buf[i * 4 + 3] = 255
+      }
+    } else {
+      // Unfilled: white
+      for (let k = 0; k < arr.length; k++) {
+        const i = arr[k]
+        buf[i * 4] = 255
+        buf[i * 4 + 1] = 255
+        buf[i * 4 + 2] = 255
+        buf[i * 4 + 3] = 255
+      }
+    }
+  }
+
+  const putRect = (minX: number, minY: number, maxX: number, maxY: number): void => {
+    ctx.putImageData(imageData, 0, 0, minX, minY, maxX - minX + 1, maxY - minY + 1)
+  }
+
+  let last: RenderOptions | null = null
+  let lastColorComplete = new Set<number>()
+
+  const render = (opts: RenderOptions): void => {
+    const colorComplete = computeColorComplete(opts)
+
+    if (!last || opts.originalImageData !== last.originalImageData) {
+      for (const r of regions) paintRegion(r, opts, colorComplete)
+      ctx.putImageData(imageData, 0, 0)
+    } else {
+      const dirty = new Set<Region>()
+
+      if (opts.playerColors !== last.playerColors) {
+        for (const r of regions) {
+          if (opts.playerColors[r.id] !== last.playerColors[r.id]) dirty.add(r)
+        }
+      }
+
+      // A color group flipping (in)complete switches ALL its regions between
+      // flat fill and revealed originals, including ones whose fill didn't change.
+      for (const color of colorComplete) {
+        if (!lastColorComplete.has(color)) for (const r of regionsByColor.get(color) ?? []) dirty.add(r)
+      }
+      for (const color of lastColorComplete) {
+        if (!colorComplete.has(color)) for (const r of regionsByColor.get(color) ?? []) dirty.add(r)
+      }
+
+      // Hint stripes apply to unfilled regions of one color; repaint the old
+      // and new hinted groups when that color changes (incl. hint on/off).
+      const hintColorNow = opts.showHint ? opts.activeColorIndex : null
+      const hintColorBefore = last.showHint ? last.activeColorIndex : null
+      if (hintColorNow !== hintColorBefore) {
+        for (const color of [hintColorNow, hintColorBefore]) {
+          if (color === null) continue
+          for (const r of regionsByColor.get(color) ?? []) {
+            if (opts.playerColors[r.id] === undefined) dirty.add(r)
+          }
+        }
+      }
+
+      if (dirty.size > 0) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+        for (const r of dirty) {
+          paintRegion(r, opts, colorComplete)
+          const b = bboxes.get(r.id)
+          if (!b) continue
+          if (b.minX < minX) minX = b.minX
+          if (b.minY < minY) minY = b.minY
+          if (b.maxX > maxX) maxX = b.maxX
+          if (b.maxY > maxY) maxY = b.maxY
+        }
+        if (minX !== Infinity) putRect(minX, minY, maxX, maxY)
+      }
+    }
+
+    last = {
+      playerColors: opts.playerColors,
+      activeColorIndex: opts.activeColorIndex,
+      originalImageData: opts.originalImageData,
+      showHint: !!opts.showHint,
+    }
+    lastColorComplete = colorComplete
+  }
+
+  /** Subtle "shake" flash on a region to indicate wrong color. Only the red
+   *  channel pulses, within the region's bounding rect. */
+  const flashRegion = (regionId: number): void => {
+    const arr = regionPixels.get(regionId)
+    const b = bboxes.get(regionId)
+    if (!arr || !b) return
+    const orig = new Uint8ClampedArray(arr.length)
+    for (let k = 0; k < arr.length; k++) orig[k] = buf[arr[k] * 4]
+
+    let frame = 0
+    const animate = () => {
+      frame++
+      if (frame <= 8) {
+        const boost = Math.round(Math.sin((frame / 8) * Math.PI) * 0.5 * 150)
+        for (let k = 0; k < arr.length; k++) buf[arr[k] * 4] = Math.min(255, orig[k] + boost)
+        putRect(b.minX, b.minY, b.maxX, b.maxY)
+        requestAnimationFrame(animate)
+      } else {
+        for (let k = 0; k < arr.length; k++) buf[arr[k] * 4] = orig[k]
+        putRect(b.minX, b.minY, b.maxX, b.maxY)
+      }
+    }
+    requestAnimationFrame(animate)
+  }
+
+  return { render, flashRegion }
 }
 
 /**
@@ -281,44 +425,3 @@ function mergeCollinear(
   return out
 }
 
-/** Draw a subtle "shake" flash on a region to indicate wrong color */
-export function flashRegion(
-  ctx: CanvasRenderingContext2D,
-  regionId: number,
-  regionMap: Int32ArrayLike,
-  width: number,
-  height: number
-): void {
-  const pixels: number[] = []
-  for (let i = 0; i < width * height; i++) {
-    if (regionMap[i] === regionId) pixels.push(i)
-  }
-  const imageData = ctx.getImageData(0, 0, width, height)
-  const orig = new Uint8ClampedArray(imageData.data)
-
-  let frame = 0
-  const animate = () => {
-    frame++
-    const alpha = Math.sin((frame / 8) * Math.PI) * 0.5
-    if (frame <= 8) {
-      for (const i of pixels) {
-        imageData.data[i * 4] = Math.min(255, orig[i * 4] + Math.round(alpha * 150))
-        imageData.data[i * 4 + 1] = orig[i * 4 + 1]
-        imageData.data[i * 4 + 2] = orig[i * 4 + 2]
-        imageData.data[i * 4 + 3] = 255
-      }
-      ctx.putImageData(imageData, 0, 0)
-      requestAnimationFrame(animate)
-    } else {
-      // Restore
-      for (const i of pixels) {
-        imageData.data[i * 4] = orig[i * 4]
-        imageData.data[i * 4 + 1] = orig[i * 4 + 1]
-        imageData.data[i * 4 + 2] = orig[i * 4 + 2]
-        imageData.data[i * 4 + 3] = orig[i * 4 + 3]
-      }
-      ctx.putImageData(imageData, 0, 0)
-    }
-  }
-  requestAnimationFrame(animate)
-}

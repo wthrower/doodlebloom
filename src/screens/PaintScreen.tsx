@@ -7,7 +7,7 @@ import { ScrollChevrons } from '../components/ScrollChevrons'
 import { useConfetti } from '../hooks/useConfetti'
 import { usePanZoom } from '../hooks/usePanZoom'
 import { useOutlineSvg } from '../hooks/useOutlineSvg'
-import { renderPuzzle, flashRegion } from '../game/canvas'
+import { createPuzzleRenderer, type PuzzleRenderer } from '../game/canvas'
 import { colorDist, luma601 } from '../game/colorDistance'
 import { getRegionAt } from '../game/regions'
 import { CURSOR_CAN_FILL, CURSOR_CANT_FILL } from '../game/cursors'
@@ -245,7 +245,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     if (colorIndex === region.colorIndex) {
       fillRegionRef.current(regionId, colorIndex)
     } else {
-      flashRegion(canvas.getContext('2d')!, regionId, rm, canvasWidth, canvasHeight)
+      rendererRef.current?.flashRegion(regionId)
     }
   }
 
@@ -339,18 +339,26 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
   }, [playerColors, activeColorIndex, regions, regionsByColorIndex])
 
   // --- Render puzzle pixels ---
+  // The renderer owns the pixel buffer and per-region indexes; recreate it only
+  // when the puzzle itself changes. regions identity always changes together
+  // with the region map (processImage / restore), so it stands in for both.
+  const rendererRef = useRef<PuzzleRenderer | null>(null)
   useEffect(() => {
     const canvas = canvasRef.current
     const rm = getRegionMap()
-    if (!canvas || !rm) return
-    const ctx = canvas.getContext('2d')!
-    renderPuzzle(ctx, canvasWidth, canvasHeight, rm, regions, palette, {
+    rendererRef.current = canvas && rm
+      ? createPuzzleRenderer(canvas.getContext('2d')!, canvasWidth, canvasHeight, rm, regions, palette)
+      : null
+  }, [regions, palette, canvasWidth, canvasHeight, getRegionMap])
+
+  useEffect(() => {
+    rendererRef.current?.render({
       playerColors,
       activeColorIndex,
       originalImageData: getOriginalImageData(),
       showHint,
     })
-  }, [playerColors, activeColorIndex, regions, palette, showOutline, screen, canvasWidth, canvasHeight, getRegionMap, getOriginalImageData, showHint])
+  }, [playerColors, activeColorIndex, regions, palette, canvasWidth, canvasHeight, getRegionMap, getOriginalImageData, showHint])
 
   // Update number labels when fills, active color, or palette change
   useEffect(() => {
