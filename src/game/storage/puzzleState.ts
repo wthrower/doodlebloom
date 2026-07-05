@@ -1,22 +1,40 @@
 import { idbPut, idbGet } from './images'
-import { loadJSON } from './localStore'
+import { loadJSON, saveJSON } from './localStore'
+import type { JigswapConfig } from '../jigswap'
 
 const PUZZLE_IMAGE_KEY_PREFIX = 'puzzle_image_'
 const PUZZLE_STATE_PREFIX = 'doodlebloom_'
 
-export async function savePuzzleImage(mode: 'jigswap' | 'slide', blob: Blob): Promise<void> {
+export type PuzzleMode = 'jigswap' | 'slide'
+
+/** Persisted board state for the jigswap/slide modes. */
+export interface PuzzleState {
+  board: number[]
+  config: JigswapConfig
+  moves: number
+  won: boolean
+}
+
+export function loadPuzzleState(mode: PuzzleMode): PuzzleState | null {
+  return loadJSON<PuzzleState | null>(PUZZLE_STATE_PREFIX + mode, null)
+}
+
+export function savePuzzleState(mode: PuzzleMode, state: PuzzleState): void {
+  saveJSON(PUZZLE_STATE_PREFIX + mode, state)
+}
+
+export function hasSavedPuzzle(mode: PuzzleMode): boolean {
+  return loadPuzzleState(mode)?.won === false
+}
+
+export function clearPuzzleState(mode: PuzzleMode): void {
+  localStorage.removeItem(PUZZLE_STATE_PREFIX + mode)
+}
+
+export async function savePuzzleImage(mode: PuzzleMode, blob: Blob): Promise<void> {
   await idbPut(PUZZLE_IMAGE_KEY_PREFIX + mode, blob)
 }
 
-export async function loadPuzzleImage(mode: 'jigswap' | 'slide'): Promise<Blob | null> {
+export async function loadPuzzleImage(mode: PuzzleMode): Promise<Blob | null> {
   return idbGet<Blob>(PUZZLE_IMAGE_KEY_PREFIX + mode)
-}
-
-export function hasSavedPuzzle(mode: 'jigswap' | 'slide'): boolean {
-  const saved = loadJSON<{ won?: boolean } | null>(PUZZLE_STATE_PREFIX + mode, null)
-  return saved?.won === false
-}
-
-export function clearPuzzleState(mode: 'jigswap' | 'slide'): void {
-  localStorage.removeItem(PUZZLE_STATE_PREFIX + mode)
 }

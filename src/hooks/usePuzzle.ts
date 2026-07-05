@@ -1,27 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type JigswapConfig } from '../game/jigswap'
-import { clearPuzzleState, savePuzzleImage, savePuzzleSize } from '../game/storage'
-import { loadJSON, saveJSON } from '../game/storage/localStore'
+import { clearPuzzleState, loadPuzzleState, savePuzzleState, savePuzzleImage, savePuzzleSize } from '../game/storage'
+import type { PuzzleMode } from '../game/storage'
 import { useConfetti } from './useConfetti'
 
 export type PuzzleConfig = JigswapConfig
-
-const PUZZLE_STATE_PREFIX = 'doodlebloom_'
-
-interface PuzzleState {
-  board: number[]
-  config: PuzzleConfig
-  moves: number
-  won: boolean
-}
-
-function loadState(mode: string): PuzzleState | null {
-  return loadJSON<PuzzleState | null>(PUZZLE_STATE_PREFIX + mode, null)
-}
-
-function saveState(mode: string, state: PuzzleState): void {
-  saveJSON(PUZZLE_STATE_PREFIX + mode, state)
-}
+export type { PuzzleMode }
 
 /** Shared image loader. */
 export function useImage(imageUrl: string) {
@@ -110,14 +94,14 @@ export function usePuzzleState(
   resumeSaved: boolean,
   freshConfig: PuzzleConfig,
 ) {
-  const [saved] = useState(() => resumeSaved ? loadState(mode) : null)
+  const [saved] = useState(() => resumeSaved ? loadPuzzleState(mode) : null)
   const [config, setConfig] = useState<PuzzleConfig>(saved?.config ?? freshConfig)
   const [board, setBoard] = useState<number[]>(() => saved?.board ?? createBoard(freshConfig.cols, freshConfig.rows))
   const [won, setWon] = useState(saved?.won ?? false)
   const [moves, setMoves] = useState(saved?.moves ?? 0)
 
   useEffect(() => {
-    saveState(mode, { board, config, moves, won })
+    savePuzzleState(mode, { board, config, moves, won })
   }, [mode, board, config, moves, won])
 
   const startNewPuzzle = useCallback((preset: PuzzleConfig) => {
@@ -151,8 +135,6 @@ export interface PuzzleScreenProps {
   isFullscreen: boolean
   onToggleFullscreen: () => void
 }
-
-export type PuzzleMode = 'jigswap' | 'slide'
 
 export function usePuzzleScreen(
   mode: PuzzleMode,

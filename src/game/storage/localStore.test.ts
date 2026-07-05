@@ -1,14 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { installLocalStorage } from '../../test/localStorage'
 import { loadJSON, saveJSON } from './localStore'
 
-const store = new Map<string, string>()
-
-vi.stubGlobal('localStorage', {
-  getItem: (key: string) => store.get(key) ?? null,
-  setItem: (key: string, value: string) => { store.set(key, String(value)) },
-  removeItem: (key: string) => { store.delete(key) },
-  clear: () => { store.clear() },
-})
+const store = installLocalStorage()
 
 beforeEach(() => store.clear())
 

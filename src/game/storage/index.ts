@@ -2,6 +2,7 @@ export { loadApiKey, saveApiKey, loadSelectedStockUrl, saveSelectedStockUrl, loa
 export type { CompletedMap } from './config'
 export { loadGameState, saveGameState, clearGameState, clearCorruptedState, loadStashedPaint, saveStashedPaint, clearStashedPaint } from './gameState'
 export { saveRegionMap, loadRegionMap, saveImage, loadImage, deleteImage, collectOrphanedSessions } from './images'
-export { savePuzzleImage, loadPuzzleImage, hasSavedPuzzle, clearPuzzleState } from './puzzleState'
+export { savePuzzleImage, loadPuzzleImage, hasSavedPuzzle, clearPuzzleState, loadPuzzleState, savePuzzleState } from './puzzleState'
+export type { PuzzleMode, PuzzleState } from './puzzleState'
 export { loadGalleryIndex, saveToGallery, loadGalleryImage, deleteGalleryEntry, loadGalleryThumbnails } from './gallery'
 export type { GalleryEntry } from './gallery'
