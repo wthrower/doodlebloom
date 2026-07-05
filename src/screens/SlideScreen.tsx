@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePuzzleScreen, type PuzzleScreenProps } from '../hooks/usePuzzle'
-import { PuzzleScreenShell } from '../components/PuzzleChrome'
+import { PuzzleScreenShell, PuzzlePieceCanvas } from '../components/PuzzleChrome'
 import {
   createBoard,
   isSolved,
@@ -10,7 +10,6 @@ import {
   getDragGroup,
   getKeyboardTilePos,
   getEdgeTilePos,
-  piecePos,
 } from '../game/slide'
 
 export function SlideScreen(props: PuzzleScreenProps) {
@@ -159,10 +158,6 @@ export function SlideScreen(props: PuzzleScreenProps) {
   }, [dragAxis, gridLayout, doSlide])
 
   const { gridW, gridH, cellSize } = gridLayout ?? { gridW: 0, gridH: 0, cellSize: 0 }
-  const imgW = image?.naturalWidth ?? 0
-  const imgH = image?.naturalHeight ?? 0
-  const pieceSrcW = imgW / config.cols
-  const pieceSrcH = imgH / config.rows
   const emptyVal = config.cols * config.rows - 1
   const dragSet = dragPositions ? new Set(dragPositions) : null
 
@@ -195,7 +190,6 @@ export function SlideScreen(props: PuzzleScreenProps) {
           const showEmpty = isEmptyCell && !won
           const col = cellIndex % config.cols
           const row = Math.floor(cellIndex / config.cols)
-          const origPos = piecePos(pieceId, config.cols)
 
           let tx = 0, ty = 0
           const isTileDragging = dragSet?.has(cellIndex) ?? false
@@ -221,24 +215,7 @@ export function SlideScreen(props: PuzzleScreenProps) {
             >
               {!showEmpty && (
                 <>
-                  <canvas
-                    width={cellSize}
-                    height={cellSize}
-                    ref={canvas => {
-                      if (!canvas) return
-                      const ctx = canvas.getContext('2d')
-                      if (!ctx) return
-                      ctx.clearRect(0, 0, cellSize, cellSize)
-                      ctx.drawImage(
-                        image!,
-                        origPos.col * pieceSrcW, origPos.row * pieceSrcH,
-                        pieceSrcW, pieceSrcH,
-                        0, 0,
-                        cellSize, cellSize,
-                      )
-                    }}
-                    style={{ display: 'block', width: '100%', height: '100%' }}
-                  />
+                  <PuzzlePieceCanvas image={image!} pieceId={pieceId} cols={config.cols} rows={config.rows} cellSize={cellSize} />
                   {!won && <span className="slide-number">{pieceId + 1}</span>}
                 </>
               )}

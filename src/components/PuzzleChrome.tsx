@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { ArrowLeft, Download, Maximize2, Minimize2, X } from 'lucide-react'
 import { DoodlebloomLogo, DoodlebloomMini } from './DoodlebloomLogo'
+import { piecePos } from '../game/jigswap'
 
 const IS_STANDALONE = typeof window !== 'undefined' &&
   (window.matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || (navigator as any).standalone)
@@ -93,6 +94,37 @@ export function ResumeDialog({ onStartFresh, onResume, onClose }: ResumeDialogPr
         </div>
       </div>
     </div>
+  )
+}
+
+interface PuzzlePieceCanvasProps {
+  image: HTMLImageElement
+  /** Piece id in solved order; selects the source sub-rect of the image. */
+  pieceId: number
+  cols: number
+  rows: number
+  cellSize: number
+}
+
+/** One grid piece's slice of the source image, drawn into a square cell canvas.
+ *  Shared by the jigswap and slide grids. */
+export function PuzzlePieceCanvas({ image, pieceId, cols, rows, cellSize }: PuzzlePieceCanvasProps) {
+  const { col, row } = piecePos(pieceId, cols)
+  const srcW = image.naturalWidth / cols
+  const srcH = image.naturalHeight / rows
+  return (
+    <canvas
+      width={cellSize}
+      height={cellSize}
+      ref={canvas => {
+        if (!canvas) return
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return
+        ctx.clearRect(0, 0, cellSize, cellSize)
+        ctx.drawImage(image, col * srcW, row * srcH, srcW, srcH, 0, 0, cellSize, cellSize)
+      }}
+      style={{ display: 'block', width: '100%', height: '100%' }}
+    />
   )
 }
 

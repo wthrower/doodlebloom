@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { usePuzzleScreen, type PuzzleScreenProps } from '../hooks/usePuzzle'
-import { PuzzleScreenShell } from '../components/PuzzleChrome'
+import { PuzzleScreenShell, PuzzlePieceCanvas } from '../components/PuzzleChrome'
 import {
   createBoard,
   isSolved,
@@ -10,7 +10,6 @@ import {
   executeSwap,
   getHiddenBorders,
   cellPos,
-  piecePos,
 } from '../game/jigswap'
 
 export function JigswapScreen(props: PuzzleScreenProps) {
@@ -97,10 +96,6 @@ export function JigswapScreen(props: PuzzleScreenProps) {
   }, [dragGroup, dragCell, dropTargetCells, board, confetti.fire, setBoard, setMoves, setWon])
 
   const { gridW, gridH, cellSize } = gridLayout ?? { gridW: 0, gridH: 0, cellSize: 0 }
-  const imgW = image?.naturalWidth ?? 0
-  const imgH = image?.naturalHeight ?? 0
-  const pieceSrcW = imgW / config.cols
-  const pieceSrcH = imgH / config.rows
 
   return (
     <PuzzleScreenShell
@@ -128,7 +123,6 @@ export function JigswapScreen(props: PuzzleScreenProps) {
         {board.map((pieceId, cellIndex) => {
           const cellCol = cellIndex % config.cols
           const cellRow = Math.floor(cellIndex / config.cols)
-          const origPos = piecePos(pieceId, config.cols)
           const isDragging = dragGroup?.has(cellIndex) ?? false
           const isDropTarget = dropTargetCells?.includes(cellIndex) ?? false
 
@@ -168,24 +162,7 @@ export function JigswapScreen(props: PuzzleScreenProps) {
               }}
               onPointerDown={e => handlePointerDown(e, cellIndex)}
             >
-              <canvas
-                width={cellSize}
-                height={cellSize}
-                ref={canvas => {
-                  if (!canvas) return
-                  const ctx = canvas.getContext('2d')
-                  if (!ctx) return
-                  ctx.clearRect(0, 0, cellSize, cellSize)
-                  ctx.drawImage(
-                    image!,
-                    origPos.col * pieceSrcW, origPos.row * pieceSrcH,
-                    pieceSrcW, pieceSrcH,
-                    0, 0,
-                    cellSize, cellSize,
-                  )
-                }}
-                style={{ display: 'block', width: '100%', height: '100%' }}
-              />
+              <PuzzlePieceCanvas image={image!} pieceId={pieceId} cols={config.cols} rows={config.rows} cellSize={cellSize} />
               {!won && (
                 <>
                   {!hideTop && <div className="piece-border piece-border-top" />}
