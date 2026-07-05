@@ -1,4 +1,5 @@
 import { idbPut, idbGet } from './images'
+import { loadJSON } from './localStore'
 
 const PUZZLE_IMAGE_KEY_PREFIX = 'puzzle_image_'
 const PUZZLE_STATE_PREFIX = 'doodlebloom_'
@@ -12,12 +13,8 @@ export async function loadPuzzleImage(mode: 'jigswap' | 'slide'): Promise<Blob |
 }
 
 export function hasSavedPuzzle(mode: 'jigswap' | 'slide'): boolean {
-  const raw = localStorage.getItem(PUZZLE_STATE_PREFIX + mode)
-  if (!raw) return false
-  try {
-    const saved = JSON.parse(raw)
-    return saved.won === false
-  } catch { return false }
+  const saved = loadJSON<{ won?: boolean } | null>(PUZZLE_STATE_PREFIX + mode, null)
+  return saved?.won === false
 }
 
 export function clearPuzzleState(mode: 'jigswap' | 'slide'): void {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type JigswapConfig } from '../game/jigswap'
 import { clearPuzzleState, savePuzzleImage, savePuzzleSize } from '../game/storage'
+import { loadJSON, saveJSON } from '../game/storage/localStore'
 import { useConfetti } from './useConfetti'
 
 export type PuzzleConfig = JigswapConfig
@@ -15,15 +16,11 @@ interface PuzzleState {
 }
 
 function loadState(mode: string): PuzzleState | null {
-  try {
-    const raw = localStorage.getItem(PUZZLE_STATE_PREFIX + mode)
-    if (!raw) return null
-    return JSON.parse(raw) as PuzzleState
-  } catch { return null }
+  return loadJSON<PuzzleState | null>(PUZZLE_STATE_PREFIX + mode, null)
 }
 
 function saveState(mode: string, state: PuzzleState): void {
-  localStorage.setItem(PUZZLE_STATE_PREFIX + mode, JSON.stringify(state))
+  saveJSON(PUZZLE_STATE_PREFIX + mode, state)
 }
 
 /** Shared image loader. */

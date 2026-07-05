@@ -1,26 +1,16 @@
 import type { GameState } from '../../types'
+import { loadJSON, saveJSON } from './localStore'
 
 const LS_KEY_STATE = 'doodlebloom_state'
 const LS_KEY_STOCK_URL = 'doodlebloom_stock_url'
 const LS_KEY_STASH = 'doodlebloom_paint_stash'
 
 export function loadGameState(): GameState | null {
-  const raw = localStorage.getItem(LS_KEY_STATE)
-  if (!raw) return null
-  try {
-    return JSON.parse(raw) as GameState
-  } catch {
-    return null
-  }
+  return loadJSON<GameState | null>(LS_KEY_STATE, null)
 }
 
 export function saveGameState(state: GameState): void {
-  try {
-    localStorage.setItem(LS_KEY_STATE, JSON.stringify(state))
-  } catch {
-    // QuotaExceededError (or Safari private-mode). In-memory state is
-    // authoritative; persisted state becomes stale but the app stays up.
-  }
+  saveJSON(LS_KEY_STATE, state)
 }
 
 export function clearGameState(): void {
@@ -34,22 +24,11 @@ export function clearGameState(): void {
  * live in IDB keyed by the stashed state's sessionId.
  */
 export function loadStashedPaint(): GameState | null {
-  const raw = localStorage.getItem(LS_KEY_STASH)
-  if (!raw) return null
-  try {
-    return JSON.parse(raw) as GameState
-  } catch {
-    return null
-  }
+  return loadJSON<GameState | null>(LS_KEY_STASH, null)
 }
 
 export function saveStashedPaint(state: GameState): void {
-  try {
-    localStorage.setItem(LS_KEY_STASH, JSON.stringify(state))
-  } catch {
-    // QuotaExceededError — stash is best-effort; resume offer simply
-    // won't survive a reload if persisting fails.
-  }
+  saveJSON(LS_KEY_STASH, state)
 }
 
 export function clearStashedPaint(): void {

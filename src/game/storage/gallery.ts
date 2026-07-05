@@ -1,4 +1,5 @@
 import { openDb, idbPut, idbGet, idbDelete } from './images'
+import { loadJSON, saveJSON } from './localStore'
 
 const LS_KEY_GALLERY = 'doodlebloom_gallery'
 const GALLERY_IDB_PREFIX = 'gallery_'
@@ -11,13 +12,11 @@ export interface GalleryEntry {
 }
 
 export function loadGalleryIndex(): GalleryEntry[] {
-  const raw = localStorage.getItem(LS_KEY_GALLERY)
-  if (!raw) return []
-  try { return JSON.parse(raw) as GalleryEntry[] } catch { return [] }
+  return loadJSON<GalleryEntry[]>(LS_KEY_GALLERY, [])
 }
 
 function saveGalleryIndex(entries: GalleryEntry[]): void {
-  localStorage.setItem(LS_KEY_GALLERY, JSON.stringify(entries))
+  saveJSON(LS_KEY_GALLERY, entries)
 }
 
 export async function saveToGallery(prompt: string, blob: Blob): Promise<string> {

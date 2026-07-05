@@ -1,3 +1,5 @@
+import { loadJSON, saveJSON } from './localStore'
+
 const LS_KEY_APIKEY = 'doodlebloom_apikey'
 const LS_KEY_STOCK_URL = 'doodlebloom_stock_url'
 const LS_KEY_COMPLETED = 'doodlebloom_completed'
@@ -24,9 +26,7 @@ export function saveSelectedStockUrl(url: string | null): void {
 export type CompletedMap = Record<string, string[]>
 
 export function loadCompletedImages(): CompletedMap {
-  const raw = localStorage.getItem(LS_KEY_COMPLETED)
-  if (!raw) return {}
-  try { return JSON.parse(raw) } catch { return {} }
+  return loadJSON<CompletedMap>(LS_KEY_COMPLETED, {})
 }
 
 export function markImageCompleted(imageId: string, mode: string): void {
@@ -34,18 +34,16 @@ export function markImageCompleted(imageId: string, mode: string): void {
   const modes = map[imageId] ?? []
   if (!modes.includes(mode)) modes.push(mode)
   map[imageId] = modes
-  localStorage.setItem(LS_KEY_COMPLETED, JSON.stringify(map))
+  saveJSON(LS_KEY_COMPLETED, map)
 }
 
 /** Last-played puzzle board size, so the start screen picker remembers it. */
 export function loadPuzzleSize(): { cols: number; rows: number } | null {
-  const raw = localStorage.getItem(LS_KEY_PUZZLE_SIZE)
-  if (!raw) return null
-  try { return JSON.parse(raw) } catch { return null }
+  return loadJSON<{ cols: number; rows: number } | null>(LS_KEY_PUZZLE_SIZE, null)
 }
 
 export function savePuzzleSize(size: { cols: number; rows: number }): void {
-  localStorage.setItem(LS_KEY_PUZZLE_SIZE, JSON.stringify(size))
+  saveJSON(LS_KEY_PUZZLE_SIZE, size)
 }
 
 export function loadHideCompleted(): boolean {
