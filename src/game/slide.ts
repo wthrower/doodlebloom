@@ -6,9 +6,9 @@
  * A solved board has board[i] === i for all i.
  */
 
-import { SIZE_PRESETS, cellPos, piecePos, type JigswapConfig } from './jigswap'
+import { SIZE_PRESETS, cellPos, piecePos, shuffleArray, type GridConfig } from './grid'
 
-export { SIZE_PRESETS, cellPos, piecePos, type JigswapConfig as SlideConfig }
+export { SIZE_PRESETS, cellPos, piecePos, type GridConfig as SlideConfig }
 
 /** Create a shuffled board that is solvable and not already solved. */
 export function createBoard(cols: number, rows: number): number[] {
@@ -16,12 +16,7 @@ export function createBoard(cols: number, rows: number): number[] {
   let board: number[]
 
   do {
-    board = Array.from({ length: n }, (_, i) => i)
-    // Fisher-Yates shuffle
-    for (let i = n - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-      ;[board[i], board[j]] = [board[j], board[i]]
-    }
+    board = shuffleArray(Array.from({ length: n }, (_, i) => i))
   } while (!isSolvable(board, cols, rows) || isSolved(board))
 
   return board

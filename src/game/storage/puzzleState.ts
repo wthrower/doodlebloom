@@ -1,6 +1,6 @@
 import { idbPut, idbGet } from './images'
 import { loadJSON, saveJSON } from './localStore'
-import type { JigswapConfig } from '../jigswap'
+import type { GridConfig } from '../grid'
 
 const PUZZLE_IMAGE_KEY_PREFIX = 'puzzle_image_'
 const PUZZLE_STATE_PREFIX = 'doodlebloom_'
@@ -10,7 +10,7 @@ export type PuzzleMode = 'jigswap' | 'slide'
 /** Persisted board state for the jigswap/slide modes. */
 export interface PuzzleState {
   board: number[]
-  config: JigswapConfig
+  config: GridConfig
   moves: number
   won: boolean
 }

@@ -8,27 +8,11 @@
  * Adjacency groups are derived from board state -- never stored as mutable state.
  */
 
-export interface JigswapConfig {
-  cols: number
-  rows: number
-}
+import { shuffleArray, cellPos, piecePos, type GridConfig } from './grid'
 
-/** Size presets: column count → rows (2:3 aspect ratio) */
-export const SIZE_PRESETS: JigswapConfig[] = [
-  { cols: 2, rows: 3 },
-  { cols: 4, rows: 6 },
-  { cols: 6, rows: 9 },
-  { cols: 8, rows: 12 },
-]
-
-/** Fisher-Yates shuffle (in-place, returns the array). */
-export function shuffleArray<T>(arr: T[]): T[] {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[arr[i], arr[j]] = [arr[j], arr[i]]
-  }
-  return arr
-}
+// Re-exported for existing importers; the definitions live in grid.ts.
+export { SIZE_PRESETS, shuffleArray, cellPos, piecePos } from './grid'
+export type JigswapConfig = GridConfig
 
 /** Create a shuffled board. Guarantees it's not already solved. */
 export function createBoard(cols: number, rows: number): number[] {
@@ -48,20 +32,6 @@ export function createBoard(cols: number, rows: number): number[] {
 /** Check if the board is solved. */
 export function isSolved(board: number[]): boolean {
   return board.every((v, i) => v === i)
-}
-
-/**
- * Get the (col, row) of a piece's ORIGINAL position.
- */
-export function piecePos(pieceId: number, cols: number): { col: number; row: number } {
-  return { col: pieceId % cols, row: Math.floor(pieceId / cols) }
-}
-
-/**
- * Get the (col, row) of a cell index on the board.
- */
-export function cellPos(cellIndex: number, cols: number): { col: number; row: number } {
-  return { col: cellIndex % cols, row: Math.floor(cellIndex / cols) }
 }
 
 /**

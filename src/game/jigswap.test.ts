@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { cellPos, piecePos, createBoard, isSolved, shuffleArray } from './jigswap'
+import { cellPos, piecePos, shuffleArray } from './grid'
+import { createBoard, isSolved } from './jigswap'
 
 describe('cellPos / piecePos', () => {
   it('maps a flat index to (col, row) on a cols-wide grid', () => {

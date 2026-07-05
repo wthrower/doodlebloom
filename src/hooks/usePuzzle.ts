@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { type JigswapConfig } from '../game/jigswap'
+import type { GridConfig } from '../game/grid'
 import { clearPuzzleState, loadPuzzleState, savePuzzleState, savePuzzleImage, savePuzzleSize } from '../game/storage'
 import type { PuzzleMode } from '../game/storage'
 import { useConfetti } from './useConfetti'
 
-export type PuzzleConfig = JigswapConfig
+export type PuzzleConfig = GridConfig
 export type { PuzzleMode }
 
 /** Shared image loader. */

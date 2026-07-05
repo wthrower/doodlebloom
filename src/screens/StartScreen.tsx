@@ -3,7 +3,7 @@ import type { GameState, DetailLevel } from '../types'
 import type { GameActions } from '../hooks/useGame'
 import type { GalleryEntry, CompletedMap } from '../game/storage'
 import { loadHideCompleted, saveHideCompleted, loadPuzzleSize } from '../game/storage'
-import { SIZE_PRESETS, type JigswapConfig } from '../game/jigswap'
+import { SIZE_PRESETS, type GridConfig } from '../game/grid'
 import { Check, Filter, Search, Trash2, User } from 'lucide-react'
 import { DoodlebloomLogo } from '../components/DoodlebloomLogo'
 import { ScrollChevrons } from '../components/ScrollChevrons'
@@ -28,7 +28,7 @@ interface Props {
   selectedStockUrl: string | null
   onGenerate: () => void
   onCancel: () => void
-  onPlay: (mode: GameMode, puzzleSize: JigswapConfig) => void
+  onPlay: (mode: GameMode, puzzleSize: GridConfig) => void
   onSelectStock: (imageUrl: string) => void
   galleryEntries: GalleryEntry[]
   galleryThumbs: Map<string, string>
@@ -44,7 +44,7 @@ export function StartScreen({ state, actions, isGenerating, previewUrl, selected
   // The persisted gameMode is the single source of truth; a local copy would
   // capture the pre-restore default and miss the value loaded on mount.
   const selectedMode = state.gameMode
-  const [puzzleSize, setPuzzleSize] = useState<JigswapConfig>(() => {
+  const [puzzleSize, setPuzzleSize] = useState<GridConfig>(() => {
     const saved = loadPuzzleSize()
     return SIZE_PRESETS.find(p => p.cols === saved?.cols && p.rows === saved?.rows) ?? SIZE_PRESETS[1]
   })

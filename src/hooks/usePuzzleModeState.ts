@@ -1,13 +1,13 @@
 import { useCallback, useState } from 'react'
-import { SIZE_PRESETS, type JigswapConfig } from '../game/jigswap'
+import { SIZE_PRESETS, type GridConfig } from '../game/grid'
 
 export function usePuzzleModeState() {
   const [imageUrl, setImageUrlRaw] = useState<string | null>(null)
   const [blob, setBlob] = useState<Blob | null>(null)
   const [hasSaved, setHasSaved] = useState(false)
-  const [config, setConfig] = useState<JigswapConfig>(SIZE_PRESETS[1])
+  const [config, setConfig] = useState<GridConfig>(SIZE_PRESETS[1])
 
-  const setImage = useCallback((newBlob: Blob, saved: boolean, newConfig: JigswapConfig) => {
+  const setImage = useCallback((newBlob: Blob, saved: boolean, newConfig: GridConfig) => {
     setBlob(newBlob)
     setHasSaved(saved)
     setConfig(newConfig)

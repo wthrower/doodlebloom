@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { ArrowLeft, Download, Maximize2, Minimize2, X } from 'lucide-react'
 import { DoodlebloomLogo, DoodlebloomMini } from './DoodlebloomLogo'
-import { piecePos } from '../game/jigswap'
+import { piecePos } from '../game/grid'
 
 const IS_STANDALONE = typeof window !== 'undefined' &&
   (window.matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || (navigator as any).standalone)
