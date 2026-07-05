@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { readFileSync, writeFileSync } from 'fs'
@@ -21,5 +22,9 @@ export default defineConfig({
   base: '/games/doodlebloom/',
   build: {
     outDir: 'dist',
+  },
+  test: {
+    globals: true,
+    passWithNoTests: true,
   },
 })
