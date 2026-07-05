@@ -5,6 +5,7 @@ import { DETAIL_SETTINGS, DEFAULT_PREFERENCES } from '../types'
 import {
   loadGameState,
   saveGameState,
+  saveGameProgress,
   clearGameState,
   loadStashedPaint,
   saveStashedPaint,
@@ -283,7 +284,9 @@ export function useGame(): [GameState, GameActions] {
       }
       const allCorrect = next.regions.every(r => next.playerColors[r.id] === r.colorIndex)
       if (allCorrect) next.screen = 'complete'
-      saveGameState(next)
+      // Hot path (every tap): persist only the progress overlay, not the
+      // full state with its large static regions array.
+      saveGameProgress(next)
       return next
     })
   }, [])
