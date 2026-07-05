@@ -83,6 +83,26 @@ class MinHeap<T> {
   }
 }
 
+/** Map-based disjoint-set over region ids, with path compression. Ids with no
+ *  parent entry are their own root, so any id can be queried without setup.
+ *  `union(child, root)` points child's tree at root — callers are responsible
+ *  for passing canonical ids (the usual pattern here is find-then-union). */
+export function createDSU() {
+  const parent = new Map<number, number>()
+  const find = (x: number): number => {
+    let root = x
+    while (parent.has(root)) root = parent.get(root)!
+    while (parent.has(x)) {
+      const next = parent.get(x)!
+      parent.set(x, root)
+      x = next
+    }
+    return root
+  }
+  const union = (child: number, root: number): void => { parent.set(child, root) }
+  return { find, union }
+}
+
 /** Opaque intermediate state passed between pipeline phases. */
 export interface RegionIntermediate {
   regionMap: Int32Array
@@ -150,17 +170,7 @@ export function mergeRegions(state: RegionIntermediate, palette: PaletteColor[],
   const { regionMap, regionMeta, width, height } = state
   const pixels = width * height
 
-  const parent = new Map<number, number>()
-  const find = (x: number): number => {
-    let root = x
-    while (parent.has(root)) root = parent.get(root)!
-    while (parent.has(x)) {
-      const next = parent.get(x)!
-      parent.set(x, root)
-      x = next
-    }
-    return root
-  }
+  const { find, union } = createDSU()
 
   const heap = new MinHeap<RegionMeta>(regionMeta.values(), r => r.pixelCount)
   while (!heap.empty() && heap.min().pixelCount < minRegionPixels) {
@@ -186,7 +196,7 @@ export function mergeRegions(state: RegionIntermediate, palette: PaletteColor[],
     }
     if (!best) continue
 
-    parent.set(s.id, best.id)
+    union(s.id, best.id)
     best.pixelCount += s.pixelCount
     for (const adjId of s.adjIds) {
       const canon = find(adjId)
@@ -392,13 +402,7 @@ export function finalizeRegions(
     // Merge closest-color pairs first
     candidates.sort((a, b) => a.cd - b.cd)
 
-    const thinParent = new Map<number, number>()
-    const thinFind = (x: number): number => {
-      let root = x
-      while (thinParent.has(root)) root = thinParent.get(root)!
-      while (thinParent.has(x)) { const next = thinParent.get(x)!; thinParent.set(x, root); x = next }
-      return root
-    }
+    const { find: thinFind, union: thinUnion } = createDSU()
 
     for (const { thinId, targetId } of candidates) {
       const rt = thinFind(thinId), ra = thinFind(targetId)
@@ -411,7 +415,7 @@ export function finalizeRegions(
           : ameta.pixelCount >= tmeta.pixelCount
             ? [ameta, tmeta]
             : [tmeta, ameta]
-      thinParent.set(absorb.id, keep.id)
+      thinUnion(absorb.id, keep.id)
       keep.pixelCount += absorb.pixelCount
       for (const adj of absorb.adjIds) {
         const canon = thinFind(adj)
@@ -506,13 +510,7 @@ export function fuseSameColorRegions(
   const colorOf = new Map<number, number>()
   for (const r of regions) colorOf.set(r.id, r.colorIndex)
 
-  const parent = new Map<number, number>()
-  const find = (x: number): number => {
-    let root = x
-    while (parent.has(root)) root = parent.get(root)!
-    while (parent.has(x)) { const next = parent.get(x)!; parent.set(x, root); x = next }
-    return root
-  }
+  const { find, union } = createDSU()
 
   const pixels = regionMap.length
   for (let i = 0; i < pixels; i++) {
@@ -527,7 +525,7 @@ export function fuseSameColorRegions(
       if (nrid < 0) continue
       const ra = find(rid), rb = find(nrid)
       if (ra === rb) continue
-      if (colorOf.get(ra) === colorOf.get(rb)) parent.set(rb, ra)
+      if (colorOf.get(ra) === colorOf.get(rb)) union(rb, ra)
     }
   }
 
@@ -586,11 +584,7 @@ export function mergeGradientSeams(
   // Union-find: merge pairs below threshold, guarded by full perceptual distance.
   const MAX_SEAM_CD = 40
   const regionById = new Map(regions.map(r => [r.id, r]))
-  const parent = new Map<number, number>()
-  const find = (x: number): number => {
-    while (parent.has(x)) x = parent.get(x)!
-    return x
-  }
+  const { find, union } = createDSU()
 
   for (const [, { sum, count, ridA, ridB }] of pairs) {
     const contrast = sum / count
@@ -613,7 +607,7 @@ export function mergeGradientSeams(
     }
     if (contrast >= effectiveThreshold) continue
     const [keep, drop] = ra.pixelCount >= rb.pixelCount ? [ca, cb] : [cb, ca]
-    parent.set(drop, keep)
+    union(drop, keep)
   }
 
   // Apply to regionMap
@@ -871,14 +865,7 @@ export function capRegions(
     }
   }
 
-  // Union-find
-  const parent = new Map<number, number>()
-  const find = (x: number): number => {
-    let root = x
-    while (parent.has(root)) root = parent.get(root)!
-    while (parent.has(x)) { const next = parent.get(x)!; parent.set(x, root); x = next }
-    return root
-  }
+  const { find, union } = createDSU()
 
   const regionById = new Map(regions.map(r => [r.id, r]))
 
@@ -907,7 +894,7 @@ export function capRegions(
     }
     if (bestId < 0) continue
 
-    parent.set(r.id, bestId)
+    union(r.id, bestId)
     regionById.get(bestId)!.pixelCount += r.pixelCount
     count--
   }
