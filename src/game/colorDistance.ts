@@ -1,5 +1,7 @@
 // Perceptual color distance in CIE L*a*b* space (ΔE76)
 
+import type { PaletteColor } from '../types'
+
 function linearize(c: number): number {
   c /= 255
   return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
@@ -27,6 +29,18 @@ export function colorDist(r1: number, g1: number, b1: number, r2: number, g2: nu
   const [L1, a1, b1_] = rgbToLab(r1, g1, b1)
   const [L2, a2, b2_] = rgbToLab(r2, g2, b2)
   return labDist(L1, a1, b1_, L2, a2, b2_)
+}
+
+/** ΔE76 between two palette entries by index. Same index is 0. An empty
+ *  palette (no color info) counts as a small nonzero distance so merge
+ *  heuristics still prefer same-index neighbors. */
+export function paletteDist(palette: PaletteColor[], a: number, b: number): number {
+  if (a === b) return 0
+  if (palette.length === 0) return 1
+  return colorDist(
+    palette[a].r, palette[a].g, palette[a].b,
+    palette[b].r, palette[b].g, palette[b].b,
+  )
 }
 
 /** Convert CIE L*a*b* back to sRGB (0–255, clamped). */

@@ -1,4 +1,4 @@
-import { colorDist, chroma } from './colorDistance'
+import { colorDist, paletteDist, chroma } from './colorDistance'
 import type { LabelPoint, PaletteColor, Region } from '../types'
 
 /** A region whose "inscribed circle" radius is smaller than this won't have
@@ -184,14 +184,7 @@ export function mergeRegions(state: RegionIntermediate, palette: PaletteColor[],
       const canon = find(adjId)
       const adj = regionMeta.get(canon)
       if (!adj || adj.id === s.id) continue
-      const cd = adj.colorIndex === s.colorIndex
-        ? 0
-        : palette.length > 0
-          ? colorDist(
-              palette[s.colorIndex].r, palette[s.colorIndex].g, palette[s.colorIndex].b,
-              palette[adj.colorIndex].r, palette[adj.colorIndex].g, palette[adj.colorIndex].b
-            )
-          : 1
+      const cd = paletteDist(palette, s.colorIndex, adj.colorIndex)
       if (cd < bestScore) { bestScore = cd; best = adj }
     }
     if (!best) continue
@@ -295,14 +288,7 @@ export function finalizeRegions(
   // adjacent region (thin or non-thin) at the region level, then rewrite pixels.
   if (thinIds.size > 0) {
     const cdBetween = (a: RegionMeta, b: RegionMeta): number =>
-      a.colorIndex === b.colorIndex
-        ? 0
-        : palette.length > 0
-          ? colorDist(
-              palette[a.colorIndex].r, palette[a.colorIndex].g, palette[a.colorIndex].b,
-              palette[b.colorIndex].r, palette[b.colorIndex].g, palette[b.colorIndex].b
-            )
-          : 1
+      paletteDist(palette, a.colorIndex, b.colorIndex)
 
     // Rebuild adjacency for thin regions from the pixel map (regionMeta.adjIds
     // may be stale after mergeRegions mutations).
@@ -594,10 +580,7 @@ export function mergeGradientSeams(
     if (!ra || !rb) continue
     let effectiveThreshold = threshold
     if (palette.length > 0) {
-      const cd = colorDist(
-        palette[ra.colorIndex].r, palette[ra.colorIndex].g, palette[ra.colorIndex].b,
-        palette[rb.colorIndex].r, palette[rb.colorIndex].g, palette[rb.colorIndex].b
-      )
+      const cd = paletteDist(palette, ra.colorIndex, rb.colorIndex)
       if (cd > MAX_SEAM_CD) continue
       const pa = palette[ra.colorIndex], pb = palette[rb.colorIndex]
       const minC = Math.min(chroma(pa.r, pa.g, pa.b), chroma(pb.r, pb.g, pb.b))
@@ -886,10 +869,7 @@ export function capRegions(
       if (canon === r.id) continue
       const nr = regionById.get(canon)
       if (!nr) continue
-      const d = colorDist(
-        palette[r.colorIndex].r, palette[r.colorIndex].g, palette[r.colorIndex].b,
-        palette[nr.colorIndex].r, palette[nr.colorIndex].g, palette[nr.colorIndex].b,
-      )
+      const d = paletteDist(palette, r.colorIndex, nr.colorIndex)
       if (d < bestDist) { bestDist = d; bestId = canon }
     }
     if (bestId < 0) continue
