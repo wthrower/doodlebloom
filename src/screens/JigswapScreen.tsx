@@ -36,8 +36,7 @@ export function JigswapScreen(props: PuzzleScreenProps) {
     setDragCell(cellIndex)
 
     if (!gridLayout) return
-    const cellCol = cellIndex % config.cols
-    const cellRow = Math.floor(cellIndex / config.cols)
+    const { col: cellCol, row: cellRow } = cellPos(cellIndex, config.cols)
     const cellX = cellCol * gridLayout.cellSize
     const cellY = cellRow * gridLayout.cellSize
 
@@ -121,20 +120,18 @@ export function JigswapScreen(props: PuzzleScreenProps) {
         style={{ width: gridW, height: gridH }}
       >
         {board.map((pieceId, cellIndex) => {
-          const cellCol = cellIndex % config.cols
-          const cellRow = Math.floor(cellIndex / config.cols)
+          const { col: cellCol, row: cellRow } = cellPos(cellIndex, config.cols)
           const isDragging = dragGroup?.has(cellIndex) ?? false
           const isDropTarget = dropTargetCells?.includes(cellIndex) ?? false
 
           let tx = 0, ty = 0
           if (isDragging && dragCell !== null && gridLayout) {
-            const dragCellCol = dragCell % config.cols
-            const dragCellRow = Math.floor(dragCell / config.cols)
+            const dragCellPos = cellPos(dragCell, config.cols)
             const gridEl = containerRef.current?.querySelector('.jigswap-grid') as HTMLElement
             if (gridEl) {
               const rect = gridEl.getBoundingClientRect()
-              tx = dragPos.x - rect.left - dragOffset.x - dragCellCol * cellSize
-              ty = dragPos.y - rect.top - dragOffset.y - dragCellRow * cellSize
+              tx = dragPos.x - rect.left - dragOffset.x - dragCellPos.col * cellSize
+              ty = dragPos.y - rect.top - dragOffset.y - dragCellPos.row * cellSize
             }
           }
 

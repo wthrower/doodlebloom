@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { colorDist, paletteDist } from './colorDistance'
+import { colorDist, paletteDist, luma601 } from './colorDistance'
 import type { PaletteColor } from '../types'
 
 const palette: PaletteColor[] = [
@@ -28,5 +28,17 @@ describe('paletteDist', () => {
   it('falls back to a small nonzero distance for an empty palette', () => {
     expect(paletteDist([], 0, 1)).toBe(1)
     expect(paletteDist([], 3, 3)).toBe(0)
+  })
+})
+
+describe('luma601', () => {
+  it('spans 0 (black) to 1 (white)', () => {
+    expect(luma601(0, 0, 0)).toBe(0)
+    expect(luma601(255, 255, 255)).toBeCloseTo(1)
+  })
+
+  it('weights green heaviest, blue lightest', () => {
+    expect(luma601(0, 255, 0)).toBeGreaterThan(luma601(255, 0, 0))
+    expect(luma601(255, 0, 0)).toBeGreaterThan(luma601(0, 0, 255))
   })
 })

@@ -1,4 +1,4 @@
-import { colorDist, paletteDist, chroma } from './colorDistance'
+import { colorDist, paletteDist, chroma, luma601 } from './colorDistance'
 import type { LabelPoint, PaletteColor, Region } from '../types'
 
 /** A region whose "inscribed circle" radius is smaller than this won't have
@@ -547,8 +547,8 @@ export function mergeGradientSeams(
       const ridB = regionMap[j]
       if (ridB < 0 || ridB === ridA) continue
       const key = ridA < ridB ? `${ridA}|${ridB}` : `${ridB}|${ridA}`
-      const lA = (0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2]) / 255
-      const lB = (0.299 * data[j * 4] + 0.587 * data[j * 4 + 1] + 0.114 * data[j * 4 + 2]) / 255
+      const lA = luma601(data[i * 4], data[i * 4 + 1], data[i * 4 + 2])
+      const lB = luma601(data[j * 4], data[j * 4 + 1], data[j * 4 + 2])
       const p = pairs.get(key)
       if (p) { p.sum += Math.abs(lA - lB); p.count++ }
       else pairs.set(key, { sum: Math.abs(lA - lB), count: 1, ridA, ridB })

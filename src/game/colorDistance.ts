@@ -64,6 +64,12 @@ export function labToRgb(L: number, a: number, b: number): [number, number, numb
   ]
 }
 
+/** Rec. 601 luma of an 8-bit sRGB color, normalized to 0..1. Cheap
+ *  brightness estimate for light/dark decisions (not Lab lightness). */
+export function luma601(r: number, g: number, b: number): number {
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255
+}
+
 /** Minimum chroma (saturation) of a color in Lab space. */
 export function chroma(r: number, g: number, b: number): number {
   const [, a, b_] = rgbToLab(r, g, b)

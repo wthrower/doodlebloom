@@ -8,7 +8,7 @@ import { useConfetti } from '../hooks/useConfetti'
 import { usePanZoom } from '../hooks/usePanZoom'
 import { useOutlineSvg } from '../hooks/useOutlineSvg'
 import { renderPuzzle, flashRegion } from '../game/canvas'
-import { colorDist } from '../game/colorDistance'
+import { colorDist, luma601 } from '../game/colorDistance'
 import { getRegionAt } from '../game/regions'
 import { CURSOR_CAN_FILL, CURSOR_CANT_FILL } from '../game/cursors'
 
@@ -399,7 +399,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
   const colorProgress = colorRegions.length > 0 ? Math.round((colorFilled / colorRegions.length) * 100) : 0
   const activeColor = activeColorIndex !== null ? palette[activeColorIndex] : null
   const colorRgb = activeColor ? `${activeColor.r},${activeColor.g},${activeColor.b}` : '128,128,128'
-  const activeLum = activeColor ? (0.299 * activeColor.r + 0.587 * activeColor.g + 0.114 * activeColor.b) / 255 : 0.5
+  const activeLum = activeColor ? luma601(activeColor.r, activeColor.g, activeColor.b) : 0.5
   const incompleteFill = !activeColor ? 'transparent' : activeLum < 0.5
     ? `rgba(${Math.min(255, activeColor.r + 80)},${Math.min(255, activeColor.g + 80)},${Math.min(255, activeColor.b + 80)},0.3)`
     : `rgba(${Math.max(0, activeColor.r - 80)},${Math.max(0, activeColor.g - 80)},${Math.max(0, activeColor.b - 80)},0.3)`
@@ -559,8 +559,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
             if (!regionsOfColor || regionsOfColor.length === 0) return null
             const isActive = activeColorIndex === idx
             const isComplete = regionsOfColor.every(region => playerColors[region.id] === idx)
-            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-            const checkColor = luminance < 0.5 ? '#fff' : '#000'
+            const checkColor = luma601(r, g, b) < 0.5 ? '#fff' : '#000'
             return (
               <button
                 key={idx}

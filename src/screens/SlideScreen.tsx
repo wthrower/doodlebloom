@@ -10,6 +10,7 @@ import {
   getDragGroup,
   getKeyboardTilePos,
   getEdgeTilePos,
+  cellPos,
 } from '../game/slide'
 
 export function SlideScreen(props: PuzzleScreenProps) {
@@ -188,8 +189,7 @@ export function SlideScreen(props: PuzzleScreenProps) {
           const cellIndex = pieceToCell.get(pieceId)!
           const isEmptyCell = pieceId === emptyVal
           const showEmpty = isEmptyCell && !won
-          const col = cellIndex % config.cols
-          const row = Math.floor(cellIndex / config.cols)
+          const { col, row } = cellPos(cellIndex, config.cols)
 
           let tx = 0, ty = 0
           const isTileDragging = dragSet?.has(cellIndex) ?? false
