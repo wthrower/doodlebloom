@@ -13,6 +13,11 @@ function clampTransform(t: Transform): Transform {
   return { scale: clampScale(t.scale), tx: t.tx, ty: t.ty }
 }
 
+/** Whether a transform is meaningfully off identity (worth showing a reset affordance). */
+export function isOffIdentity(t: Transform): boolean {
+  return Math.abs(t.scale - 1) > 0.05 || Math.abs(t.tx) > 1 || Math.abs(t.ty) > 1
+}
+
 export interface UsePanZoomOptions {
   canvasRef: RefObject<HTMLCanvasElement | null>
   wrapRef: RefObject<HTMLDivElement | null>
@@ -34,7 +39,9 @@ export function usePanZoom({
 }: UsePanZoomOptions) {
   const transformRef = useRef<Transform>({ scale: 1, tx: 0, ty: 0 })
   const displaySizeRef = useRef(0)
-  const [, forceRender] = useState(0)
+  // The transform itself lives in a ref and is applied straight to canvas.style;
+  // React only re-renders when this boolean flips, not on every pan/zoom frame.
+  const [isTransformed, setIsTransformed] = useState(false)
 
   const screenToCanvas = useCallback((clientX: number, clientY: number) => {
     const canvas = canvasRef.current
@@ -57,7 +64,7 @@ export function usePanZoom({
       canvas.style.transform = `translate(${t.tx}px,${t.ty}px) scale(${t.scale})`
     }
     onTransformChangeRef?.current?.()
-    forceRender(n => n + 1)
+    setIsTransformed(isOffIdentity(t))
   }, [])
 
   // --- ResizeObserver: fit canvas inside wrap, maintaining aspect ratio ---
@@ -243,9 +250,6 @@ export function usePanZoom({
       wrap.removeEventListener('contextmenu', onContextMenu)
     }
   }, [canvasWidth, setTransform])
-
-  const { scale, tx, ty } = transformRef.current
-  const isTransformed = Math.abs(scale - 1) > 0.05 || Math.abs(tx) > 1 || Math.abs(ty) > 1
 
   return { transformRef, displaySizeRef, setTransform, screenToCanvas, isTransformed }
 }
