@@ -29,6 +29,13 @@ import type { GalleryEntry, CompletedMap } from './game/storage'
 
 const PREVIEW_KEY = '__preview__'
 
+/** Human-readable name of a stock image from its URL ("autumn_forest_cel"
+ *  -> "Autumn Forest Cel"), or null for non-stock URLs. */
+function prettyStockLabel(url: string | null): string | null {
+  const m = url?.match(/images\/(.+)\.png$/)
+  return m ? m[1].replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : null
+}
+
 
 export default function App() {
   const { isFullscreen, toggle: toggleFullscreen } = useFullscreen()
@@ -39,6 +46,16 @@ export default function App() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [selectedStockUrl, setSelectedStockUrl] = useState<string | null>(() => loadSelectedStockUrl())
   const [genError, setGenError] = useState<string | null>(null)
+
+  // Tab title tracks the current image. Stock images restore via
+  // selectedStockUrl; gallery/generated images fall back to the prompt,
+  // which persists in game state across reloads.
+  const [imageLabel, setImageLabel] = useState<string | null>(() => prettyStockLabel(loadSelectedStockUrl()))
+  useEffect(() => {
+    const label = imageLabel ?? (state.prompt.trim() || null)
+    const short = label && label.length > 60 ? label.slice(0, 57) + '…' : label
+    document.title = short ? `${short} · Doodlebloom` : 'Doodlebloom'
+  }, [imageLabel, state.prompt])
 
   // Generated image gallery
   const [galleryEntries, setGalleryEntries] = useState<GalleryEntry[]>(() => loadGalleryIndex())
@@ -120,6 +137,7 @@ export default function App() {
 
     const id = await saveToGallery(state.prompt, blob)
     currentImageIdRef.current = `gallery:${id}`
+    setImageLabel(state.prompt)
     setGalleryEntries(loadGalleryIndex())
     setGalleryThumbs(prev => new Map(prev).set(id, URL.createObjectURL(blob)))
 
@@ -175,6 +193,7 @@ export default function App() {
       saveSelectedStockUrl(imageUrl)
       const fileMatch = imageUrl.match(/images\/(.+)\.png$/)
       currentImageIdRef.current = fileMatch ? fileMatch[1] : imageUrl
+      setImageLabel(prettyStockLabel(imageUrl))
       actions.goTo('start')
     } catch {
       setGenError('Failed to load image')
@@ -188,6 +207,7 @@ export default function App() {
     setSelectedStockUrl(null)
     saveSelectedStockUrl(null)
     currentImageIdRef.current = `gallery:${entry.id}`
+    setImageLabel(entry.prompt)
     actions.goTo('start')
   }, [setPreviewImage, actions])
 
