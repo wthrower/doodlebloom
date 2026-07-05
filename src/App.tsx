@@ -1,79 +1,47 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-
-function useFullscreen() {
-  const [isFullscreen, setIsFullscreen] = useState(false)
-  useEffect(() => {
-    const handler = () => setIsFullscreen(!!document.fullscreenElement)
-    document.addEventListener('fullscreenchange', handler)
-    return () => document.removeEventListener('fullscreenchange', handler)
-  }, [])
-  const toggle = useCallback(() => {
-    if (document.fullscreenElement) document.exitFullscreen()
-    else document.documentElement.requestFullscreen()
-  }, [])
-  return { isFullscreen, toggle }
-}
+import { useFullscreen } from './hooks/useFullscreen'
 import { useGame } from './hooks/useGame'
 import { useOpenAI } from './hooks/useOpenAI'
+import { useCurrentImage } from './hooks/useCurrentImage'
+import { useGallery } from './hooks/useGallery'
 import { usePuzzleModeState } from './hooks/usePuzzleModeState'
 import { StartScreen, type GameMode } from './screens/StartScreen'
-import type { JigswapConfig } from './game/jigswap'
+import type { GridConfig } from './game/grid'
 import { PaintScreen } from './screens/PaintScreen'
 import { JigswapScreen } from './screens/JigswapScreen'
 import { SlideScreen } from './screens/SlideScreen'
 import { ProcessingScreen } from './screens/ProcessingScreen'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ResumeDialog } from './components/PuzzleChrome'
-import { saveImage, loadImage, loadSelectedStockUrl, saveSelectedStockUrl, hasSavedPuzzle, loadPuzzleImage, saveToGallery, loadGalleryImage, loadGalleryIndex, loadGalleryThumbnails, deleteGalleryEntry, loadCompletedImages, markImageCompleted } from './game/storage'
+import { hasSavedPuzzle, loadPuzzleImage, loadGalleryImage, loadCompletedImages, markImageCompleted } from './game/storage'
 import type { GalleryEntry, CompletedMap } from './game/storage'
-
-const PREVIEW_KEY = '__preview__'
-
-/** Human-readable name of a stock image from its URL ("autumn_forest_cel"
- *  -> "Autumn Forest Cel"), or null for non-stock URLs. */
-function prettyStockLabel(url: string | null): string | null {
-  const m = url?.match(/images\/(.+)\.png$/)
-  return m ? m[1].replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : null
-}
-
 
 export default function App() {
   const { isFullscreen, toggle: toggleFullscreen } = useFullscreen()
   const [state, actions] = useGame()
   const { generate, cancel: cancelGenerate } = useOpenAI()
 
-  const previewBlobRef = useRef<Blob | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [selectedStockUrl, setSelectedStockUrl] = useState<string | null>(() => loadSelectedStockUrl())
+  const image = useCurrentImage()
+  const gallery = useGallery()
   const [genError, setGenError] = useState<string | null>(null)
 
-  // Tab title tracks the current image. Stock images restore via
-  // selectedStockUrl; gallery/generated images fall back to the prompt,
+  // Tab title tracks the current image. Stock images restore via the
+  // persisted stock URL; gallery/generated images fall back to the prompt,
   // which persists in game state across reloads.
-  const [imageLabel, setImageLabel] = useState<string | null>(() => prettyStockLabel(loadSelectedStockUrl()))
   useEffect(() => {
-    const label = imageLabel ?? (state.prompt.trim() || null)
+    const label = image.label ?? (state.prompt.trim() || null)
     const short = label && label.length > 60 ? label.slice(0, 57) + '…' : label
     document.title = short ? `${short} · Doodlebloom` : 'Doodlebloom'
-  }, [imageLabel, state.prompt])
-
-  // Generated image gallery
-  const [galleryEntries, setGalleryEntries] = useState<GalleryEntry[]>(() => loadGalleryIndex())
-  const [galleryThumbs, setGalleryThumbs] = useState<Map<string, string>>(new Map())
-
-  useEffect(() => {
-    loadGalleryThumbnails().then(setGalleryThumbs)
-  }, [])
+  }, [image.label, state.prompt])
 
   // Completion tracking
-  const currentImageIdRef = useRef<string | null>(null)
   const [completedImages, setCompletedImages] = useState<CompletedMap>(() => loadCompletedImages())
 
   const recordCompletion = useCallback((mode: string) => {
-    if (!currentImageIdRef.current) return
-    markImageCompleted(currentImageIdRef.current, mode)
+    if (!image.imageIdRef.current) return
+    markImageCompleted(image.imageIdRef.current, mode)
     setCompletedImages(loadCompletedImages())
-  }, [])
+  }, [image.imageIdRef])
 
   // Record paint mode completion
   const prevScreenRef = useRef(state.screen)
@@ -89,33 +57,8 @@ export default function App() {
   const slide = usePuzzleModeState()
   const [showResumeChoice, setShowResumeChoice] = useState(false)
 
-  // Restore preview image from IDB on mount
-  useEffect(() => {
-    if (selectedStockUrl) {
-      const fileMatch = selectedStockUrl.match(/images\/(.+)\.png$/)
-      currentImageIdRef.current = fileMatch ? fileMatch[1] : selectedStockUrl
-    }
-    loadImage(PREVIEW_KEY).then(blob => {
-      if (!blob) return
-      previewBlobRef.current = blob
-      setPreviewUrl(URL.createObjectURL(blob))
-    })
-  }, [])
-
-
-  /** Set a blob as the current preview image, handling URL lifecycle. */
-  const setPreviewImage = useCallback((blob: Blob, prompt?: string) => {
-    previewBlobRef.current = blob
-    if (previewUrl) URL.revokeObjectURL(previewUrl)
-    setPreviewUrl(URL.createObjectURL(blob))
-    saveImage(PREVIEW_KEY, blob).catch(() => undefined)
-    if (prompt !== undefined) actions.setPrompt(prompt)
-  }, [previewUrl, actions])
-
   const handleGenerate = useCallback(async () => {
     setGenError(null)
-    setSelectedStockUrl(null)
-    saveSelectedStockUrl(null)
     actions.goTo('generating')
     let blob: Blob | null
     try {
@@ -133,16 +76,12 @@ export default function App() {
       actions.goTo('start')
       return
     }
-    setPreviewImage(blob)
 
-    const id = await saveToGallery(state.prompt, blob)
-    currentImageIdRef.current = `gallery:${id}`
-    setImageLabel(state.prompt)
-    setGalleryEntries(loadGalleryIndex())
-    setGalleryThumbs(prev => new Map(prev).set(id, URL.createObjectURL(blob)))
+    const id = await gallery.addGenerated(state.prompt, blob)
+    image.setCurrentImage(blob, { kind: 'gallery', id, prompt: state.prompt })
 
     actions.goTo('start')
-  }, [state.prompt, actions, generate, previewUrl])
+  }, [state.prompt, actions, generate, gallery.addGenerated, image.setCurrentImage])
 
   const handleCancel = useCallback(() => {
     cancelGenerate()
@@ -150,18 +89,18 @@ export default function App() {
   }, [cancelGenerate, actions])
 
   const startFreshPaint = useCallback(async () => {
-    if (!previewBlobRef.current) return
+    if (!image.blobRef.current) return
     actions.clearStash()
-    await actions.processImage(previewBlobRef.current!)
-  }, [actions])
+    await actions.processImage(image.blobRef.current)
+  }, [actions, image.blobRef])
 
   const resumePaint = useCallback(async () => {
     await actions.restoreStashedSession()
   }, [actions])
 
-  const handlePlay = useCallback(async (mode: GameMode, puzzleSize: JigswapConfig) => {
+  const handlePlay = useCallback(async (mode: GameMode, puzzleSize: GridConfig) => {
     if (mode === 'paint') {
-      if (!previewBlobRef.current) return
+      if (!image.blobRef.current) return
       if (actions.hasPrevSession) {
         setShowResumeChoice(true)
         return
@@ -180,48 +119,28 @@ export default function App() {
         return
       }
     }
-    if (!previewUrl || !previewBlobRef.current) return
-    modeState.setImage(previewBlobRef.current, false, puzzleSize)
+    if (!image.previewUrl || !image.blobRef.current) return
+    modeState.setImage(image.blobRef.current, false, puzzleSize)
     actions.goTo(mode)
-  }, [previewUrl, actions, jigswap, slide, startFreshPaint])
+  }, [image.previewUrl, image.blobRef, actions, jigswap, slide, startFreshPaint])
 
   const handleSelectStock = useCallback(async (imageUrl: string) => {
     try {
       const blob = await (await fetch(imageUrl)).blob()
-      setPreviewImage(blob)
-      setSelectedStockUrl(imageUrl)
-      saveSelectedStockUrl(imageUrl)
-      const fileMatch = imageUrl.match(/images\/(.+)\.png$/)
-      currentImageIdRef.current = fileMatch ? fileMatch[1] : imageUrl
-      setImageLabel(prettyStockLabel(imageUrl))
+      image.setCurrentImage(blob, { kind: 'stock', url: imageUrl })
       actions.goTo('start')
     } catch {
       setGenError('Failed to load image')
     }
-  }, [setPreviewImage, actions])
+  }, [image.setCurrentImage, actions])
 
   const handleSelectGallery = useCallback(async (entry: GalleryEntry) => {
     const blob = await loadGalleryImage(entry.id)
     if (!blob) return
-    setPreviewImage(blob, entry.prompt)
-    setSelectedStockUrl(null)
-    saveSelectedStockUrl(null)
-    currentImageIdRef.current = `gallery:${entry.id}`
-    setImageLabel(entry.prompt)
+    image.setCurrentImage(blob, { kind: 'gallery', id: entry.id, prompt: entry.prompt })
+    actions.setPrompt(entry.prompt)
     actions.goTo('start')
-  }, [setPreviewImage, actions])
-
-  const handleDeleteGallery = useCallback(async (id: string) => {
-    await deleteGalleryEntry(id)
-    setGalleryEntries(loadGalleryIndex())
-    const thumb = galleryThumbs.get(id)
-    if (thumb) URL.revokeObjectURL(thumb)
-    setGalleryThumbs(prev => {
-      const next = new Map(prev)
-      next.delete(id)
-      return next
-    })
-  }, [galleryThumbs])
+  }, [image.setCurrentImage, actions])
 
   const isStartPhase = state.screen === 'start' || state.screen === 'generating' || state.screen === 'preview'
 
@@ -242,16 +161,16 @@ export default function App() {
           state={state}
           actions={actions}
           isGenerating={state.screen === 'generating'}
-          previewUrl={previewUrl}
-          selectedStockUrl={selectedStockUrl}
+          previewUrl={image.previewUrl}
+          selectedStockUrl={image.selectedStockUrl}
           onGenerate={handleGenerate}
           onCancel={handleCancel}
           onPlay={handlePlay}
           onSelectStock={handleSelectStock}
-          galleryEntries={galleryEntries}
-          galleryThumbs={galleryThumbs}
+          galleryEntries={gallery.entries}
+          galleryThumbs={gallery.thumbs}
           onSelectGallery={handleSelectGallery}
-          onDeleteGallery={handleDeleteGallery}
+          onDeleteGallery={gallery.remove}
           completedImages={completedImages}
         />
       )}
@@ -278,8 +197,8 @@ export default function App() {
           imageBlob={jigswap.blob}
           hasSaved={jigswap.hasSaved}
           freshConfig={jigswap.config}
-          previewUrl={previewUrl ?? jigswap.imageUrl}
-          previewBlob={previewBlobRef.current ?? jigswap.blob}
+          previewUrl={image.previewUrl ?? jigswap.imageUrl}
+          previewBlob={image.blobRef.current ?? jigswap.blob}
           onBack={() => actions.goTo('start')}
           onComplete={() => recordCompletion('jigswap')}
           isFullscreen={isFullscreen}
@@ -292,8 +211,8 @@ export default function App() {
           imageBlob={slide.blob}
           hasSaved={slide.hasSaved}
           freshConfig={slide.config}
-          previewUrl={previewUrl ?? slide.imageUrl}
-          previewBlob={previewBlobRef.current ?? slide.blob}
+          previewUrl={image.previewUrl ?? slide.imageUrl}
+          previewBlob={image.blobRef.current ?? slide.blob}
           onBack={() => actions.goTo('start')}
           onComplete={() => recordCompletion('slide')}
           isFullscreen={isFullscreen}

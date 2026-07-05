@@ -4,6 +4,7 @@ import type { GameActions } from '../hooks/useGame'
 import type { GalleryEntry, CompletedMap } from '../game/storage'
 import { loadHideCompleted, saveHideCompleted, loadPuzzleSize } from '../game/storage'
 import { SIZE_PRESETS, type GridConfig } from '../game/grid'
+import { prettyImageLabel } from '../game/stockImages'
 import { Check, Filter, Search, Trash2, User } from 'lucide-react'
 import { DoodlebloomLogo } from '../components/DoodlebloomLogo'
 import { ScrollChevrons } from '../components/ScrollChevrons'
@@ -16,8 +17,7 @@ const BASE = import.meta.env.BASE_URL
 const thumbModules = import.meta.glob('/public/images/thumbs/*.webp', { eager: true, query: '?url', import: 'default' }) as Record<string, string>
 const STOCK_IMAGES = Object.entries(thumbModules).map(([path, thumbUrl]) => {
   const file = path.replace('/public/images/thumbs/', '').replace('.webp', '')
-  const label = file.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-  return { file, label, thumbUrl }
+  return { file, label: prettyImageLabel(file), thumbUrl }
 }).sort((a, b) => a.label.localeCompare(b.label))
 
 interface Props {
