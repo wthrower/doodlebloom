@@ -6,6 +6,7 @@ export interface RenderOptions {
   activeColorIndex: number | null
   originalImageData: ImageData | null
   showHint?: boolean
+  fadingColors?: Map<number, number>
 }
 
 /** A chain of (x, y) boundary grid points in canvas coordinates. */
@@ -72,11 +73,34 @@ export function renderPuzzle(
     const filledColorIdx = playerColors[region.id]
     if (filledColorIdx !== undefined) {
       if (colorComplete.has(region.colorIndex) && originalImageData) {
-        // Color fully completed -- reveal original image
-        buf[i * 4] = originalImageData.data[i * 4]
-        buf[i * 4 + 1] = originalImageData.data[i * 4 + 1]
-        buf[i * 4 + 2] = originalImageData.data[i * 4 + 2]
-        buf[i * 4 + 3] = 255
+        const fadeT = opts.fadingColors?.get(region.colorIndex)
+        if (fadeT !== undefined && fadeT < 1) {
+          const c = palette[filledColorIdx]
+          const or = originalImageData.data[i * 4]
+          const og = originalImageData.data[i * 4 + 1]
+          const ob = originalImageData.data[i * 4 + 2]
+          let sr: number, sg: number, sb: number
+          if (fadeT < 0.3) {
+            const t = fadeT / 0.3
+            sr = c.r + (255 - c.r) * t
+            sg = c.g + (255 - c.g) * t
+            sb = c.b + (255 - c.b) * t
+          } else {
+            const t = (fadeT - 0.3) / 0.7
+            sr = 255 + (or - 255) * t
+            sg = 255 + (og - 255) * t
+            sb = 255 + (ob - 255) * t
+          }
+          buf[i * 4]     = sr + 0.5 | 0
+          buf[i * 4 + 1] = sg + 0.5 | 0
+          buf[i * 4 + 2] = sb + 0.5 | 0
+          buf[i * 4 + 3] = 255
+        } else {
+          buf[i * 4]     = originalImageData.data[i * 4]
+          buf[i * 4 + 1] = originalImageData.data[i * 4 + 1]
+          buf[i * 4 + 2] = originalImageData.data[i * 4 + 2]
+          buf[i * 4 + 3] = 255
+        }
       } else {
         // Still in progress -- flat fill
         const c = palette[filledColorIdx]

@@ -12,6 +12,8 @@ import { colorDist } from '../game/colorDistance'
 import { getRegionAt } from '../game/regions'
 import { CURSOR_CAN_FILL, CURSOR_CANT_FILL } from '../game/cursors'
 
+const FADE_DURATION = 3000
+
 const IS_STANDALONE = typeof window !== 'undefined' &&
   (window.matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || (navigator as any).standalone)
 
@@ -49,6 +51,13 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
   const revealImgRef = useRef<HTMLImageElement>(null)
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hintHeldRef = useRef(false)
+
+  const [colorToast, setColorToast] = useState<{ colorIndex: number; displayNum: number } | null>(null)
+  const colorToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prevCompleteRef = useRef<Set<number> | null>(null)
+  const fadingColorsRef = useRef(new Map<number, number>())
+  const activeFadesRef = useRef<{ colorIndex: number; startTime: number }[]>([])
+  const fadeRafRef = useRef(0)
 
   const cancelFlash = useCallback(() => {
     if (hintTimerRef.current) { clearTimeout(hintTimerRef.current); hintTimerRef.current = null }
@@ -95,6 +104,9 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     return () => {
       if (hintTimerRef.current) clearTimeout(hintTimerRef.current)
       if (zoomHintTimerRef.current) clearTimeout(zoomHintTimerRef.current)
+      if (colorToastTimerRef.current) clearTimeout(colorToastTimerRef.current)
+      if (confettiTimerRef.current) clearTimeout(confettiTimerRef.current)
+      cancelAnimationFrame(fadeRafRef.current)
     }
   }, [])
 
@@ -127,8 +139,11 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
   }, [revealUrl])
 
   const prevScreenRef = useRef(screen)
+  const confettiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
-    if (screen === 'complete' && prevScreenRef.current !== 'complete') confetti.fire()
+    if (screen === 'complete' && prevScreenRef.current !== 'complete') {
+      confettiTimerRef.current = setTimeout(() => confetti.fire(), FADE_DURATION)
+    }
     prevScreenRef.current = screen
   }, [screen, confetti.fire])
 
@@ -143,6 +158,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
   useEffect(() => { regionsRef.current = regions }, [regions])
   useEffect(() => { playerColorsRef.current = playerColors }, [playerColors])
   useEffect(() => { fillRegionRef.current = fillRegion }, [fillRegion])
+  const startFadeRef = useRef<(colorIndices: number[]) => void>(() => {})
 
   // Scroll the active swatch to center of the palette
   useEffect(() => {
@@ -315,6 +331,79 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     return m
   }, [regions])
 
+  const currentComplete = useMemo(() => {
+    const set = new Set<number>()
+    for (const [ci, list] of regionsByColorIndex) {
+      if (list.every(r => playerColors[r.id] === ci)) set.add(ci)
+    }
+    return set
+  }, [regionsByColorIndex, playerColors])
+
+  useEffect(() => {
+    if (prevCompleteRef.current === null) {
+      prevCompleteRef.current = new Set(currentComplete)
+      return
+    }
+
+    const newlyCompleted: number[] = []
+    for (const ci of currentComplete) {
+      if (!prevCompleteRef.current.has(ci)) newlyCompleted.push(ci)
+    }
+    prevCompleteRef.current = new Set(currentComplete)
+
+    if (newlyCompleted.length === 0) return
+
+    const ci = newlyCompleted[newlyCompleted.length - 1]
+    const displayNum = colorDisplayNumbers[ci] ?? ci + 1
+    if (colorToastTimerRef.current) clearTimeout(colorToastTimerRef.current)
+    setColorToast({ colorIndex: ci, displayNum })
+    colorToastTimerRef.current = setTimeout(() => setColorToast(null), 2000)
+
+    startFadeAnimation(newlyCompleted)
+  }, [currentComplete, colorDisplayNumbers, canvasWidth, canvasHeight, getRegionMap, getOriginalImageData, palette])
+
+  const startFadeAnimation = useCallback((colorIndices: number[]) => {
+    const duration = FADE_DURATION
+    const now = performance.now()
+    for (const c of colorIndices) {
+      activeFadesRef.current.push({ colorIndex: c, startTime: now })
+      fadingColorsRef.current.set(c, 0)
+    }
+
+    const animate = (frameTime: number) => {
+      let anyActive = false
+      for (const fade of activeFadesRef.current) {
+        const linear = Math.min((frameTime - fade.startTime) / duration, 1)
+        const eased = 1 - (1 - linear) * (1 - linear)
+        fadingColorsRef.current.set(fade.colorIndex, eased)
+        if (linear < 1) anyActive = true
+      }
+
+      const canvas = canvasRef.current
+      const rm = getRegionMap()
+      if (canvas && rm) {
+        renderPuzzle(canvas.getContext('2d')!, canvasWidth, canvasHeight, rm, regionsRef.current, palette, {
+          playerColors: playerColorsRef.current,
+          activeColorIndex: activeColorRef.current,
+          originalImageData: getOriginalImageData(),
+          showHint: showHintRef.current,
+          fadingColors: fadingColorsRef.current,
+        })
+      }
+
+      if (anyActive) {
+        fadeRafRef.current = requestAnimationFrame(animate)
+      } else {
+        activeFadesRef.current = []
+        fadingColorsRef.current.clear()
+      }
+    }
+
+    cancelAnimationFrame(fadeRafRef.current)
+    fadeRafRef.current = requestAnimationFrame(animate)
+  }, [canvasWidth, canvasHeight, getRegionMap, getOriginalImageData, palette])
+  startFadeRef.current = startFadeAnimation
+
   // When the active color is null or fully filled, auto-select the color with the most remaining unfilled pixels
   useEffect(() => {
     if (activeColorIndex !== null) {
@@ -349,6 +438,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
       activeColorIndex,
       originalImageData: getOriginalImageData(),
       showHint,
+      fadingColors: fadingColorsRef.current,
     })
   }, [playerColors, activeColorIndex, regions, palette, showOutline, screen, canvasWidth, canvasHeight, getRegionMap, getOriginalImageData, showHint])
 
@@ -362,6 +452,14 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     const down = (e: KeyboardEvent) => {
       if (import.meta.env.DEV && (e.key === 'w' || e.key === 'W')) {
         for (const r of regionsRef.current) fillRegionRef.current(r.id, r.colorIndex)
+      }
+      if (import.meta.env.DEV && (e.key === 'f' || e.key === 'F') && activeColorRef.current !== null) {
+        const ci = activeColorRef.current
+        for (const r of regionsRef.current) {
+          if (r.colorIndex === ci && playerColorsRef.current[r.id] === undefined) {
+            fillRegionRef.current(r.id, ci)
+          }
+        }
       }
       const numKey = e.key >= '0' && e.key <= '9'
         ? (e.key === '0' ? 10 : Number(e.key))
@@ -526,6 +624,15 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
         {zoomHint && (
           <div className="zoom-hint">
             {/Mac|iPhone|iPad|iPod/.test(navigator.platform) ? '⌘' : 'Ctrl'} + scroll to zoom
+          </div>
+        )}
+        {colorToast && (
+          <div className="color-toast" key={colorToast.colorIndex}>
+            <span
+              className="color-toast-swatch"
+              style={{ backgroundColor: `rgb(${palette[colorToast.colorIndex].r},${palette[colorToast.colorIndex].g},${palette[colorToast.colorIndex].b})` }}
+            />
+            Color {colorToast.displayNum} complete!
           </div>
         )}
         {revealUrl && (
