@@ -153,6 +153,41 @@ function computeOutlineDeltas(
   return out
 }
 
+function computeChainAdjacentColors(
+  chains: OutlineChain[],
+  regionMap: Int32Array,
+  regions: Region[],
+  width: number,
+  height: number,
+): Set<number>[] {
+  const regionById = new Map(regions.map(r => [r.id, r]))
+  return chains.map(pts => {
+    const colors = new Set<number>()
+    const n = pts.length
+    const step = Math.max(1, Math.floor(n / 10))
+    for (let i = 0; i < n; i += step) {
+      const [gx, gy] = pts[i]
+      const a = pts[Math.max(0, i - 1)]
+      const b = pts[Math.min(n - 1, i + 1)]
+      const tx = b[0] - a[0], ty = b[1] - a[1]
+      const tl = Math.hypot(tx, ty) || 1
+      const nx = -ty / tl, ny = tx / tl
+      for (const s of [1, -1]) {
+        for (const d of PROBE_DEPTHS) {
+          const px = Math.floor(gx + nx * d * s)
+          const py = Math.floor(gy + ny * d * s)
+          if (px >= 0 && py >= 0 && px < width && py < height) {
+            const rid = regionMap[py * width + px]
+            const region = regionById.get(rid)
+            if (region) { colors.add(region.colorIndex); break }
+          }
+        }
+      }
+    }
+    return colors
+  })
+}
+
 export interface UseOutlineSvgOptions {
   outlineSvgRef: RefObject<SVGSVGElement | null>
   canvasRef: RefObject<HTMLCanvasElement | null>
@@ -164,6 +199,7 @@ export interface UseOutlineSvgOptions {
   regions: Region[]
   canvasWidth: number
   canvasHeight: number
+  colorCompleteRef: RefObject<Set<number>>
 }
 
 export function useOutlineSvg({
@@ -171,9 +207,11 @@ export function useOutlineSvg({
   transformRef, displaySizeRef,
   getRegionMap, getOriginalImageData,
   regions, canvasWidth, canvasHeight,
+  colorCompleteRef,
 }: UseOutlineSvgOptions) {
   const outlineChainsRef = useRef<OutlineBatch | null>(null)
   const outlineDeltasRef = useRef<Float32Array[] | null>(null)
+  const chainColorsRef = useRef<Set<number>[] | null>(null)
   const outlineRafRef = useRef(0)
 
   const updateOutlineSvg = useCallback(() => {
@@ -204,6 +242,8 @@ export function useOutlineSvg({
 
       const { chains, bboxes } = batch
       const deltas = outlineDeltasRef.current
+      const chainColors = chainColorsRef.current
+      const complete = colorCompleteRef.current
 
       // Thickness scales with content magnification (pixelScale, not the bare
       // gesture scale) so line weight stays constant relative to the image
@@ -221,6 +261,14 @@ export function useOutlineSvg({
         const bi = ci * 4
         if (bboxes[bi + 2] < visMinX || bboxes[bi] > visMaxX ||
             bboxes[bi + 3] < visMinY || bboxes[bi + 1] > visMaxY) continue
+
+        // Hide outlines where all adjacent colors are fully completed
+        const cc = chainColors?.[ci]
+        if (cc && cc.size > 0 && complete.size > 0) {
+          let allComplete = true
+          for (const c of cc) { if (!complete.has(c)) { allComplete = false; break } }
+          if (allComplete) continue
+        }
 
         const pts = chains[ci]
         if (pts.length < 2) continue
@@ -347,10 +395,12 @@ export function useOutlineSvg({
     if (!rm || regions.length === 0) {
       outlineChainsRef.current = null
       outlineDeltasRef.current = null
+      chainColorsRef.current = null
       return
     }
     const batch = buildOutlineChains(rm, regions, canvasWidth, canvasHeight)
     outlineChainsRef.current = batch
+    chainColorsRef.current = computeChainAdjacentColors(batch.chains, rm, regions, canvasWidth, canvasHeight)
     const imgData = getOriginalImageData()
     outlineDeltasRef.current = imgData
       ? computeOutlineDeltas(batch.chains, rm, imgData, canvasWidth, canvasHeight)

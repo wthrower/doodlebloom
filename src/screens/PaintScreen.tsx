@@ -159,6 +159,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
   useEffect(() => { playerColorsRef.current = playerColors }, [playerColors])
   useEffect(() => { fillRegionRef.current = fillRegion }, [fillRegion])
   const startFadeRef = useRef<(colorIndices: number[]) => void>(() => {})
+  const colorCompleteRef = useRef(new Set<number>())
 
   // Scroll the active swatch to center of the palette
   useEffect(() => {
@@ -193,6 +194,7 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     displaySizeRef: panZoom.displaySizeRef,
     getRegionMap, getOriginalImageData,
     regions, canvasWidth, canvasHeight,
+    colorCompleteRef,
   })
 
   // --- SVG number overlay ---
@@ -338,6 +340,11 @@ export function PaintScreen({ state, actions, onNewPuzzle, isFullscreen, onToggl
     }
     return set
   }, [regionsByColorIndex, playerColors])
+
+  useEffect(() => {
+    colorCompleteRef.current = currentComplete
+    updateOutlineSvg()
+  }, [currentComplete, updateOutlineSvg])
 
   useEffect(() => {
     if (prevCompleteRef.current === null) {
