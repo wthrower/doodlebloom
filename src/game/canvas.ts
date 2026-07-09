@@ -80,16 +80,19 @@ export function renderPuzzle(
           const og = originalImageData.data[i * 4 + 1]
           const ob = originalImageData.data[i * 4 + 2]
           let sr: number, sg: number, sb: number
+          const midR = (c.r + 255) / 2
+          const midG = (c.g + 255) / 2
+          const midB = (c.b + 255) / 2
           if (fadeT < 0.3) {
             const t = fadeT / 0.3
-            sr = c.r + (255 - c.r) * t
-            sg = c.g + (255 - c.g) * t
-            sb = c.b + (255 - c.b) * t
+            sr = c.r + (midR - c.r) * t
+            sg = c.g + (midG - c.g) * t
+            sb = c.b + (midB - c.b) * t
           } else {
             const t = (fadeT - 0.3) / 0.7
-            sr = 255 + (or - 255) * t
-            sg = 255 + (og - 255) * t
-            sb = 255 + (ob - 255) * t
+            sr = midR + (or - midR) * t
+            sg = midG + (og - midG) * t
+            sb = midB + (ob - midB) * t
           }
           buf[i * 4]     = sr + 0.5 | 0
           buf[i * 4 + 1] = sg + 0.5 | 0
