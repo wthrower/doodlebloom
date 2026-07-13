@@ -6,6 +6,7 @@ export interface RenderOptions {
   activeColorIndex: number | null
   originalImageData: ImageData | null
   showHint?: boolean
+  fadingColors?: Map<number, number>
 }
 
 /** A chain of (x, y) boundary grid points in canvas coordinates. */
@@ -110,14 +111,44 @@ export function createPuzzleRenderer(
     const filledColorIdx = opts.playerColors[region.id]
     if (filledColorIdx !== undefined) {
       if (colorComplete.has(region.colorIndex) && opts.originalImageData) {
-        // Color fully completed -- reveal original image
         const src = opts.originalImageData.data
-        for (let k = 0; k < arr.length; k++) {
-          const i = arr[k]
-          buf[i * 4] = src[i * 4]
-          buf[i * 4 + 1] = src[i * 4 + 1]
-          buf[i * 4 + 2] = src[i * 4 + 2]
-          buf[i * 4 + 3] = 255
+        const fadeT = opts.fadingColors?.get(region.colorIndex)
+        if (fadeT !== undefined && fadeT < 1) {
+          // Mid-reveal: blend flat fill → color/white midpoint → original,
+          // softening the transition instead of flashing through white.
+          const c = palette[filledColorIdx]
+          const midR = (c.r + 255) / 2
+          const midG = (c.g + 255) / 2
+          const midB = (c.b + 255) / 2
+          for (let k = 0; k < arr.length; k++) {
+            const i = arr[k]
+            const or = src[i * 4], og = src[i * 4 + 1], ob = src[i * 4 + 2]
+            let sr: number, sg: number, sb: number
+            if (fadeT < 0.3) {
+              const t = fadeT / 0.3
+              sr = c.r + (midR - c.r) * t
+              sg = c.g + (midG - c.g) * t
+              sb = c.b + (midB - c.b) * t
+            } else {
+              const t = (fadeT - 0.3) / 0.7
+              sr = midR + (or - midR) * t
+              sg = midG + (og - midG) * t
+              sb = midB + (ob - midB) * t
+            }
+            buf[i * 4]     = sr + 0.5 | 0
+            buf[i * 4 + 1] = sg + 0.5 | 0
+            buf[i * 4 + 2] = sb + 0.5 | 0
+            buf[i * 4 + 3] = 255
+          }
+        } else {
+          // Color fully completed -- reveal original image
+          for (let k = 0; k < arr.length; k++) {
+            const i = arr[k]
+            buf[i * 4] = src[i * 4]
+            buf[i * 4 + 1] = src[i * 4 + 1]
+            buf[i * 4 + 2] = src[i * 4 + 2]
+            buf[i * 4 + 3] = 255
+          }
         }
       } else {
         // Still in progress -- flat fill
@@ -159,6 +190,10 @@ export function createPuzzleRenderer(
 
   let last: RenderOptions | null = null
   let lastColorComplete = new Set<number>()
+  // Snapshot of fade progress at the previous render. fadingColors is mutated
+  // in place by the animation loop, so identity comparison can't detect
+  // movement — compare values instead.
+  let lastFades = new Map<number, number>()
 
   const render = (opts: RenderOptions): void => {
     const colorComplete = computeColorComplete(opts)
@@ -182,6 +217,22 @@ export function createPuzzleRenderer(
       }
       for (const color of lastColorComplete) {
         if (!colorComplete.has(color)) for (const r of regionsByColor.get(color) ?? []) dirty.add(r)
+      }
+
+      // Fading colors change appearance every frame: repaint groups whose
+      // fade progress moved, started, or ended since the last render.
+      const fades = opts.fadingColors
+      const fadeDirty = new Set<number>()
+      if (fades) {
+        for (const [color, t] of fades) {
+          if (lastFades.get(color) !== t) fadeDirty.add(color)
+        }
+      }
+      for (const color of lastFades.keys()) {
+        if (!fades?.has(color)) fadeDirty.add(color)
+      }
+      for (const color of fadeDirty) {
+        for (const r of regionsByColor.get(color) ?? []) dirty.add(r)
       }
 
       // Hint stripes apply to unfilled regions of one color; repaint the old
@@ -219,6 +270,7 @@ export function createPuzzleRenderer(
       showHint: !!opts.showHint,
     }
     lastColorComplete = colorComplete
+    lastFades = new Map(opts.fadingColors ?? [])
   }
 
   /** Subtle "shake" flash on a region to indicate wrong color. Only the red

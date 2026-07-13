@@ -119,6 +119,41 @@ describe('createPuzzleRenderer', () => {
     expect(px(buf, 0)).toEqual([255, 255, 255, 255]) // back to white
   })
 
+  it('fading a completed color blends flat → midpoint → original, repainting per frame', () => {
+    const { ctx, puts } = makeCtx()
+    const renderer = createPuzzleRenderer(ctx, WIDTH, HEIGHT, regionMap, regions, palette)
+    const fades = new Map<number, number>()
+    const opts = { playerColors: { 0: 0 }, activeColorIndex: null, originalImageData: original, fadingColors: fades }
+
+    // Fill completes color 0; fade starts at t=0 → still the flat palette color.
+    fades.set(0, 0)
+    renderer.render(opts)
+    let buf = bufOf(ctx, puts)
+    expect(px(buf, 0)).toEqual([10, 20, 30, 255])
+
+    // t=0.3 → the color/white midpoint. The map is mutated in place, so this
+    // also proves the differ tracks fade values, not object identity.
+    puts.length = 0
+    fades.set(0, 0.3)
+    renderer.render(opts)
+    expect(puts).toHaveLength(1)
+    expect(puts[0].slice(3)).toEqual([0, 0, 2, 2]) // color 0 group bbox only
+    buf = bufOf(ctx, puts)
+    expect(px(buf, 0)).toEqual([133, 138, 143, 255])
+
+    // t=1 → fully revealed original; clearing the map afterward is a no-op visually.
+    fades.set(0, 1)
+    renderer.render(opts)
+    buf = bufOf(ctx, puts)
+    expect(px(buf, 0)).toEqual([77, 77, 77, 255])
+
+    puts.length = 0
+    fades.clear()
+    renderer.render(opts)
+    buf = bufOf(ctx, puts)
+    expect(px(buf, 0)).toEqual([77, 77, 77, 255])
+  })
+
   it('flashRegion pulses the red channel inside the bbox and restores it', () => {
     const { ctx, puts } = makeCtx()
     const renderer = createPuzzleRenderer(ctx, WIDTH, HEIGHT, regionMap, regions, palette)

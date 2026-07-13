@@ -1017,6 +1017,39 @@ input.stock-search {
   100% { opacity: 0; }
 }
 
+.color-toast {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  animation: color-toast-fade 2s ease-in-out forwards;
+}
+
+.color-toast-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  flex-shrink: 0;
+}
+
+@keyframes color-toast-fade {
+  0%, 60% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 .outline-svg {
   position: absolute;
   top: 0;
