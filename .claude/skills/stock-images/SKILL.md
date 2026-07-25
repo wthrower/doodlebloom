@@ -74,18 +74,28 @@ Give Woody the URL as soon as the page exists, before the first image lands.
 <script>
 (function () {
   const grid = document.querySelector('.grid');
-  const pending = new Set(document.querySelectorAll('.card img'));
+  const pending = new Set();
+  const baseOf = img => img.dataset.base || (img.dataset.base = img.getAttribute('src').split('?')[0]);
+  for (const img of grid.querySelectorAll('.card img')) { baseOf(img); pending.add(img); }
 
-  async function syncCards() {          // pick up cards added to the file since load
+  async function syncCards() {              // add new cards AND drop removed ones
+    let doc;
     try {
       const res = await fetch('gallery.html', { cache: 'no-store' });
-      const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
-      const have = new Set([...grid.querySelectorAll('.card img')].map(i => i.dataset.base || i.getAttribute('src')));
-      for (const card of doc.querySelectorAll('.card')) {
-        const src = card.querySelector('img').getAttribute('src');
-        if (!have.has(src)) { grid.appendChild(card); pending.add(card.querySelector('img')); }
+      doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+    } catch (e) { return; }                 // server gone: leave the page as-is
+    const wanted = new Set([...doc.querySelectorAll('.card img')].map(i => i.getAttribute('src')));
+    const have = new Set([...grid.querySelectorAll('.card img')].map(baseOf));
+    for (const card of doc.querySelectorAll('.card')) {
+      const src = card.querySelector('img').getAttribute('src');
+      if (!have.has(src)) {
+        grid.appendChild(card);
+        const img = card.querySelector('img'); baseOf(img); pending.add(img);
       }
-    } catch (e) { /* server gone; keep polling images */ }
+    }
+    for (const img of [...grid.querySelectorAll('.card img')]) {
+      if (!wanted.has(baseOf(img))) { pending.delete(img); img.closest('.card').remove(); }
+    }
   }
 
   function tick() {
@@ -97,21 +107,24 @@ Give Woody the URL as soon as the page exists, before the first image lands.
         if (s) s.textContent = 'ready';
         continue;
       }
-      const base = img.dataset.base || (img.dataset.base = img.getAttribute('src').split('?')[0]);
-      img.src = base + '?t=' + Date.now();
+      img.src = baseOf(img) + '?t=' + Date.now();
     }
     document.title = pending.size ? `(${pending.size}) gallery` : 'gallery';
     syncCards();
-    setTimeout(tick, 4000);           // never stops: new cards can arrive at any time
+    setTimeout(tick, 4000);                 // never stops: cards can be added or removed anytime
   }
   setTimeout(tick, 1500);
 })();
 </script>
 ```
 
-Polls every 4s. It must **not** stop when `pending` empties -- more images get
-launched mid-session, and a stopped poller means Woody is back to refreshing by
-hand. `syncCards` is what lets a newly launched image appear without a reload.
+Polls every 4s and syncs the card list **both ways** against `gallery.html`:
+new cards appear without a reload, and cards you removed (promoted, tossed)
+disappear without one. An add-only sync leaves promoted images sitting on
+Woody's screen after they are gone from the file -- that bug shipped once.
+
+It must **not** stop when `pending` empties. More images get launched
+mid-session, and a stopped poller puts Woody back to refreshing by hand.
 
 ### Inserting cards
 
@@ -183,32 +196,58 @@ Every candidate ends up in exactly one of three states. Both promote and refine
 are real -- do not assume a batch is destined for one or the other, ask which
 each keeper is.
 
-**Good enough as generated -- promote:**
+### Promoting is TWO steps, never one
+
+`promote-stock.sh` *moves* the PNG out of the stage dir. The gallery card still
+points at the old path, so **every promotion leaves a dead link behind unless
+you clear the card.** Promoting without step 2 is not finished work -- Woody has
+had to point this out three times in one session.
+
+**Step 1 -- promote:**
 
 ```bash
 scripts/promote-stock.sh tmp/<batch-name> <name> <name> ...
 ```
 
-That moves each PNG into `public/images/` and builds its thumb -- the image is
-live on the next dev-server reload. With no names it promotes everything in the
-dir. It refuses to overwrite an existing image without `--force`.
+Moves each PNG into `public/images/` and builds its thumb; the image is live on
+the next dev-server reload. With no names it promotes everything in the dir. It
+refuses to overwrite an existing image without `--force`.
+
+**Step 2 -- immediately remove those cards from the gallery, in the same
+response.** Not "later", not "next time Woody looks". Drive it off the promoted
+names the script just printed, or off this test:
+
+```python
+lib = pathlib.Path('public/images')
+def drop(m):
+    fn = re.search(r'src="([^"]+)"', m.group(0)).group(1)
+    return '' if (lib / fn).exists() else m.group(0)     # promoted -> remove
+h = re.sub(r'<div class="card"><img src="[^"]+">.*?</div></div>\n', drop, h, flags=re.S)
+```
+
+Then print the before/after card count so the removal is visible and verified.
+
+### The one predicate that must never be used
+
+The test for removing a card is **"is this image now in `public/images/`"**
+(promoted), or "did I just delete the staged file" (rejected).
+
+It is **NOT** "is the staged file missing." That also matches an image *still
+generating*, and deleting those cards destroys the preemptive `<img>` tags the
+whole refresh model depends on. Two separate cleanup passes in one session ate
+an in-flight card exactly this way.
+
+Cards also go stale when a staged file is *renamed* before promoting (dropping a
+`_v2` suffix, say) -- the card still names the old file. Rename the card's `src`
+at the same time, or remove and re-add it.
+
+### The other two outcomes
 
 **Right subject, wrong execution -- refine:** feed the gallery's verdict into a
 revised prompt and generate a fresh round under new names. The staged file is
 reference material for round two, not something to promote later.
 
-**Reject -- toss:** it goes out with the stage dir.
-
-**Keep the gallery in sync.** `promote-stock.sh` *moves* the PNG out of the
-stage dir, so a promoted card becomes a dead link. Remove its card as part of
-promoting, and remove a rejected image's card when you delete the file.
-
-Removing cards is where it is easy to break the gallery. The test for "should
-this card go" is **"is this image now in `public/images/`"** (promoted), or
-"did I just delete the staged file" (rejected). It is NOT "is the staged file
-missing" -- that also matches an image still generating, and deleting those
-cards destroys exactly the preemptive `<img>` tags the refresh model depends
-on. Two separate cleanup passes in one session ate an in-flight card this way.
+**Reject -- toss:** delete the file and remove its card in the same step.
 
 Do not leave stage dirs lying around. Confirm with Woody before deleting, then
 actually delete -- a 23-image batch is ~46MB.
