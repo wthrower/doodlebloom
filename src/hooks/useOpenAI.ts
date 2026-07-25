@@ -1,5 +1,10 @@
 import { useCallback, useRef, useState } from 'react'
 import OpenAI from 'openai'
+// Single source of truth, shared with scripts/gen-stock.sh -- editing the style
+// rules in one place must change both the in-app and CLI generation paths.
+import styleSuffix from '../../prompts/style-suffix.txt?raw'
+
+const STYLE_SUFFIX = ' ' + styleSuffix.trim()
 
 export interface UseOpenAIResult {
   generate: (prompt: string, apiKey: string, size?: '1024x1024' | '1024x1536' | '1536x1024') => Promise<Blob | null>
@@ -28,7 +33,6 @@ export function useOpenAI(): UseOpenAIResult {
     try {
       const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
 
-      const STYLE_SUFFIX = ' Photorealistic, sharp focus, natural colors. Crisp edges and clear boundaries between distinct color areas. No painterly brushwork, no soft blending or gradients, no watercolor or impressionist texture.'
       const response = await client.images.generate(
         {
           model: 'gpt-image-2',

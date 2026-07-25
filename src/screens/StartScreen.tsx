@@ -13,11 +13,17 @@ export type GameMode = 'paint' | 'jigswap' | 'slide'
 
 const BASE = import.meta.env.BASE_URL
 
-// Auto-discover stock images from public/images/thumbs/
-const thumbModules = import.meta.glob('/public/images/thumbs/*.webp', { eager: true, query: '?url', import: 'default' }) as Record<string, string>
-const STOCK_IMAGES = Object.entries(thumbModules).map(([path, thumbUrl]) => {
+// Auto-discover stock images from public/images/thumbs/. Enumerate filenames
+// only -- never import the files. An eager `?url` glob made Vite fetch 502
+// separate modules in dev, so a single blocked thumbnail (an ad-blocker filter
+// match, see the sea_jellyfish rename) failed the module graph and blanked the
+// whole app before React could mount. It also emitted a hashed duplicate of
+// every thumb, doubling their weight in dist. These live in public/ and are
+// served verbatim, so the URL is built from BASE instead.
+const thumbPaths = Object.keys(import.meta.glob('/public/images/thumbs/*.webp'))
+const STOCK_IMAGES = thumbPaths.map(path => {
   const file = path.replace('/public/images/thumbs/', '').replace('.webp', '')
-  return { file, label: prettyImageLabel(file), thumbUrl }
+  return { file, label: prettyImageLabel(file), thumbUrl: `${BASE}images/thumbs/${file}.webp` }
 }).sort((a, b) => a.label.localeCompare(b.label))
 
 interface Props {
@@ -50,6 +56,10 @@ export function StartScreen({ state, actions, isGenerating, previewUrl, selected
   })
   const [imageSearch, setImageSearch] = useState('')
   const [hideCompleted, setHideCompleted] = useState(() => loadHideCompleted())
+  // A thumbnail that fails to load -- deleted file, or a filename an ad blocker
+  // filters (see the sea_jellyfish rename) -- drops its card instead of leaving
+  // a broken image in the strip.
+  const [brokenThumbs, setBrokenThumbs] = useState<ReadonlySet<string>>(() => new Set())
   const searchRef = useRef<HTMLInputElement>(null)
   const stripRef = useRef<HTMLDivElement>(null)
 
@@ -71,7 +81,9 @@ export function StartScreen({ state, actions, isGenerating, previewUrl, selected
 
   const allThumbs = useMemo(() => {
     const items: ThumbItem[] = []
-    for (const s of STOCK_IMAGES) items.push({ kind: 'stock', ...s })
+    for (const s of STOCK_IMAGES) {
+      if (!brokenThumbs.has(s.file)) items.push({ kind: 'stock', ...s })
+    }
     for (const e of galleryEntries) {
       const url = galleryThumbs.get(e.id)
       if (url) items.push({ kind: 'gallery', entry: e, thumbUrl: url })
@@ -88,7 +100,7 @@ export function StartScreen({ state, actions, isGenerating, previewUrl, selected
       filtered = filtered.filter(t => sortKey(t).toLowerCase().includes(q))
     }
     return filtered
-  }, [imageSearch, galleryEntries, galleryThumbs, hideCompleted, completedImages, selectedMode])
+  }, [imageSearch, galleryEntries, galleryThumbs, hideCompleted, completedImages, selectedMode, brokenThumbs])
 
   const onStripMouseDown = (e: React.MouseEvent) => {
     const el = stripRef.current
@@ -202,6 +214,8 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                         alt={label}
                         className="stock-thumb-img"
                         loading="lazy"
+                        onError={() => setBrokenThumbs(prev =>
+                          prev.has(file) ? prev : new Set(prev).add(file))}
                       />
                       <span className="stock-thumb-label">{label}</span>
                     </button>
