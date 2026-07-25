@@ -96,6 +96,11 @@ Give Woody the URL as soon as the page exists, before the first image lands.
     for (const img of [...grid.querySelectorAll('.card img')]) {
       if (!wanted.has(baseOf(img))) { pending.delete(img); img.closest('.card').remove(); }
     }
+    const order = [...doc.querySelectorAll('.card img')].map(i => i.getAttribute('src'));
+    const live = new Map([...grid.querySelectorAll('.card img')].map(i => [baseOf(i), i.closest('.card')]));
+    if (order.join() !== [...live.keys()].join()) {          // file order changed: restack
+      for (const src of order) { const c = live.get(src); if (c) grid.appendChild(c); }
+    }
   }
 
   function tick() {
@@ -119,8 +124,9 @@ Give Woody the URL as soon as the page exists, before the first image lands.
 ```
 
 Polls every 4s and syncs the card list **both ways** against `gallery.html`:
-new cards appear without a reload, and cards you removed (promoted, tossed)
-disappear without one. An add-only sync leaves promoted images sitting on
+new cards appear without a reload, cards you removed (promoted, tossed)
+disappear without one, and the on-screen order follows the file's order -- so
+putting two related cards adjacent in the file puts them adjacent on screen. An add-only sync leaves promoted images sitting on
 Woody's screen after they are gone from the file -- that bug shipped once.
 
 It must **not** stop when `pending` empties. More images get launched
