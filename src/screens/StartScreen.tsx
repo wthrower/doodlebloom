@@ -261,7 +261,9 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                 {selectedMode === 'paint' && (
                   <>
                     <div className="form-group color-count-inline">
-                      <label htmlFor="colorCount">Colors: <strong>{state.colorCount}</strong></label>
+                      {/* "Max" because the tracer returns up to this many -- an image
+                          with few distinct hues yields fewer, and that is not a bug. */}
+                      <label htmlFor="colorCount">Max colors: <strong>{state.colorCount}</strong></label>
                       <input
                         id="colorCount"
                         type="range"
