@@ -16,7 +16,7 @@ the game cannot see.
 ## The one invariant
 
 `StartScreen.tsx` globs `public/images/thumbs/*.webp`. There is no manifest and
-Woody does not want one. **The thumbnail is the registration.** A PNG in
+the user does not want one. **The thumbnail is the registration.** A PNG in
 `public/images/` with no thumb is inert -- it ships in `dist/` and bloats the
 build, but never appears in the game.
 
@@ -25,7 +25,7 @@ This is what makes staging safe, and why promotion always writes both files.
 ## Phase 1: Prompts
 
 Ask what to generate if the arguments do not say. Build one prompt per image
-and confirm the whole list with Woody before spending a cent.
+and confirm the whole list with the user before spending a cent.
 
 Naming: `snake_case`, subject first, style qualifier last --
 `autumn_forest_cel`, `athena_stained_glass`, `vw_van`. The filename becomes the
@@ -66,7 +66,7 @@ thing the poller exists to avoid. `fetch()` of a sibling file is also blocked
 under `file://`, so card auto-sync cannot work there either. Serving over HTTP
 fixes both.
 
-Give Woody the URL as soon as the page exists, before the first image lands.
+Give the user the URL as soon as the page exists, before the first image lands.
 
 ### The poller
 
@@ -127,10 +127,10 @@ Polls every 4s and syncs the card list **both ways** against `gallery.html`:
 new cards appear without a reload, cards you removed (promoted, tossed)
 disappear without one, and the on-screen order follows the file's order -- so
 putting two related cards adjacent in the file puts them adjacent on screen. An add-only sync leaves promoted images sitting on
-Woody's screen after they are gone from the file -- that bug shipped once.
+the user's screen after they are gone from the file -- that bug shipped once.
 
 It must **not** stop when `pending` empties. More images get launched
-mid-session, and a stopped poller puts Woody back to refreshing by hand.
+mid-session, and a stopped poller puts the user back to refreshing by hand.
 
 ### Inserting cards
 
@@ -175,9 +175,31 @@ library is stylized that way, so this is not an edge case.
 
 ## Phase 4: Review
 
-Woody reviews the gallery and reports keepers and rejects. Do not screenshot it
-yourself; he looks. Delete a reject only when he says to toss it, then remove
-its card in the same step.
+The user reviews the gallery and reports keepers and rejects. Do not screenshot
+it yourself; they look.
+
+### Nothing gets deleted until the user asks for it by name
+
+**A staged file is deleted only on an explicit instruction to remove, delete or
+toss it.** Not on "that one's wrong", not on "try again", not on "these three
+aren't working". Rejecting an image says it will not be promoted; it says
+nothing about the file, which stays on disk until they ask for it to go.
+
+The specific trap: **"do a second try at X" is not a toss instruction.** It is a
+request for *another* image, alongside the one that already exists. The user keeps
+round one on screen to compare round two against -- deleting it destroys the
+comparison they asked for. This happened: three rejects were deleted to "make
+room" for their re-rolls, and the originals were unrecoverable (`leo` writes
+straight to `-o` and keeps no copies anywhere).
+
+So a re-roll never overwrites and never clears. Generate it under a `_v2` name,
+add its card next to the original's, and leave the original alone. If the v2
+wins, rename the staged file to the clean name at promotion time and remove both
+cards then -- see the rename warning in Phase 5.
+
+Deleting a staged PNG is irreversible and costs real money to redo. When in
+doubt, keep it: disk is free, and the stage dir gets swept at the end of the
+session anyway.
 
 Judge for the game, not for beauty. A doodlebloom image needs **distinct color
 areas with crisp boundaries**, and enough of them -- thin detail that cannot be
@@ -206,8 +228,8 @@ each keeper is.
 
 `promote-stock.sh` *moves* the PNG out of the stage dir. The gallery card still
 points at the old path, so **every promotion leaves a dead link behind unless
-you clear the card.** Promoting without step 2 is not finished work -- Woody has
-had to point this out three times in one session.
+you clear the card.** Promoting without step 2 is not finished work -- the
+user has had to point this out three times in one session.
 
 **Step 1 -- promote:**
 
@@ -220,7 +242,7 @@ the next dev-server reload. With no names it promotes everything in the dir. It
 refuses to overwrite an existing image without `--force`.
 
 **Step 2 -- immediately remove those cards from the gallery, in the same
-response.** Not "later", not "next time Woody looks". Drive it off the promoted
+response.** Not "later", not "next time the user looks". Drive it off the promoted
 names the script just printed, or off this test:
 
 ```python
@@ -250,20 +272,23 @@ at the same time, or remove and re-add it.
 ### The other two outcomes
 
 **Right subject, wrong execution -- refine:** feed the gallery's verdict into a
-revised prompt and generate a fresh round under new names. The staged file is
-reference material for round two, not something to promote later.
+revised prompt and generate a fresh round under `_v2` names. The staged original
+is reference material for round two -- it is not promoted, and it is **not
+deleted**. Both rounds stay on the page until the user picks between them.
 
-**Reject -- toss:** delete the file and remove its card in the same step.
+**Reject -- toss:** only once the user has asked for that image to be removed.
+Then delete the file and remove its card in the same step. Until they ask, a
+rejected image just sits there; see Phase 4.
 
-Do not leave stage dirs lying around. Confirm with Woody before deleting, then
+Do not leave stage dirs lying around. Confirm with the user before deleting, then
 actually delete -- a 23-image batch is ~46MB.
 
 ## Rules
 
 - **Never `cp` a PNG into `public/images/` by hand.** Use
   `promote-stock.sh`, or you get an inert image with no thumb.
-- **Never generate unstaged** unless Woody explicitly wants a one-off straight
+- **Never generate unstaged** unless the user explicitly wants a one-off straight
   into the library (plain `gen-stock.sh <name> "<prompt>"` still does that).
 - **Confirm prompts before generating.** Images cost money.
 - **Do not add a manifest.** The glob is deliberate.
-- **Do not commit** until Woody has tested in-app.
+- **Do not commit** until the user has tested in-app.
