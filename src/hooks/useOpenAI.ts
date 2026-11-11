@@ -35,7 +35,7 @@ export function useOpenAI(): UseOpenAIResult {
 
       const response = await client.images.generate(
         {
-          model: 'gpt-image-2',
+          model: 'gpt-image-2.6-flare',
           prompt: prompt + STYLE_SUFFIX,
           n: 1,
           size,
@@ -49,7 +49,7 @@ export function useOpenAI(): UseOpenAIResult {
       const item = response.data?.[0]
       if (!item) throw new Error('No image returned')
 
-      // gpt-image-2 returns base64; fall back to URL for other models
+      // gpt-image models return base64; fall back to URL for other models
       if (item.b64_json) {
         const binary = atob(item.b64_json)
         const bytes = new Uint8Array(binary.length)
