@@ -16,6 +16,7 @@
  *     marie_antoinette_petit_trianon). searchSynonyms.test.ts fails on any id
  *     that no longer has a thumbnail, so these cannot rot silently.
  *   - include: another category matches.
+ * `requires` narrows: every listed category must match as well.
  *
  * The query selects a category when it is a prefix (3+ letters) of one of the
  * category's names, whole or term by term. Otherwise multi-word queries AND
@@ -30,6 +31,8 @@ export interface SearchCategory {
   years?: [number, number]
   files?: string[]
   include?: string[]
+  /** Every one of these categories must also match (an intersection). */
+  requires?: string[]
 }
 
 export const SEARCH_CATEGORIES: Record<string, SearchCategory> = {
@@ -256,7 +259,7 @@ export const SEARCH_CATEGORIES: Record<string, SearchCategory> = {
   // ---- clothes ----------------------------------------------------------
   fashion: {
     label: 'Fashion',
-    names: ['fashion', 'clothes', 'clothing', 'dress', 'dresses', 'gown', 'gowns', 'costume', 'costumes', 'outfit', 'style'],
+    names: ['fashion', 'clothes', 'clothing', 'dress', 'dresses', 'costume', 'costumes', 'outfit', 'style'],
     words: ['dress', 'gown', 'bonnet', 'bonnets', 'dandy', 'lady', 'gentleman', 'kimono', 'furisode', 'junihitoe',
       'hanbok', 'sari', 'lehenga', 'dirndl', 'vyshyvanka', 'hmong', 'huipil', 'gakti', 'aso oke', 'qipao', 'deel',
       'lowicz', 'china poblana', 'maasai', 'sarafan', 'kaftan', 'ao dai', 'pau rider', 'houppelande', 'gamurra',
@@ -271,6 +274,14 @@ export const SEARCH_CATEGORIES: Record<string, SearchCategory> = {
       'buffalo soldier', 'boston rower', 'mozart child', 'darcy', 'pemberley', 'pride prejudice', 'suffrage',
       'mardi gras masquerade', 'venice carnival'],
     include: ['worlddress'],
+  },
+  // "dress" can mean clothing in general (period dress, traditional dress);
+  // "gown" only ever means the garment, so it narrows to the women in fashion.
+  gowns: {
+    label: 'Gowns',
+    names: ['gown', 'gowns'],
+    include: ['fashion'],
+    requires: ['women'],
   },
   worlddress: {
     label: 'Traditional dress',
@@ -659,6 +670,7 @@ function categoryMatches(key: string, haystack: string, fileId: string | null, s
   seen.add(key)
   const cat = SEARCH_CATEGORIES[key]
   if (!cat) return false
+  if (cat.requires && !cat.requires.every(k => categoryMatches(k, haystack, fileId, new Set()))) return false
   if (fileId && cat.files?.includes(fileId)) return true
   if (cat.words?.some(w => haystack.includes(' ' + w + ' '))) return true
   if (cat.years) {

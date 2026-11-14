@@ -107,3 +107,12 @@ describe('autocomplete', () => {
     expect(suggestCategories('Victorian')).not.toContain('victorian')
   })
 })
+
+describe('gowns', () => {
+  it('"gown" finds women\'s clothes, not men\'s', () => {
+    const g = search('gown')
+    expect(g).toContain('rococo_robe_a_la_francaise_1760s')
+    expect(g).not.toContain('elizabethan_gentleman_1590s')
+    expect(search('dress')).toContain('elizabethan_gentleman_1590s')
+  })
+})
