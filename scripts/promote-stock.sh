@@ -16,6 +16,9 @@
 
 set -euo pipefail
 
+# ImageMagick 7 deprecates `convert`; fall back to it only where IM6 is all there is.
+IMAGEMAGICK=$(command -v magick || command -v convert)
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$SCRIPT_DIR/.."
 
@@ -64,7 +67,7 @@ for name in "${NAMES[@]}"; do
   fi
 
   mv "$src" "$dst"
-  convert "$dst" -resize 300x450^ -gravity center -extent 300x450 -quality 82 "$thumb"
+  "$IMAGEMAGICK" "$dst" -resize 300x450^ -gravity center -extent 300x450 -quality 82 "$thumb"
   echo "promoted $name"
   promoted=$((promoted + 1))
 done

@@ -20,7 +20,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$SCRIPT_DIR/.."
 GEN="$SCRIPT_DIR/gen-stock.sh"
-JOBS_FILE="$ROOT/tmp/gen-jobs.sh"
+JOBS_FILE="${JOBS_FILE:-$ROOT/tmp/gen-jobs.sh}"
 
 if [[ ! -f "$JOBS_FILE" ]]; then
   echo "No jobs file at $JOBS_FILE"
@@ -53,7 +53,7 @@ for job in "${JOBS[@]}"; do
   name="${job%%|*}"
   prompt="${job#*|}"
   echo "Starting: $name"
-  "$GEN" "${BATCH_FLAGS[@]}" "${job_flags[@]}" "$name" "$prompt" &
+  "$GEN" ${BATCH_FLAGS[@]+"${BATCH_FLAGS[@]}"} ${job_flags[@]+"${job_flags[@]}"} "$name" "$prompt" &
   pids+=($!)
 done
 

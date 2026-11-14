@@ -23,6 +23,9 @@
 
 set -euo pipefail
 
+# ImageMagick 7 deprecates `convert`; fall back to it only where IM6 is all there is.
+IMAGEMAGICK=$(command -v magick || command -v convert)
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$SCRIPT_DIR/.."
 LEO="$HOME/src/leo/cli.py"
@@ -81,6 +84,6 @@ echo "  $OUT_PNG"
 
 if [[ -n "$OUT_THUMB" ]]; then
   echo "Creating thumbnail..."
-  convert "$OUT_PNG" -resize 300x450^ -gravity center -extent 300x450 -quality 82 "$OUT_THUMB"
+  "$IMAGEMAGICK" "$OUT_PNG" -resize 300x450^ -gravity center -extent 300x450 -quality 82 "$OUT_THUMB"
   echo "  $OUT_THUMB"
 fi
