@@ -22,6 +22,17 @@ build, but never appears in the game.
 
 This is what makes staging safe, and why promotion always writes both files.
 
+### Search synonyms are not a manifest
+
+`src/game/searchSynonyms.ts` teaches the search box words a filename does not
+contain ("shakespeare" finds `hamlet_yorick_graveyard`, "victorian" finds
+`harvey_girl_1890s` by its year, "art deco" finds `orient_express_1930s`). It
+never lists what exists -- the glob still does that. Categories match by
+**words** in the label, **years** in the name, and a short list of exact
+**files** for what only the generating session knew (a style the name lacks, an
+era, a region). Tests fail on any listed file that has no thumbnail. Every
+promotion has to keep this current -- see Phase 5, step 3.
+
 ## Phase 1: Prompts
 
 Ask what to generate if the arguments do not say. Build one prompt per image
@@ -36,6 +47,40 @@ user-visible. Make it read well.
 matched a filter list and broke the strip; it was renamed `sea_jellyfish`
 (commit `c0e3a6f`). Steer clear of ad-adjacent words -- `banner`, `sponsor`,
 `popup`, `ad`, and animal names that collide with ad-tech products.
+
+**Name for search, too.** Put the words people will type into the name: the work
+(`hamlet_`, `nutcracker_`), the subject, and the decade or year for anything
+period (`_1890s`, `_1776`, `_49bc`) -- years feed the era categories for free. A
+name the synonym map already understands needs no edit in step 3.
+
+### Content rules (all learned the hard way)
+
+- **No insects or spiders, anywhere.** The user's wife hates bugs; images with
+  them were tossed, and so were fables about them. End every prompt with
+  "No text, lettering or words anywhere in the image. No insects, no spiders."
+  (no-text because War of the Worlds came back with a printed title).
+- **Style must fit the subject's era and culture.** Art Deco only for the
+  1920s-30s, Art Nouveau around 1900, ukiyo-e for Japan, Palekh lacquer for
+  Russia, rosemaling for Scandinavia, wycinanki for Poland, Tingatinga for East
+  Africa, Pre-Raphaelite for Arthurian and Victorian-literary subjects. Clashes
+  seen: a Tempest storm as ukiyo-e, Macbeth's witches as a church window.
+  Cel-shaded (the default) fits anything; use it about three quarters of the
+  time.
+- **Retired styles: Persian miniature and Greek red-figure pottery.** Miniatures
+  come back too intricate to color; pottery has too little color. Madhubani also
+  ran too intricate on a busy scene. Do not use them.
+- **Avoid film-famous names and looks.** The safety filter rejects prompts
+  naming Disney-associated characters (Snow White, Cinderella, Rapunzel, Maui,
+  Alice, Kaa). Describe the scene from the original text without the name. And
+  spell out what the film made default: a genie came back blue-skinned and
+  rubbery, a warthog came back as Pumbaa, a Cheshire Cat came back pink and
+  purple. Say "naturalistic", give skin color and anatomy, cite the original
+  illustrator (Tenniel, Crane) when there is one.
+- **Two safety rejections and it's dropped.** Retry once with names and the
+  likely trigger removed (nudes in the Sistine ceiling and at Peterhof, a
+  little girl at a tea party). If it fails again, tell the user and abandon it.
+- **Funny and cute land well.** Chibi versions, an animal cast, a vegetable
+  cast were the session favorites -- offer them.
 
 ## Phase 2: Scaffold the gallery FIRST
 
@@ -154,7 +199,9 @@ scripts/gen-stock.sh --stage tmp/<batch-name> <name> "<prompt>"
 until it has been reviewed.
 
 For a batch, write `tmp/gen-jobs.sh` with a `JOBS` array of `name|prompt`
-entries and run `scripts/gen-batch.sh`, which fans out in parallel.
+entries and run `scripts/gen-batch.sh`, which fans out in parallel. To run
+several batches at once, give each its own jobs file:
+`JOBS_FILE=tmp/jobs-<batch>.sh scripts/gen-batch.sh --stage tmp/<batch>`.
 
 **Style:** `gen-stock.sh` appends the suffix from `prompts/style-suffix.txt`
 (single source of truth, shared with `src/hooks/useOpenAI.ts` -- never copy its
@@ -255,6 +302,31 @@ h = re.sub(r'<div class="card"><img src="[^"]+">.*?</div></div>\n', drop, h, fla
 
 Then print the before/after card count so the removal is visible and verified.
 
+**Step 3 -- make them findable, in the same response:**
+
+```bash
+node scripts/search-tags.ts <name> <name> ...
+```
+
+prints the search categories each promoted image falls under. Check each
+against what you know about it: its work or story, subject, era, region, the
+people in it (women, men), and its style if the name lacks the suffix. Then
+fix gaps in `src/game/searchSynonyms.ts`:
+
+- **Prefer a word** to a category's `words` -- it also covers every future
+  image whose name uses it (`nutcracker` once covers every Nutcracker scene).
+  Words match whole words of the label, so `cat` does not match `catrina`.
+- **Use `files`** only for what no word can carry: a style the name lacks, an
+  era or region known only from the prompt, a person not named in the name.
+- **New theme?** Add a category with `names` (what people type; 3+ letter
+  prefixes select it), `words`, and `include` for sub-categories.
+- Watch for over-reach: a word that drags in the wrong images (people once
+  included all of history, so "woman" found the moon landing).
+
+Then `npx vitest run src/game/searchSynonyms.test.ts` -- it fails on any listed
+file without a thumbnail and on any category that finds nothing.
+`node scripts/search-tags.ts --untagged` lists images in no category at all.
+
 ### The one predicate that must never be used
 
 The test for removing a card is **"is this image now in `public/images/`"**
@@ -290,5 +362,8 @@ actually delete -- a 23-image batch is ~46MB.
 - **Never generate unstaged** unless the user explicitly wants a one-off straight
   into the library (plain `gen-stock.sh <name> "<prompt>"` still does that).
 - **Confirm prompts before generating.** Images cost money.
-- **Do not add a manifest.** The glob is deliberate.
+- **Do not add a manifest.** The glob is deliberate. `searchSynonyms.ts` is
+  search vocabulary, not a list of images; never make the game depend on it to
+  show an image.
+- **Promotion is not done until search is.** Step 3 runs with every promotion.
 - **Do not commit** until the user has tested in-app.

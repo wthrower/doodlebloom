@@ -39,6 +39,13 @@ look (stained glass, art deco, mosaic, folk art).
 PNG without a thumb is invisible to the game but still bloats `dist/`. Always
 promote with `promote-stock.sh`, never a bare `cp`.
 
+**Search synonyms.** `src/game/searchSynonyms.ts` maps what people type
+("shakespeare", "victorian", "art deco", "woman") to words, years and a few
+exact filenames, so the search box finds images whose names don't contain the
+query. It is vocabulary, not a manifest -- the glob still decides what exists.
+Every promotion checks new images with `node scripts/search-tags.ts <names>`
+and fills gaps; the skill's Phase 5 step 3 has the rules.
+
 Avoid filenames that ad blockers filter -- `jellyfish` matched a filter list and
 broke the strip (commit `c0e3a6f`, renamed `sea_jellyfish`).
 

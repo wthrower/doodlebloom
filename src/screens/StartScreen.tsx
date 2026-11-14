@@ -5,6 +5,7 @@ import type { GalleryEntry, CompletedMap } from '../game/storage'
 import { loadHideCompleted, saveHideCompleted, loadPuzzleSize } from '../game/storage'
 import { SIZE_PRESETS, type GridConfig } from '../game/grid'
 import { prettyImageLabel } from '../game/stockImages'
+import { makeSearchMatcher, suggestCategories, categoryLabel, countInCategory } from '../game/searchSynonyms'
 import { Check, Filter, Search, Trash2, User } from 'lucide-react'
 import { DoodlebloomLogo } from '../components/DoodlebloomLogo'
 import { ScrollChevrons } from '../components/ScrollChevrons'
@@ -25,6 +26,15 @@ const STOCK_IMAGES = thumbPaths.map(path => {
   const file = path.replace('/public/images/thumbs/', '').replace('.webp', '')
   return { file, label: prettyImageLabel(file), thumbUrl: `${BASE}images/thumbs/${file}.webp` }
 }).sort((a, b) => a.label.localeCompare(b.label))
+const STOCK_IDS = STOCK_IMAGES.map(s => s.file)
+// Pill counts, computed on first use per category (a full pass over every
+// category at load would cost a visible hitch).
+const categoryCounts = new Map<string, number>()
+function categoryCount(key: string): number {
+  let n = categoryCounts.get(key)
+  if (n === undefined) { n = countInCategory(key, STOCK_IDS); categoryCounts.set(key, n) }
+  return n
+}
 
 interface Props {
   state: GameState
@@ -96,11 +106,19 @@ export function StartScreen({ state, actions, isGenerating, previewUrl, selected
       filtered = filtered.filter(t => !(completedImages[imageId(t)]?.includes(selectedMode)))
     }
     if (imageSearch) {
-      const q = imageSearch.toLowerCase()
-      filtered = filtered.filter(t => sortKey(t).toLowerCase().includes(q))
+      // Synonyms widen the search past the label ("shakespeare" finds
+      // hamlet_yorick_graveyard); see searchSynonyms.ts.
+      const matches = makeSearchMatcher(imageSearch)
+      filtered = filtered.filter(t => matches(sortKey(t), t.kind === 'stock' ? t.file : null))
     }
     return filtered
   }, [imageSearch, galleryEntries, galleryThumbs, hideCompleted, completedImages, selectedMode, brokenThumbs])
+
+  // Autocomplete pills: categories the search understands, with how many
+  // stock images each holds. Tapping one fills it into the search box.
+  const suggestions = useMemo(
+    () => suggestCategories(imageSearch).map(k => ({ key: k, label: categoryLabel(k), count: categoryCount(k) })).filter(s => s.count > 0),
+    [imageSearch])
 
   const onStripMouseDown = (e: React.MouseEvent) => {
     const el = stripRef.current
@@ -153,6 +171,20 @@ const onStripClick = (e: React.MouseEvent, cb: () => void) => {
                 <Filter size={14} />
               </button>
             </div>
+            {suggestions.length > 0 && (
+              <div className="search-suggestions">
+                {suggestions.map(sg => (
+                  <button
+                    key={sg.key}
+                    type="button"
+                    className="search-suggestion"
+                    onClick={() => { setImageSearch(sg.label); searchRef.current?.focus() }}
+                  >
+                    {sg.label}<span className="search-suggestion-count">{sg.count}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="scroll-chevron-wrap">
               <ScrollChevrons scrollRef={stripRef} />
               <div
