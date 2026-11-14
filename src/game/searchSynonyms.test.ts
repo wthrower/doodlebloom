@@ -113,6 +113,14 @@ describe('gowns', () => {
     const g = search('gown')
     expect(g).toContain('rococo_robe_a_la_francaise_1760s')
     expect(g).not.toContain('elizabethan_gentleman_1590s')
-    expect(search('dress')).toContain('elizabethan_gentleman_1590s')
+    expect(search('dress')).not.toContain('elizabethan_gentleman_1590s')
+    expect(search('clothes')).toContain('elizabethan_gentleman_1590s')
+  })
+})
+
+describe('dresses', () => {
+  it('"dresses" is the garment, like "gown"', () => {
+    expect(search('dresses')).not.toContain('elizabethan_gentleman_1590s')
+    expect(search('dresses')).toContain('flapper_1925')
   })
 })

@@ -55,10 +55,14 @@ name the synonym map already understands needs no edit in step 3.
 
 ### Content rules (all learned the hard way)
 
-- **No insects or spiders, anywhere.** The user's wife hates bugs; images with
-  them were tossed, and so were fables about them. End every prompt with
-  "No text, lettering or words anywhere in the image. No insects, no spiders."
-  (no-text because War of the Worlds came back with a printed title).
+- **Don't propose ideas built on crawling bugs.** The user's wife hates
+  grasshoppers, crickets, katydids, ants, spiders, beetles, roaches, praying
+  mantises and the like; fables and tales built on them were tossed (ant and
+  grasshopper, grasshopper and owl, Thumbelina's beetle). **Butterflies and bees
+  are fine.** This is a guideline for choosing subjects, not a prompt phrase --
+  do not add "no insects" to prompts, which may only prime them.
+- **End every prompt with** "No text, lettering or words anywhere in the
+  image." (War of the Worlds came back with a printed title.)
 - **Style must fit the subject's era and culture.** Art Deco only for the
   1920s-30s, Art Nouveau around 1900, ukiyo-e for Japan, Palekh lacquer for
   Russia, rosemaling for Scandinavia, wycinanki for Poland, Tingatinga for East

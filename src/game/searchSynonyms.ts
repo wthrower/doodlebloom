@@ -40,7 +40,7 @@ export const SEARCH_CATEGORIES: Record<string, SearchCategory> = {
   shakespeare: {
     label: 'Shakespeare',
     names: ['shakespeare', 'bard'],
-    words: ['shakespeare', 'hamlet', 'yorick', 'ophelia', 'macbeth', 'birnam', 'romeo', 'juliet', 'capulet',
+    words: ['queen mab', 'shakespeare', 'hamlet', 'yorick', 'ophelia', 'macbeth', 'birnam', 'romeo', 'juliet', 'capulet',
       'titania', 'oberon', 'puck', 'tempest', 'prospero', 'viola illyria', 'malvolio', 'lear', 'falstaff',
       'rosalind', 'beatrice arbor', 'agincourt', 'winters tale', 'othello', 'bosworth', 'merchant venice',
       'julius caesar'],
@@ -121,13 +121,13 @@ export const SEARCH_CATEGORIES: Record<string, SearchCategory> = {
   norse: {
     label: 'Norse',
     names: ['norse', 'viking', 'vikings', 'scandinavian'],
-    words: ['odin', 'thor', 'loki', 'freya', 'heimdall', 'valkyrie', 'valkyries', 'fenrir', 'jormungandr', 'sleipnir',
+    words: ['huldra', 'nisse', 'odin', 'thor', 'loki', 'freya', 'heimdall', 'valkyrie', 'valkyries', 'fenrir', 'jormungandr', 'sleipnir',
       'yggdrasil', 'ragnarok', 'norns', 'viking', 'vikings', 'up helly aa'],
   },
   celtic: {
     label: 'Celtic',
     names: ['celtic', 'irish', 'ireland', 'scottish', 'scotland'],
-    words: ['brigid', 'cernunnos', 'dagda', 'lugh', 'manannan', 'morrigan', 'banshee', 'dullahan', 'puca', 'fomorian',
+    words: ['tam lin', 'rhymer', 'oisin', 'tir na nog', 'kelpie', 'leprechaun', 'brownie', 'changeling', 'brigid', 'cernunnos', 'dagda', 'lugh', 'manannan', 'morrigan', 'banshee', 'dullahan', 'puca', 'fomorian',
       'tuatha', 'green man', 'salmon of knowledge', 'selkie', 'children of lir', 'shamrock', 'celtic', 'st patricks',
       'scottish', 'highland'],
     files: ['up_helly_aa_shetland', 'trinity_college_long_room', 'flying_scotsman_1930s'],
@@ -139,12 +139,20 @@ export const SEARCH_CATEGORIES: Record<string, SearchCategory> = {
       'ganesh', 'churning', 'hero twins', 'amaterasu', 'sedna', 'pele', 'quetzalcoatl', 'gilgamesh', 'thunderbird',
       'kitsune', 'kappa', 'tengu', 'oni', 'simurgh', 'roc', 'ghul', 'ifrit', 'djinn', 'griffin', 'phoenix', 'unicorn',
       'pegasus', 'kraken', 'leviathan', 'sea serpent', 'basilisk', 'balrog', 'popocatepetl'],
-    include: ['greek', 'norse', 'celtic'],
+    include: ['greek', 'norse', 'celtic', 'fae'],
+  },
+  fae: {
+    label: 'Fae & fairies',
+    names: ['fae', 'faerie', 'faeries', 'fairy', 'fairies', 'elf', 'elves', 'elfland', 'wee folk', 'fair folk'],
+    words: ['fairy', 'fae', 'tam lin', 'rhymer', 'elfland', 'oisin', 'tir na nog', 'fairy rade', 'changeling', 'kelpie',
+      'leprechaun', 'brownie', 'queen mab', 'erlking', 'huldra', 'nisse', 'banshee', 'dullahan', 'puca', 'selkie',
+      'will o wisp', 'tuatha', 'titania', 'oberon', 'puck', 'elves', 'gnome', 'mushroom houses', 'mushroom village',
+      'mushroom hut'],
   },
   fantasy: {
     label: 'Fantasy',
     names: ['fantasy', 'magic', 'magical', 'creature', 'creatures', 'monster', 'monsters'],
-    words: ['dragon', 'fairy', 'wizard', 'witch', 'mermaid', 'merman', 'unicorn', 'griffin', 'phoenix', 'pegasus',
+    words: ['kelpie', 'erlking', 'changeling', 'dragon', 'fairy', 'wizard', 'witch', 'mermaid', 'merman', 'unicorn', 'griffin', 'phoenix', 'pegasus',
       'hippogriff', 'kraken', 'gnome', 'mushroom houses', 'mushroom village', 'mushroom hut', 'will o wisp', 'genie',
       'djinn', 'marid', 'golem', 'sentient tree', 'baby dragon', 'alebrije', 'steampunk'],
   },
@@ -259,7 +267,7 @@ export const SEARCH_CATEGORIES: Record<string, SearchCategory> = {
   // ---- clothes ----------------------------------------------------------
   fashion: {
     label: 'Fashion',
-    names: ['fashion', 'clothes', 'clothing', 'dress', 'dresses', 'costume', 'costumes', 'outfit', 'style'],
+    names: ['fashion', 'clothes', 'clothing', 'costume', 'costumes', 'outfit', 'style'],
     words: ['dress', 'gown', 'bonnet', 'bonnets', 'dandy', 'lady', 'gentleman', 'kimono', 'furisode', 'junihitoe',
       'hanbok', 'sari', 'lehenga', 'dirndl', 'vyshyvanka', 'hmong', 'huipil', 'gakti', 'aso oke', 'qipao', 'deel',
       'lowicz', 'china poblana', 'maasai', 'sarafan', 'kaftan', 'ao dai', 'pau rider', 'houppelande', 'gamurra',
@@ -275,11 +283,11 @@ export const SEARCH_CATEGORIES: Record<string, SearchCategory> = {
       'mardi gras masquerade', 'venice carnival'],
     include: ['worlddress'],
   },
-  // "dress" can mean clothing in general (period dress, traditional dress);
-  // "gown" only ever means the garment, so it narrows to the women in fashion.
+  // Typed into a search box, "dress" and "gown" mean the garment, so they
+  // narrow to the women in fashion. "fashion" and "clothes" stay general.
   gowns: {
     label: 'Gowns',
-    names: ['gown', 'gowns'],
+    names: ['gown', 'gowns', 'dress', 'dresses'],
     include: ['fashion'],
     requires: ['women'],
   },
@@ -441,7 +449,7 @@ export const SEARCH_CATEGORIES: Record<string, SearchCategory> = {
   christmas: {
     label: 'Christmas',
     names: ['christmas', 'xmas', 'yule', 'santa'],
-    words: ['christmas', 'santas', 'nutcracker', 'night before christmas', 'gingerbread', 'snow globe', 'fezziwig',
+    words: ['nisse', 'christmas', 'santas', 'nutcracker', 'night before christmas', 'gingerbread', 'snow globe', 'fezziwig',
       'marleys', 'green knight yule'],
   },
   halloween: {
@@ -517,7 +525,7 @@ export const SEARCH_CATEGORIES: Record<string, SearchCategory> = {
   women: {
     label: 'Women',
     names: ['woman', 'women', 'lady', 'ladies', 'girl', 'girls', 'female', 'heroine', 'heroines'],
-    words: ['woman', 'women', 'lady', 'ladies', 'girl', 'girls', 'queen', 'princess', 'princesses', 'empress', 'sultana',
+    words: ['tam lin', 'huldra', 'oisin niamh', 'rhymer elfland', 'woman', 'women', 'lady', 'ladies', 'girl', 'girls', 'queen', 'princess', 'princesses', 'empress', 'sultana',
       'mermaid', 'mermaids', 'witch', 'witchs', 'witches', 'sister', 'sisters', 'wife', 'wives', 'maid', 'milkmaid',
       'barmaid', 'goddess', 'bride', 'ballerina', 'sorceress', 'flapper', 'geisha', 'catrina', 'fairy',
       'harriet tubman', 'joan of arc', 'elizabeth i', 'marie antoinette', 'florence nightingale', 'marie curie',
@@ -548,7 +556,7 @@ export const SEARCH_CATEGORIES: Record<string, SearchCategory> = {
   men: {
     label: 'Men',
     names: ['man', 'men', 'boy', 'boys', 'gentleman', 'gentlemen', 'male', 'hero', 'heroes'],
-    words: ['man', 'men', 'boy', 'boys', 'king', 'prince', 'gentleman', 'dandy', 'knight', 'knights', 'wizard', 'merman',
+    words: ['tam lin', 'rhymer', 'oisin', 'erlking', 'leprechaun', 'brownie', 'nisse', 'changeling', 'man', 'men', 'boy', 'boys', 'king', 'prince', 'gentleman', 'dandy', 'knight', 'knights', 'wizard', 'merman',
       'cowboy', 'fisherman', 'captain', 'farmer', 'soldier', 'samurai', 'sultan', 'emperor', 'barkeep', 'blacksmith',
       'glassblower', 'luthier', 'matador', 'minstrel', 'flute player', 'cooper', 'wheelwright', 'clockmaker',
       'bookbinder', 'hatter', 'tailor', 'silversmith', 'illuminator', 'perfumer', 'basket weaver', 'jacquard weaver',
@@ -637,7 +645,8 @@ export const SEARCH_CATEGORIES: Record<string, SearchCategory> = {
       'danse_macabre_graveyard', 'headless_horseman_sleepy_hollow', 'spinoza_lens_grinding', 'newton_prism_spectrum',
       'humboldt_chimborazo', 'thanksgiving_cornucopia', 'clipper_ship_racing', 'ancient_mariner_albatross',
       'arthur_barge_avalon', 'ophelia_flowers_brook', 'lady_of_the_lake_excalibur', 'lady_of_shalott_boat',
-      'goblin_market'],
+      'goblin_market', 'erlking_storm_ride', 'thomas_rhymer_elfland_queen', 'fairy_rade_moonlit_wood',
+      'queen_mab_hazelnut_chariot'],
   },
   folkart: {
     label: 'Folk art',
